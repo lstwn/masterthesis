@@ -1,0 +1,15 @@
+local_backup/
+
+# mac os
+.DS_Store
+
+# latex build outputs
+*.aux
+*.log
+*.synctex.gz
+*.run.xml
+*.bbl
+*.blg
+*.bcf
+*.pdf
+*.out

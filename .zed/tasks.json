@@ -1,0 +1,53 @@
+// Static tasks configuration.
+[
+  {
+    "label": "Latex Forward Search",
+    "command": "utils/latex_build.sh",
+    "args": ["forward_search", "$ZED_DIRNAME/$ZED_STEM", "$ZED_ROW"],
+    "allow_concurrent_runs": true,
+    "reveal": "never",
+    "hide": "on_success",
+    "shell": {
+      "with_arguments": {
+        "program": "/bin/bash",
+        "args": ["-c"]
+      }
+    }
+  },
+  {
+    "label": "Latex Build",
+    "command": "utils/latex_build.sh",
+    "args": ["build", "$ZED_DIRNAME/$ZED_STEM", "$ZED_ROW"],
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "hide": "on_success",
+    "shell": {
+      "with_arguments": {
+        "program": "/bin/bash",
+        "args": ["-c"]
+      }
+    }
+  },
+  {
+    "label": "Latex Build and Forward Search",
+    "command": "utils/latex_build.sh",
+    "args": ["build_and_forward_search", "$ZED_DIRNAME/$ZED_STEM", "$ZED_ROW"],
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "hide": "on_success"
+  },
+  {
+    "label": "Latex Clean",
+    "command": "utils/latex_build.sh",
+    "args": ["clean", "$ZED_DIRNAME/$ZED_STEM", "$ZED_ROW"],
+    "allow_concurrent_runs": false,
+    "reveal": "never",
+    "hide": "on_success",
+    "shell": {
+      "with_arguments": {
+        "program": "/bin/bash",
+        "args": ["-c"]
+      }
+    }
+  }
+]

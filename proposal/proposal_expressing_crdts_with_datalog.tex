@@ -470,12 +470,82 @@ binary operations, and in abstracting over these two concrete instances
 of binary operations lies the potential to expand Datalog's expressiveness
 towards new horizons~\cite{abo2024convergence}.
 
-%% TODOs
-% - that graphic
+\begin{figure*}
+	\centering
 
-\subsection*{Write Path}
+	\newcommand{\deltaI}[1]{\(\delta I_{\text{#1}}\)}
+	\newcommand{\deltaO}[1][]{\(\delta O_{\text{#1}}\)}
+	\newcommand{\replica}{
+		\begin{tikzpicture}
+			\tikzset{
+			layer/.style={
+					rectangle, draw, minimum height=1.5cm, minimum width=2.3cm,
+					rounded corners=1mm,
+					font=\footnotesize, align=center,
+				},
+			rel/.style={
+			->, >={Stealth[round]}, },
+			}
+			\node[layer] (app) {\textbf{Application}\\ \textbf{Layer}};
+			\node[layer,right=of app] (db) {
+				\textbf{Database Layer}\\
+				Maintains Datalog\\
+				Queries \(\delta I \to \delta O\)
+			};
+			\node[layer,above=2.0cm of app] (user) {\textbf{User}};
 
-\subsection*{Read Path}
+			\draw[rel] (user) to["issues \deltaI{local}", bend left, near start] (app);
+			\draw[rel] (app) to["sees \deltaO", bend left,auto=right] (user);
+
+			\draw[rel] (app) to["forwards \deltaI{local} and \deltaI{remote}", bend right=45, auto=right] (db);
+			\draw[rel] (db) to["provides \deltaO", bend right=45, auto=right,near start] (app);
+		\end{tikzpicture}
+	}
+
+	\begin{tikzpicture}
+		\tikzset{
+		replica/.style={rectangle, draw, rounded corners=1mm,fill=white},
+		local-replica/.style={replica},
+		remote-replica/.style={replica,scale=0.66},
+		label/.style={font=\bfseries},
+		rel/.style={
+		->, >={Stealth[round]},bend left,},
+		}
+
+		\node[local-replica] (local) {\replica};
+		\node[label] (local-label) [above=0pt of local] {Local Replica};
+
+		\node[remote-replica] (remote3) [right=of local,yshift=+15pt,xshift=+15pt] {\replica};
+		\node[remote-replica] (remote2) [right=of local,yshift=+10pt,xshift=+10pt] {\replica};
+		\node[remote-replica] (remote1) [right=of local,yshift=+5pt,xshift=+5pt] {\replica};
+		\node[remote-replica] (remote0) [right=of local] {\replica};
+		\node[label] (remote-label) [above=0pt of remote3] {Remote Replicas};
+
+		\begin{scope}[on background layer]
+			\draw[rel] (local.north east) to[] (remote0.north west);
+			\draw[rel] (local.north east) to[] (remote1.north west);
+			\draw[rel] (local.north east) to[] (remote2.north west);
+			\draw[rel] (local.north east) to["distributes \deltaI{local}"] (remote3.north west);
+
+			\draw[rel] (remote0.south west) to[] (local.south east);
+			\draw[rel] (remote1.south west) to[] (local.south east);
+			\draw[rel] (remote2.south west) to[] (local.south east);
+			\draw[rel] (remote3.south west) to["receives \deltaI{remote}"] (local.south east);
+		\end{scope}
+
+	\end{tikzpicture}
+
+	\caption{
+		An overview of the system architecture from the perspective of a local
+		replica.
+		\deltaI{local} and \deltaI{remote} refer to the input deltas to
+		the EDBs from the local and remote replicas, respectively,
+		and are distributed and forwarded by the application layer without
+		any further processing.
+		\deltaO{} is the output delta of all Datalog queries and is based on
+		the current state of the EDBs on the respective replica.
+	}\label{fig:system-overview}
+\end{figure*}
 
 \section{Contributions}
 \label{sec:problem_stmnt}

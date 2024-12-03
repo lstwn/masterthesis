@@ -16,7 +16,8 @@
 \addbibresource{references.bib}
 \usepackage{hyperref}
 \hypersetup{hidelinks}
-% fix capitalization of subsection
+% fix capitalization of section, subsection
+\addto\extrasenglish{\def\sectionautorefname{Section}}
 \addto\extrasenglish{\def\subsectionautorefname{Subsection}}
 
 \usepackage{tikz}
@@ -25,14 +26,15 @@
   positioning,
   arrows, arrows.meta,
   calc, backgrounds, quotes,
-  patterns
+  patterns, fit
 }
 \tikzset{
   op/.style={
     font=\footnotesize,
     state,
-    minimum size=42.5pt,
+    minimum size=56.0pt,
     fill=white,
+    scale=0.9,
   },
   head/.style={
     op,
@@ -74,6 +76,8 @@
 \newcommand{\code}[1]{\texttt{#1}}
 \newcommand{\setop}[5][set]{$\mathit{#1}_{#2}^{#3}(#4, #5)$}
 \newcommand{\var}[1]{\mathit{#1}}
+\newcommand{\deltaI}[1]{\(\delta I_{\text{#1}}\)}
+\newcommand{\deltaO}[1][]{\(\delta O_{\text{#1}}\)}
 
 \begin{document}
 
@@ -101,8 +105,8 @@ with than lower-level, in-memory, object-oriented data structures.
 
 Convergent Replicated Data Types (CRDTs)\footnote{
 	Although CRDTs are often referred to as \emph{Conflict-free} Replicated
-	Data Types, we use the term \emph{convergent} here because the former is a
-	bit misleading as conflicts can still occur
+	Data Types, we use the term \emph{convergent} here because the former term
+	is a bit misleading as conflicts can still occur
 	(see \autoref{sec:motivating_example}).
 	We think CRDTs are better characterized by their property that diverging
 	replicas eventually \emph{converge} to the same state,
@@ -113,7 +117,7 @@ message-passing (packet-switched) networks on the data structure level.
 In these coordination-free environments, in which replicas can be offline
 for extended periods of time but are still permitted to write (and read)
 to (from) their local state,
-the (naive) delivery of messages allows messages to be arbitrarily delayed,
+the naive delivery of messages allows messages to be arbitrarily delayed,
 to be reordered, and the same message may be delivered multiple times.
 CRDTs account for these challenges by augmenting messages (hereafter updates
 to the CRDT) with additional metadata (1) to preserve the user's intention
@@ -134,7 +138,8 @@ systems~\cite{kleppmann2022assessing, gomes2017verifying}.
 Hence, we want to explore a system based on queries over relational data
 which trivially fulfills the convergence property of CRDTs.
 This allows application developers without a background in eventual
-consistency to formulate their own, application-specific CRDTs.
+consistency to formulate their own, application-specific CRDTs without
+having to worry about convergence.
 
 \section{A Primer on Datalog}
 \label{sec:primer_datalog}
@@ -220,7 +225,7 @@ which then form \emph{intensional database predicates} (IDB).
 \label{sec:motivating_example}
 
 We consider the multi-valued register (MVR), which is a generalization of
-the last-writer-wins (LWW) register, which, unlike the latter,
+the last-writer-wins register (LWWR), which, unlike the latter,
 exposes conflicting values to the application
 as a consequence of concurrent writes to the register.
 Therefore, a concurrency detection mechanism is required.
@@ -274,7 +279,7 @@ We assume that they are in the state depicted in \autoref{tab:fact_tables}.
 	\centering
 	\begin{tikzpicture}[node distance=50pt]
 		\small
-		\def\dist{22pt}
+		\def\dist{15pt}
 
 		% nodes and edges
 		\node[op] (k10) {\setop{1}{n_1}{k_1}{x}};
@@ -299,11 +304,11 @@ We assume that they are in the state depicted in \autoref{tab:fact_tables}.
 		The state from \autoref{tab:fact_tables} illustrated.
 		The graph on the left depicts the operation history of the register with key \(k_1\)
 		and the graph on the right of the register associated with key \(k_2\).
-	}\label{fig:register-ops}
+	}\label{fig:register_ops}
 \end{figure*}
 
 The causal history between the operations is illustrated on a logical level
-in the graphs of \autoref{fig:register-ops}.
+in the graphs of \autoref{fig:register_ops}.
 The edges denote the \code{pred} EDB and a node's
 \setop{Counter}{NodeId}{Key}{Value} label denotes a base atom of the \code{set} EDB.
 To obtain the state of the key value store, the following set must be computed:
@@ -315,7 +320,7 @@ To obtain the state of the key value store, the following set must be computed:
 \end{align*}
 
 With the state illustrated in \autoref{tab:fact_tables} and
-\autoref{fig:register-ops}, the result
+\autoref{fig:register_ops}, the result
 is \(\{ (k_1, y), (k_1, z), (k_2, c)\}\) because other assigned values
 (\(x\) for \(k_1\); \(a, b\) for \(k_2\)) have been overwritten by later operations.
 Formulating the query in Datalog is straightforward,
@@ -361,10 +366,11 @@ community~\cite{neumann2024critique, hirn2023fix, mcsherry2022recursion}.
 Furthermore, there exists some interesting research about defining Datalog
 over arbitrary semirings~\cite{abo2024convergence, khamis2022datalog},
 which may lift Datalog's current restrictions around stratified negation and
-stratified aggregation~\cite{green2013datalog} and opens up new avenues for
+stratified aggregation~\cite{green2013datalog}, and opens up new avenues for
 Datalog's semantics.
 We emphasize that recursion in SQL also suffers from requiring
-monotonically growing sets for recursive queries~\cite{hirn2023fix}.
+monotonically growing sets for recursive queries~\cite{hirn2023fix},
+just like recursion in Datalog.
 
 \section{Connecting the Dots: CRDTs and Datalog}
 \label{sec:crdts_datalog}
@@ -427,11 +433,26 @@ can turn out to be an essential aspect to make CRDTs expressed as
 queries over relations feasable.
 
 \section{System Overview and Theoretical Considerations}
+\label{sec:system_overview}
 
-The system can be modeled in two layers as illustrated in \autoref{fig:todo}:
-The lower layer is the IVM layer which incrementally updates the Datalog queries
-formulated on the higher CRDT layer in response to updates from both
-the local and remote replicas.
+We provide a system overview of the approach in \autoref{fig:system_overview}.
+The \emph{database layer} incrementally updates the views \deltaO{},
+as defined by the CRDT Datalog queries formulated on the \emph{application layer},
+in response to updates from both the local \deltaI{local} and remote replicas
+\deltaI{remote}.
+In this model we assume that the application layer is responsible for forwarding
+the updates to the database layer but the database layer could theoretically
+also be responsible for that.
+Moreover, \autoref{fig:system_overview} illustrates a peer to peer architecture
+but, due to the lack of hierarchy, different network topologies are also possible,
+e.g., a star network topology with a central server for more efficient update
+propagation.
+Yet, the issue of update propagation is not the focus of this research and
+various approaches exist in the literature~\cite{auvolat2019merkle, sanjuan2020merkle}.
+This also excludes the question of how to efficiently send just the minimum
+set of missing updates to each replica.
+We only make the basic assumption of some network topology and protocol
+that ensures that each update will eventually be delivered to all replicas.
 
 The DBSP paper~\cite{budiu2022dbsp} defines some theoretical foundation for IVM,
 which is based on the algebraic structure of commutative groups
@@ -443,20 +464,20 @@ are final and not subject to change after the fact.
 However, this is not an issue here as writes (in the sense of leightweight
 transactions which may include individual updates to multiple relations)
 can be ordered differently but totally on each replica in delivery order.
-The higher level CRDT layer can absorb the different orderings of writes among
-replicas and still converge to the same state if replicas have delivered
-the same set of writes.
-Furthermore, the IVM layer must be capable of atomically updating all affected
-relations of a write to safeguard the CRDT layer against reading inconsistent
-state.
+The use of CRDTs on the application layer can absorb the different orderings
+of writes among replicas and still converge to the same state
+if replicas have delivered the same set of writes.
+Furthermore, the database layer must be capable of atomically updating all affected
+relations of a write to safeguard the CRDT queries against reading inconsistent
+state, i.e., queries read from a consistent snapshot of the database.
 For instance, in the example of \autoref{sec:motivating_example} a logical update
-to the key-value store CRDT touches both EDBs \code{set} and \code{pred}
+to the key-value store touches both EDBs \code{set} and \code{pred}
 simultaneously.
-Hence, the IVM layer has to ensure that the two EDBs are updated atomically
+Hence, the database layer has to ensure that the two EDBs are updated atomically
 such that reads either see both updates or none but not just one of them.
 
-The CRDT layer also relies on two algebraic structures.
-The above mentioned set of all operations to the CRDT \(S\) together with
+The CRDTs formulated in Datalog also rely on two algebraic structures.
+The set of all operations of the CRDT \(S\) together with
 the ``merge'' function defined as the set union (\(\cup\)) forms a semilattice
 because it is associative, commutative, and idempotent.
 The associativity and commutativity properties are key to absorbing
@@ -473,8 +494,6 @@ towards new horizons~\cite{abo2024convergence}.
 \begin{figure*}
 	\centering
 
-	\newcommand{\deltaI}[1]{\(\delta I_{\text{#1}}\)}
-	\newcommand{\deltaO}[1][]{\(\delta O_{\text{#1}}\)}
 	\newcommand{\replica}{
 		\begin{tikzpicture}
 			\tikzset{
@@ -505,20 +524,20 @@ towards new horizons~\cite{abo2024convergence}.
 	\begin{tikzpicture}
 		\tikzset{
 		replica/.style={rectangle, draw, rounded corners=1mm,fill=white},
-		local-replica/.style={replica},
-		remote-replica/.style={replica,scale=0.66},
+		local_replica/.style={replica},
+		remote_replica/.style={replica,scale=0.66},
 		label/.style={font=\bfseries},
 		rel/.style={
 		->, >={Stealth[round]},bend left,},
 		}
 
-		\node[local-replica] (local) {\replica};
+		\node[local_replica] (local) {\replica};
 		\node[label] (local-label) [above=0pt of local] {Local Replica};
 
-		\node[remote-replica] (remote3) [right=of local,yshift=+15pt,xshift=+15pt] {\replica};
-		\node[remote-replica] (remote2) [right=of local,yshift=+10pt,xshift=+10pt] {\replica};
-		\node[remote-replica] (remote1) [right=of local,yshift=+5pt,xshift=+5pt] {\replica};
-		\node[remote-replica] (remote0) [right=of local] {\replica};
+		\node[remote_replica] (remote3) [right=of local,yshift=+15pt,xshift=+15pt] {\replica};
+		\node[remote_replica] (remote2) [right=of local,yshift=+10pt,xshift=+10pt] {\replica};
+		\node[remote_replica] (remote1) [right=of local,yshift=+5pt,xshift=+5pt] {\replica};
+		\node[remote_replica] (remote0) [right=of local] {\replica};
 		\node[label] (remote-label) [above=0pt of remote3] {Remote Replicas};
 
 		\begin{scope}[on background layer]
@@ -539,12 +558,141 @@ towards new horizons~\cite{abo2024convergence}.
 		An overview of the system architecture from the perspective of a local
 		replica.
 		\deltaI{local} and \deltaI{remote} refer to the input deltas to
-		the EDBs from the local and remote replicas, respectively,
-		and are distributed and forwarded by the application layer without
-		any further processing.
-		\deltaO{} is the output delta of all Datalog queries and is based on
+		the EDBs from the local and remote replicas, respectively.
+		\deltaO{} models the output delta of all Datalog queries and is based on
 		the current state of the EDBs on the respective replica.
-	}\label{fig:system-overview}
+	}\label{fig:system_overview}
+\end{figure*}
+
+\section{Advanced Example: Respecting Causal Order}
+
+Without the assumption of a causal broadcast,
+the example from \autoref{sec:motivating_example} is not quite a proper MVR
+but a register with not only the causal readiness but also the delivery
+time at a node determining the current value(s) of the register.
+To illustrate this issue, consider \autoref{fig:causal_issue} from the
+perspective of replica \(n_2\).
+We distinguish between a write's delivery time, denoted as \(t^d_i\),
+and a write's causal order, denoted as \(t^c_i\).
+The write's respective order along the two dimensions is given by the subscript
+index \(i\).
+Initially, replica \(n_2\) is in the familiar state from \autoref{fig:register_ops}.
+Then, the two writes \(w_1\) and \(w_2\) from replica \(n_1\) are delivered to \(n_2\)
+but in reverse order of their causal order
+(\(w_1 < w_2\) according to \(t^c\) but \(w_1 > w_2\) according to \(t^d\)).
+Without a causal broadcast, the query from \autoref{sec:motivating_example}
+would return \(\{ (k_1, y_1), (k_1, z), (k_1, y_3)\} \) at time \(t^d_1\)
+but the correct result respecting causal order
+is \(\{ (k_1, y_1), (k_1, z) \}\), delivering the value \(y_3\) too early by
+eagerly appling the update \(w_2\) without awaiting its causal dependency
+\(w_1\) first.
+If \(w_1\) is eventually delivered, the query ``jumps'' to the result
+\( \{ (k_1, y_3) \} \) at time \(t^d_2\), skipping the intermediate state
+that overwrites the conflicting values \(y_1\) and \(z\) with \(y_2\),
+suggesting that the value \(y_3\) suddenly overwrote its previously reported
+siblings \(y_1\) and \(z\).
+
+To fix this issue, the query has to be adjusted.
+The problem of causal delivery translates into a graph connectedness
+problem: What nodes are reachable from the set of root nodes?
+To answer that, we introduce three new Datalog rules:
+
+\begin{small}
+	\begin{verbatim}
+isPred(NodeId, Counter) :- pred(NodeId, Counter, ToNodeId, ToCounter)
+isSucc(NodeId, Counter) :- pred(FromNodeId, FromCounter, NodeId, Counter)
+isRoot(NodeId, Counter) :- set(NodeId, Counter, Key, Value),
+                           not isSucc(NodeId, Counter)
+isCausallyReady(NodeId, Counter)
+                        :- isRoot(NodeId, Counter)
+isCausallyReady(NodeId, Counter)
+                        :- isCausallyReady(FromNodeId, FromCounter),
+                           pred(FromNodeId, FromCounter, NodeId, Counter)
+mvrStore(Key, Value)    :- set(NodeId, Counter, Key, Value),
+                           isCausallyReady(NodeId, Counter),
+                           not isPred(NodeId, Counter)
+\end{verbatim}
+\end{small}
+
+Translating this into SQL shows why we prefer Datalog for expressing recursion:
+
+\begin{small}
+	\begin{verbatim}
+WITH isPred AS (SELECT FromNodeId, FromCounter FROM pred)
+WITH isSucc AS (SELECT ToNodeId, ToCounter FROM pred)
+WITH isRoot AS (SELECT NodeId, Counter FROM set
+                WHERE (NodeId, Counter) NOT IN isSucc)
+WITH RECURSIVE isCausallyReady AS (
+    SELECT * FROM isRoot
+    UNION [ALL]
+    SELECT pred.ToNodeId, pred.ToCounter
+    FROM pred, isCausallyReady
+    WHERE pred.FromNodeId = isCausallyReady.NodeId
+      AND pred.FromCounter = isCausallyReady.Counter
+)
+
+SELECT set.key, set.value
+FROM set, isCausallyReady
+WHERE set.NodeId = isCausallyReady.NodeId
+  AND set.Counter = isCausallyReady.Counter
+  AND (set.NodeId, set.Counter) NOT IN isPred
+\end{verbatim}
+\end{small}
+
+While this issue can be ignored by simply assuming a causal broadcast
+on the application layer,
+we think that it undermines the approach's goals for two reasons.
+First, a causal broadcast requires state to be kept on the application layer,
+namely the buffer of writes which await the delivery of their causal dependencies.
+Yet, this system is part of an effort to move state to the database
+layer to render the application layer mostly stateless and potentially
+have all state benefit from classical database guarantees like durability.
+This extends the idea of functional reactive programming, as popularized
+by React, to the whole application stack, including the database
+layer, and allows the application to be considered a reactive, pure function
+of some state captured in the EDBs~\cite{schiefer2022building}.
+Second, it increases the complexity of the application layer by not allowing
+it to treat the updates to the database as a black box beyond its forwarding
+responsibilities.
+Hence, we advocate to account for this issue on the query level at the expense
+of an increased query complexity.
+
+\begin{figure*}
+	\centering
+	\begin{tikzpicture}[node distance=30pt]
+		\small
+		\def\dist{15pt}
+		\def\shift{+20pt}
+
+		\tikzset{
+			tx/.style={draw=gray, dashed},
+			tx_label/.style={text=gray, align=left, anchor=north}
+		}
+
+		% nodes and edges
+		\node[op] (k10) {\setop{1}{n_1}{k_1}{x}};
+
+		\node[op,above right=\dist of k10,xshift=\shift] (k11) {\setop{2}{n_1}{k_1}{y_1}}
+		edge [pred] (k10);
+		\node[op,below right=\dist of k10,xshift=\shift] (k12) {\setop{2}{n_2}{k_1}{z}}
+		edge [pred] (k10);
+
+		\node[op, below right=\dist of k11,xshift=\shift] (k13) {\setop{3}{n_1}{k_1}{y_2}}
+		edge [pred] (k11) edge [pred] (k12);
+		\node[op, right=of k13] (k14) {\setop{4}{n_1}{k_1}{y_3}}
+		edge [pred] (k13);
+
+		\node[tx,fit=(k10) (k11) (k12)] (tx0) {};
+		\node[tx_label] at (tx0.south) {state of origin};
+		\node[tx,fit=(k13)] (tx1) {};
+		\node[tx_label] at (tx1.south) {\(w_1\) with \(t^c_1, t^d_2\)};
+		\node[tx,fit=(k14)] (tx2) {};
+		\node[tx_label] at (tx2.south) {\(w_2\) with \(t^c_2, t^d_1\)};
+
+	\end{tikzpicture}
+	\caption{
+		Example of a causality issue with the naive queries from \autoref{sec:motivating_example}.
+	}\label{fig:causal_issue}
 \end{figure*}
 
 \section{Contributions}

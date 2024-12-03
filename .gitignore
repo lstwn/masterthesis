@@ -13,3 +13,4 @@ local_backup/
 *.bcf
 *.pdf
 *.out
+build/

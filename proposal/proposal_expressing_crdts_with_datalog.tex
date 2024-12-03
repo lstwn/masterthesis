@@ -206,7 +206,7 @@ which then form \emph{intensional database predicates} (IDB).
 %\subsubsection{Query restrictions of Datalog}
 
 %\textbf{Range Restriction.}
-%Every variable occuring in the head of a rule must also occur in the body of that rule.
+%Every variable occurring in the head of a rule must also occur in the body of that rule.
 
 %\textbf{Stratified Negation.}
 %Syntactic restriction which disallows recursion through negation.
@@ -415,7 +415,7 @@ As Datalog evaluation is deterministic, the convergence property is satisfied.
 This gives application developers the power to define their own, custom CRDTs
 without worrying about the complex aspect of convergence.
 Furthermore, the query engine running the Datalog program is responsible
-for finding an efficent algorithm to execute the query and application developers
+for finding an efficient algorithm to execute the query and application developers
 can focus on the CRDT at a declarative level and get the implementation ``for free''.
 
 A common pattern of collaboration is near-real-time collaboration on a shared
@@ -426,11 +426,11 @@ delta in hope of saving computation time over recomputing the query from scratch
 based on the whole input with every update.
 Ideally, the computation time is only proportional to the size of the input
 change but not to the whole input size anymore.
-As older, causually overwritten updates to a CRDT are often not contributing
+As older, causally overwritten updates to a CRDT are often not contributing
 to the current state of the CRDT anymore, incremental view
 maintenance (IVM)~\cite{mcsherry2013differential, budiu2022dbsp, budiu2024dbsp}
 can turn out to be an essential aspect to make CRDTs expressed as
-queries over relations feasable.
+queries over relations feasible.
 
 \section{System Overview and Theoretical Considerations}
 \label{sec:system_overview}
@@ -461,7 +461,7 @@ DBSP requires the time axis of the stream of updates to the inputs of the
 queries it maintains to be totally ordered.
 Coordination-free systems usually preclude total orders, at least the ones which
 are final and not subject to change after the fact.
-However, this is not an issue here as writes (in the sense of leightweight
+However, this is not an issue here as writes (in the sense of lightweight
 transactions which may include individual updates to multiple relations)
 can be ordered differently but totally on each replica in delivery order.
 The use of CRDTs on the application layer can absorb the different orderings
@@ -584,7 +584,7 @@ Without a causal broadcast, the query from \autoref{sec:motivating_example}
 would return \(\{ (k_1, y_1), (k_1, z), (k_1, y_3)\} \) at time \(t^d_1\)
 but the correct result respecting causal order
 is \(\{ (k_1, y_1), (k_1, z) \}\), delivering the value \(y_3\) too early by
-eagerly appling the update \(w_2\) without awaiting its causal dependency
+eagerly applying the update \(w_2\) without awaiting its causal dependency
 \(w_1\) first.
 If \(w_1\) is eventually delivered, the query ``jumps'' to the result
 \( \{ (k_1, y_3) \} \) at time \(t^d_2\), skipping the intermediate state

@@ -27,5 +27,5 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: Thesis.pdf
-          path: main.pdf
+          path: thesis/main.pdf
           if-no-files-found: error

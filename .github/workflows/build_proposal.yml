@@ -27,5 +27,5 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: Proposal.pdf
-          path: main.pdf
+          path: proposal/main.pdf
           if-no-files-found: error

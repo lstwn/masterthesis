@@ -1,0 +1,31 @@
+name: "Build Proposal LaTeX"
+on:
+  push:
+    paths:
+      - "proposal/**"
+      - ".github/workflows/build_proposal.yml"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: actions/cache@v3
+        name: Tectonic Cache
+        with:
+          path: ~/.cache/Tectonic
+          key: ${{ runner.os }}-tectonic-${{ hashFiles('**/*.tex') }}
+          restore-keys: |
+            ${{ runner.os }}-tectonic-
+      - uses: wtfjoke/setup-tectonic@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          biber-version: "2.17"
+      - name: Run Tectonic
+        run: tectonic proposal/main.tex
+      - name: Upload pdf
+        uses: actions/upload-artifact@v3
+        with:
+          name: Proposal.pdf
+          path: main.pdf
+          if-no-files-found: error

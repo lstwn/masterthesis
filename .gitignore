@@ -13,4 +13,8 @@ local_backup/
 *.bcf
 *.pdf
 *.out
+*.lot
+*.lof
+*.toc
+pdfa.xmpi
 build/

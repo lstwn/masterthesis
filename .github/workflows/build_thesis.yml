@@ -24,8 +24,9 @@ jobs:
       - name: Run Tectonic
         run: tectonic thesis/main.tex
       - name: Upload pdf
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: Thesis.pdf
+          name: Thesis
           path: thesis/main.pdf
           if-no-files-found: error
+          overwrite: true

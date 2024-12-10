@@ -24,8 +24,9 @@ jobs:
       - name: Run Tectonic
         run: tectonic proposal/main.tex
       - name: Upload pdf
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: Proposal.pdf
+          name: Proposal
           path: proposal/main.pdf
           if-no-files-found: error
+          overwrite: true

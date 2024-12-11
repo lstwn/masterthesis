@@ -2,6 +2,8 @@
 
 \usepackage[english]{babel}
 \usepackage{csquotes}
+\usepackage[T1]{fontenc}
+\usepackage{nimbusmononarrow}
 
 \usepackage{amsmath}
 \usepackage{amssymb}
@@ -185,42 +187,6 @@ define \emph{extensional database predicates} (EDB)
 from which \emph{derived atoms} are created,
 which then form \emph{intensional database predicates} (IDB).
 
-%Terminology:
-
-%\begin{itemize}
-%	\item \textbf{Rule:} A Horn clause.
-%	\item \textbf{Head:} The predicate that is derived by the rule.
-%	\item \textbf{Body:} The predicates that need to be true in order to derive the head.
-%	\item \textbf{Term:} A constant or a variable.
-%	\item \textbf{Atom:} A function (also: predicate symbol) with a list of terms as arguments.
-%	      The number of arguments is referred to as its arity.
-%	\item \textbf{Ground Atom:} An atom where all arguments are constants.
-%	\item \textbf{Extensional Database Predicate (EDB Predicte):} Fact (also: source) table in the database, defining a predicate.
-%	\item \textbf{Base Atom:} An entry in an extensional database predicate.
-%	\item \textbf{Intensional Database Predicate (IDB Predicte):} Derived table created through a Datalog query, defining a predicate.
-%	\item \textbf{Derived Atom:} An entry in an intensional database predicate.
-%	\item \textbf{Database Instance:} A set of ground atoms.
-%	\item \textbf{Active Domain:} The set of all constants in the database instance.
-%\end{itemize}
-
-%\subsubsection{Query restrictions of Datalog}
-
-%\textbf{Range Restriction.}
-%Every variable occurring in the head of a rule must also occur in the body of that rule.
-
-%\textbf{Stratified Negation.}
-%Syntactic restriction which disallows recursion through negation.
-
-%\textbf{Safety Condition.}
-%Every variable in the body of a rule must appear in at least one positive
-%(non-negated) atom in the body.
-%Otherwise, the results of the query may not be finite anymore and the results
-%would not depend just on the actual contents of the database anymore,
-%not fulfilling the notion of \emph{domain independence}.
-
-%\textbf{Stratified Aggregation.}
-%TODO
-
 \section{Motivating Example: A Key-Value Store as a Query}
 \label{sec:motivating_example}
 
@@ -319,6 +285,8 @@ To obtain the state of the key value store, the following set must be computed:
 	                                                  & \var{NodeId} = \var{FromNodeId} \land \var{Counter} = \var{FromCounter} \}
 \end{align*}
 
+Intuitively, the query selects all key-value pairs from the \code{set} EDB
+that have not been overwritten.
 With the state illustrated in \autoref{tab:fact_tables} and
 \autoref{fig:register_ops}, the result
 is \(\{ (k_1, y), (k_1, z), (k_2, c)\}\) because other assigned values
@@ -328,9 +296,9 @@ as it matches its mathematical counterpart quite well:
 
 \begin{small}
 	\begin{verbatim}
-isPred(NodeId, Counter) :- pred(NodeId, Counter, ToNodeId, ToCounter)
-mvrStore(Key, Value)    :- set(NodeId, Counter, Key, Value),
-                           not isPred(NodeId, Counter)
+overwritten(NodeId, Counter) :- pred(NodeId, Counter, ToNodeId, ToCounter)
+mvrStore(Key, Value)         :- set(NodeId, Counter, Key, Value),
+                                not overwritten(NodeId, Counter)
 \end{verbatim}
 \end{small}
 
@@ -342,7 +310,7 @@ The first one uses a \code{LEFT JOIN} and a \code{null} filter:
 SELECT key, value
 FROM set LEFT JOIN pred ON set.NodeId = pred.FromNodeId
                        AND set.Counter = pred.FromCounter
-WHERE pred.FromNodeId IS NULL
+WHERE pred.FromNodeId IS NULL;
 \end{verbatim}
 \end{small}
 
@@ -351,8 +319,8 @@ to align the SQL query closer with the mathematical notation:
 
 \begin{small}
 	\begin{verbatim}
-WITH isPred AS (SELECT FromNodeId, FromCounter FROM pred)
-SELECT key, value FROM set WHERE (NodeId, Counter) NOT IN isPred
+WITH overwritten AS (SELECT FromNodeId, FromCounter FROM pred)
+SELECT key, value FROM set WHERE (NodeId, Counter) NOT IN overwritten;
 \end{verbatim}
 \end{small}
 
@@ -387,7 +355,7 @@ model which demands three properties~\cite{shapiro2011comprehensive}:
 
 \begin{enumerate}
 	\item \textbf{Eventual Delivery}: All updates are eventually delivered to all replicas.
-	\item \textbf{Termination}: All replicas eventually terminate.
+	\item \textbf{Termination}: All methods executions terminate.
 	\item \textbf{Convergence}: All replicas that have delivered the same set of updates are in the same state.
 \end{enumerate}
 
@@ -432,7 +400,7 @@ maintenance (IVM)~\cite{mcsherry2013differential, budiu2022dbsp, budiu2024dbsp}
 can turn out to be an essential aspect to make CRDTs expressed as
 queries over relations feasible.
 
-\section{System Overview and Theoretical Considerations}
+\section{System Overview}
 \label{sec:system_overview}
 
 We provide a system overview of the approach in \autoref{fig:system_overview}.
@@ -440,56 +408,27 @@ The \emph{database layer} incrementally updates the views \deltaO{},
 as defined by the CRDT Datalog queries formulated on the \emph{application layer},
 in response to updates from both the local \deltaI{local} and remote replicas
 \deltaI{remote}.
-In this model we assume that the application layer is responsible for forwarding
-the updates to the database layer but the database layer could theoretically
-also be responsible for that.
-Moreover, \autoref{fig:system_overview} illustrates a peer to peer architecture
+In this model the application layer is responsible for forwarding updates
+to the database layer but forwarding could equally well happen exclusively
+on the latter.
+The database layer must be capable of atomically updating all relations
+of a write to safeguard the CRDT queries against reading inconsistent
+state, i.e., queries must read from a consistent snapshot of the database.
+The next section demonstrates the importance of atomic writes.
+
+\autoref{fig:system_overview} illustrates a peer to peer architecture
 but, due to the lack of hierarchy, different network topologies are also possible,
 e.g., a star network topology with a central server for more efficient update
-propagation.
-Yet, the issue of update propagation is not the focus of this research and
-various approaches exist in the literature~\cite{auvolat2019merkle, sanjuan2020merkle}.
+gossiping.
+Yet, the issue of update propagation (and update integrity) is not the focus
+of this research and various approaches exist in the literature~\cite{
+	auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
+	kleppmann2022making}.
 This also excludes the question of how to efficiently send just the minimum
 set of missing updates to each replica.
 We only make the basic assumption of some network topology and protocol
-that ensures that each update will eventually be delivered to all replicas.
-
-The DBSP paper~\cite{budiu2022dbsp} defines some theoretical foundation for IVM,
-which is based on the algebraic structure of commutative groups
-to model updates to multisets upon which relational algebra is relying on.
-DBSP requires the time axis of the stream of updates to the inputs of the
-queries it maintains to be totally ordered.
-Coordination-free systems usually preclude total orders, at least the ones which
-are final and not subject to change after the fact.
-However, this is not an issue here as writes (in the sense of lightweight
-transactions which may include individual updates to multiple relations)
-can be ordered differently but totally on each replica in delivery order.
-The use of CRDTs on the application layer can absorb the different orderings
-of writes among replicas and still converge to the same state
-if replicas have delivered the same set of writes.
-Furthermore, the database layer must be capable of atomically updating all affected
-relations of a write to safeguard the CRDT queries against reading inconsistent
-state, i.e., queries read from a consistent snapshot of the database.
-For instance, in the example of \autoref{sec:motivating_example} a logical update
-to the key-value store touches both EDBs \code{set} and \code{pred}
-simultaneously.
-Hence, the database layer has to ensure that the two EDBs are updated atomically
-such that reads either see both updates or none but not just one of them.
-
-The CRDTs formulated in Datalog also rely on two algebraic structures.
-The set of all operations of the CRDT \(S\) together with
-the ``merge'' function defined as the set union (\(\cup\)) forms a semilattice
-because it is associative, commutative, and idempotent.
-The associativity and commutativity properties are key to absorbing
-different write orderings.
-Semilattices possess a link to order theory because their binary operation
-induces a partial order between the elements of \(S\) through
-\(s_1 \leq s_2 \Leftrightarrow s_1 \cup s_2 = s_2\).
-Moreover, Datalog itself can be modeled as a semiring with
-disjunction (\(\lor\)) and conjunction (\(\land\)) as the semiring's
-binary operations, and in abstracting over these two concrete instances
-of binary operations lies the potential to expand Datalog's expressiveness
-towards new horizons~\cite{abo2024convergence}.
+which ensures that each update will eventually be delivered to all replicas.
+Replicas are assumed to be non-byzantine.
 
 \begin{figure*}
 	\centering
@@ -555,7 +494,7 @@ towards new horizons~\cite{abo2024convergence}.
 	\end{tikzpicture}
 
 	\caption{
-		An overview of the system architecture from the perspective of a local
+		Overview of the system architecture from the perspective of a local
 		replica.
 		\deltaI{local} and \deltaI{remote} refer to the input deltas to
 		the EDBs from the local and remote replicas, respectively.
@@ -565,63 +504,62 @@ towards new horizons~\cite{abo2024convergence}.
 \end{figure*}
 
 \section{Advanced Example: Respecting Causal Order}
+\label{sec:advanced_example}
 
 Without the assumption of a causal broadcast,
-the example from \autoref{sec:motivating_example} is not quite a proper MVR
-but a register with not only the causal readiness but also the delivery
-time at a node determining the current value(s) of the register.
+the example from \autoref{sec:motivating_example} is not a proper MVR,
+as it does not respect the causal order of updates in case updates are delivered
+out-of-order.
 To illustrate this issue, consider \autoref{fig:causal_issue} from the
 perspective of replica \(n_2\).
-We distinguish between a write's delivery time, denoted as \(t^d_i\),
-and a write's causal order, denoted as \(t^c_i\).
-The write's respective order along the two dimensions is given by the subscript
-index \(i\).
-Initially, replica \(n_2\) is in the familiar state from \autoref{fig:register_ops}.
-Then, the two writes \(w_1\) and \(w_2\) from replica \(n_1\) are delivered to \(n_2\)
-but in reverse order of their causal order
-(\(w_1 < w_2\) according to \(t^c\) but \(w_1 > w_2\) according to \(t^d\)).
-Without a causal broadcast, the query from \autoref{sec:motivating_example}
-would return \(\{ (k_1, y_1), (k_1, z), (k_1, y_3)\} \) at time \(t^d_1\)
-but the correct result respecting causal order
-is \(\{ (k_1, y_1), (k_1, z) \}\), delivering the value \(y_3\) too early by
-eagerly applying the update \(w_2\) without awaiting its causal dependency
-\(w_1\) first.
+Initially, \(n_2\) is in the familiar state from \autoref{fig:register_ops}.
+Then, write \(w_2\) from replica \(n_1\) is delivered to \(n_2\) although its
+causal dependency \(w_1\) has not been delivered yet.
+At this point, the query from \autoref{sec:motivating_example} would return
+\(\{ (k_1, y_1), (k_1, z), (k_1, y_3)\} \)
+but the correct result respecting causal order is
+\(\{ (k_1, y_1), (k_1, z) \}\).
+The value \(y_3\) is delivered too early by eagerly applying the write \(w_2\)
+without awaiting its causal dependency \(w_1\) first.
 If \(w_1\) is eventually delivered, the query ``jumps'' to the result
-\( \{ (k_1, y_3) \} \) at time \(t^d_2\), skipping the intermediate state
-that overwrites the conflicting values \(y_1\) and \(z\) with \(y_2\),
-suggesting that the value \(y_3\) suddenly overwrote its previously reported
-siblings \(y_1\) and \(z\).
+\( \{ (k_1, y_3) \} \), skipping the intermediate state
+that overwrites the conflicting values \(y_1\) and \(z\) with \(y_2\).
+This falsely suggests that the value \(y_3\) suddenly overwrote its previously
+reported siblings \(y_1\) and \(z\).
 
-To fix this issue, the query has to be adjusted.
-The problem of causal delivery translates into a graph connectedness
-problem: What nodes are reachable from the set of root nodes?
-To answer that, we introduce three new Datalog rules:
+To prevent this, the query has to detect such ``gaps'' in the chain of set
+operations for the same key.
+Hence, the problem of causal delivery is equivalent to a graph connectedness
+problem: Which nodes are reachable from the set of root nodes?
+The following query implements a causal broadcast in Datalog by using
+three new IDBs:
 
 \begin{small}
 	\begin{verbatim}
-isPred(NodeId, Counter) :- pred(NodeId, Counter, ToNodeId, ToCounter)
-isSucc(NodeId, Counter) :- pred(FromNodeId, FromCounter, NodeId, Counter)
-isRoot(NodeId, Counter) :- set(NodeId, Counter, Key, Value),
-                           not isSucc(NodeId, Counter)
+overwritten(NodeId, Counter) :- pred(NodeId, Counter, ToNodeId, ToCounter)
+overwrites(NodeId, Counter)  :- pred(FromNodeId, FromCounter, NodeId, Counter)
+isRoot(NodeId, Counter)      :- set(NodeId, Counter, Key, Value),
+                                not overwrites(NodeId, Counter)
 isCausallyReady(NodeId, Counter)
-                        :- isRoot(NodeId, Counter)
+                             :- isRoot(NodeId, Counter)
 isCausallyReady(NodeId, Counter)
-                        :- isCausallyReady(FromNodeId, FromCounter),
-                           pred(FromNodeId, FromCounter, NodeId, Counter)
-mvrStore(Key, Value)    :- set(NodeId, Counter, Key, Value),
-                           isCausallyReady(NodeId, Counter),
-                           not isPred(NodeId, Counter)
+                             :- isCausallyReady(FromNodeId, FromCounter),
+                                pred(FromNodeId, FromCounter, NodeId, Counter)
+mvrStore(Key, Value)         :- set(NodeId, Counter, Key, Value),
+                                isCausallyReady(NodeId, Counter),
+                                not overwritten(NodeId, Counter)
 \end{verbatim}
 \end{small}
 
-Translating this into SQL shows why we prefer Datalog for expressing recursion:
+Translating this query into SQL shows why we prefer Datalog
+for expressing recursion:
 
 \begin{small}
 	\begin{verbatim}
-WITH isPred AS (SELECT FromNodeId, FromCounter FROM pred)
-WITH isSucc AS (SELECT ToNodeId, ToCounter FROM pred)
-WITH isRoot AS (SELECT NodeId, Counter FROM set
-                WHERE (NodeId, Counter) NOT IN isSucc)
+WITH overwritten AS (SELECT FromNodeId, FromCounter FROM pred)
+WITH overwrites  AS (SELECT ToNodeId, ToCounter FROM pred)
+WITH isRoot      AS (SELECT NodeId, Counter FROM set
+                     WHERE (NodeId, Counter) NOT IN overwrites)
 WITH RECURSIVE isCausallyReady AS (
     SELECT * FROM isRoot
     UNION [ALL]
@@ -635,27 +573,23 @@ SELECT set.key, set.value
 FROM set, isCausallyReady
 WHERE set.NodeId = isCausallyReady.NodeId
   AND set.Counter = isCausallyReady.Counter
-  AND (set.NodeId, set.Counter) NOT IN isPred
+  AND (set.NodeId, set.Counter) NOT IN overwritten;
 \end{verbatim}
 \end{small}
 
-While this issue can be ignored by simply assuming a causal broadcast
-on the application layer,
-we think that it undermines the approach's goals for two reasons.
-First, a causal broadcast requires state to be kept on the application layer,
-namely the buffer of writes which await the delivery of their causal dependencies.
-Yet, this system is part of an effort to move state to the database
-layer to render the application layer mostly stateless and potentially
-have all state benefit from classical database guarantees like durability.
-This extends the idea of functional reactive programming, as popularized
-by React, to the whole application stack, including the database
-layer, and allows the application to be considered a reactive, pure function
-of some state captured in the EDBs~\cite{schiefer2022building}.
-Second, it increases the complexity of the application layer by not allowing
-it to treat the updates to the database as a black box beyond its forwarding
-responsibilities.
-Hence, we advocate to account for this issue on the query level at the expense
-of an increased query complexity.
+The example also demonstrates why atomic writes are important.
+Write \(w_2\) updates both the \code{set} and \code{pred} EDBs.
+If the query reads state in which only the \code{set} EDB has been updated
+but not the \code{pred} EDB,
+the query incorrectly deems \setop{4}{n_1}{k_1}{y_3} as a new root and
+again returns the invalid result from above.
+
+While this issue can be ignored by assuming a causal broadcast either on the
+application or database layer,
+we think that queries benefit from having the full causality graph available.
+It provides them with the ability to detect when operations are concurrent,
+and use that information to adjust their conflict handling
+to perform custom resolution logic.
 
 \begin{figure*}
 	\centering
@@ -684,10 +618,10 @@ of an increased query complexity.
 
 		\node[tx,fit=(k10) (k11) (k12)] (tx0) {};
 		\node[tx_label] at (tx0.south) {state of origin};
-		\node[tx,fit=(k13)] (tx1) {};
-		\node[tx_label] at (tx1.south) {\(w_1\) with \(t^c_1, t^d_2\)};
+		\node[tx,draw=red,fit=(k13)] (tx1) {};
+		\node[tx_label,text=red] at (tx1.south) {\(w_1\) (delayed)};
 		\node[tx,fit=(k14)] (tx2) {};
-		\node[tx_label] at (tx2.south) {\(w_2\) with \(t^c_2, t^d_1\)};
+		\node[tx_label] at (tx2.south) {\(w_2\)};
 
 	\end{tikzpicture}
 	\caption{
@@ -704,7 +638,8 @@ to express common CRDTs.
 To answer that question, we implement common CRDT types in Datalog, e.g.,
 a list/sequence CRDT, a map CRDT, as well as a set CRDT,
 and evaluate our experience.
-Queries often involve negation (see \autoref{sec:motivating_example})
+Queries often involve negation (see Section \ref{sec:motivating_example} and
+\ref{sec:advanced_example}),
 and because core Datalog does not support negation, the question arises if
 the most commonly used Datalog extension for negation,
 stratified negation~\cite{green2013datalog}, is expressive enough.
@@ -732,6 +667,13 @@ something relational databases have benefitted from over the years and has
 arguably contributed towards their widespread adoption.
 Furthermore, the read finality issue of CRDTs under non-monotone queries
 may be better addressed with the support of a query language~\cite{laddad2022keep}.
+
+Applications benefit from extending the idea of functional reactive programming
+beyond the GUI to the whole application stack,
+\emph{including} the database layer.
+The application can then be considered a reactive, pure function
+of some state captured in the EDBs~\cite{schiefer2022building}.
+
 On the other hand, database systems can be introduced to coordination-free
 environments.
 In exchange for some guarantees which cannot be upheld

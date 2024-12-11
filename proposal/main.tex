@@ -113,13 +113,13 @@ Convergent Replicated Data Types (CRDTs)\footnote{
 	given the delivery of the same updates,
 	and that state may include conflicts, e.g., within a register.
 } try to solve the problems arising from asynchronous collaboration over
-message-passing (packet-switched) networks on the data structure level.
+message-passing networks on the data structure level.
 In these coordination-free environments, in which replicas can be offline
 for extended periods of time but are still permitted to write (and read)
 to (from) their local state,
 the naive delivery of messages allows messages to be arbitrarily delayed,
 to be reordered, and the same message may be delivered multiple times.
-CRDTs account for these challenges by augmenting messages (hereafter updates
+CRDTs address these challenges by augmenting messages (hereafter updates
 to the CRDT) with additional metadata (1) to preserve the user's intention
 in the ``best'' possible manner and (2) to ensure the convergence of replicas,
 even after temporary divergence.
@@ -136,8 +136,8 @@ Their correct definition is complex and error-prone,
 let alone proving their convergence, even for people familiar with distributed
 systems~\cite{kleppmann2022assessing, gomes2017verifying}.
 Hence, we want to explore a system based on queries over relational data
-which trivially fulfills the convergence property of CRDTs.
-This allows application developers without a background in eventual
+which ensures the convergence property is always satisfied by construction.
+This allows application developers with little background in eventual
 consistency to formulate their own, application-specific CRDTs without
 having to worry about convergence.
 

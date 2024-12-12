@@ -202,7 +202,7 @@ predecessor operations on which it causally depends on\footnote{
 In its totality, this example demonstrates how a key value store
 consisting of MVR registers can be expressed with a query language.
 
-First, we consider the fact tables (extensional database predicates) storing
+First, we consider the fact tables (EDBs) storing
 the base atoms: \code{set} and \code{pred}.
 We assume that they are in the state depicted in \autoref{tab:fact_tables}.
 
@@ -237,7 +237,7 @@ We assume that they are in the state depicted in \autoref{tab:fact_tables}.
 		\(n_2\)    & 4           & \(n_2\)  & 5         \\
 		\bottomrule
 	\end{tabular}
-	\caption{Extensional Database Predicates \code{set} (above) and \code{pred} (below).}
+	\caption{The two EDBs \code{set} (above) and \code{pred} (below).}
 	\label{tab:fact_tables}
 \end{table*}
 
@@ -354,9 +354,11 @@ Both models must adhere to these properties under the strong eventual consistenc
 model which demands three properties~\cite{shapiro2011comprehensive}:
 
 \begin{enumerate}
-	\item \textbf{Eventual Delivery}: All updates are eventually delivered to all replicas.
-	\item \textbf{Termination}: All methods executions terminate.
-	\item \textbf{Convergence}: All replicas that have delivered the same set of updates are in the same state.
+	\item \textbf{Eventual Delivery}: All updates are eventually delivered to
+	      all replicas.
+	\item \textbf{Termination}: All method executions terminate.
+	\item \textbf{Convergence}: All replicas that have delivered the same set of
+	      updates are in an equivalent state.
 \end{enumerate}
 
 Verifying the correctness for a CRDT is a complex,
@@ -375,8 +377,8 @@ function \( f: S \to T \) on the state does not impede the convergence property,
 as the function is applied on all replicas in the same deterministic way.
 \( T \) is an arbitrary set of all possible derived states \( f \) can map to.
 This approach to CRDTs is known in the literature as
-\emph{pure operation-based replicated data types}~\cite{baquero2017pure, stewen2024undo}
-and used in practice in the Automerge CRDT~\cite{automerge}.
+\emph{pure operation-based replicated data types}~\cite{baquero2017pure, stewen2024undo},
+and is used in practice in the Automerge CRDT~\cite{automerge}.
 
 The pure function \( f \) can be expressed in a Datalog query.
 As Datalog evaluation is deterministic, the convergence property is satisfied.
@@ -531,8 +533,8 @@ To prevent this, the query has to detect such ``gaps'' in the chain of set
 operations for the same key.
 Hence, the problem of causal delivery is equivalent to a graph connectedness
 problem: Which nodes are reachable from the set of root nodes?
-The following query implements a causal broadcast in Datalog by using
-three new IDBs:
+The following query extends the query from \autoref{sec:motivating_example}
+with a causal broadcast in Datalog through the help of three new IDBs:
 
 \begin{small}
 	\begin{verbatim}

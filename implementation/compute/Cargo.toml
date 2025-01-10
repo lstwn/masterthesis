@@ -1,0 +1,9 @@
+[package]
+name = "compute"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dbsp = "0.32.0"
+anyhow = { workspace = true }
+thiserror = { workspace = true }

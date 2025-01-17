@@ -1,17 +1,12 @@
 use super::{operator::Operator, scalar::ScalarTypedValue};
+use crate::util::MemAddr;
 
 pub enum Expr {
-    Nary(Box<NaryExpr>),
     Ternary(Box<TernaryExpr>),
     Binary(Box<BinaryExpr>),
     Unary(Box<UnaryExpr>),
-    Variable(Box<IdentExpr>),
-    Literal(Box<LitExpr>),
-}
-
-pub struct NaryExpr {
-    pub operator: Operator,
-    pub operands: Vec<Expr>,
+    Var(Box<VarExpr>),
+    Lit(Box<LitExpr>),
 }
 
 pub struct TernaryExpr {
@@ -32,7 +27,7 @@ pub struct UnaryExpr {
     pub operand: Expr,
 }
 
-pub struct IdentExpr {
+pub struct VarExpr {
     pub name: String,
 }
 
@@ -40,12 +35,18 @@ pub struct LitExpr {
     pub value: ScalarTypedValue,
 }
 
-pub trait Visitor<T, C> {
+pub trait ExprVisitor<T, C> {
     fn visit_expr(&mut self, expr: &Expr, ctx: C) -> T;
-    fn visit_nary_expr(&mut self, expr: &NaryExpr, ctx: C) -> T;
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: C) -> T;
     fn visit_binary_expr(&mut self, expr: &BinaryExpr, ctx: C) -> T;
     fn visit_unary_expr(&mut self, expr: &UnaryExpr, ctx: C) -> T;
-    fn visit_ident_expr(&mut self, expr: &IdentExpr, ctx: C) -> T;
+    fn visit_var_expr(&mut self, expr: &VarExpr, ctx: C) -> T;
     fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: C) -> T;
 }
+
+impl MemAddr for Expr {}
+impl MemAddr for TernaryExpr {}
+impl MemAddr for BinaryExpr {}
+impl MemAddr for UnaryExpr {}
+impl MemAddr for VarExpr {}
+impl MemAddr for LitExpr {}

@@ -1,4 +1,6 @@
-#[derive(Debug, Copy, Clone)]
+use std::fmt::{self, Display, Formatter};
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Scalar<String, Uint, Iint, Bool, Null> {
     /// String.
     String(String),
@@ -42,5 +44,17 @@ pub type ScalarTypedValue = Scalar<DString, DUint, DIint, DBool, DNull>;
 impl Default for ScalarTypedValue {
     fn default() -> Self {
         Scalar::Null(())
+    }
+}
+
+impl Display for ScalarTypedValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Scalar::String(value) => write!(f, "{}", value),
+            Scalar::Uint(value) => write!(f, "{}", value),
+            Scalar::Iint(value) => write!(f, "{}", value),
+            Scalar::Bool(value) => write!(f, "{}", value),
+            Scalar::Null(()) => write!(f, "null"),
+        }
     }
 }

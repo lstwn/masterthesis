@@ -1,23 +1,24 @@
 use crate::{
-    expr::{BinaryExpr, Expr, IdentExpr, NaryExpr, TernaryExpr, UnaryExpr, Visitor},
+    env::Environment,
+    error::RuntimeError,
+    expr::{BinaryExpr, Expr, ExprVisitor, LitExpr, TernaryExpr, UnaryExpr, VarExpr},
     operator::Operator,
     scalar::ScalarTypedValue,
+    stmt::{Stmt, StmtVisitor, VarStmt},
 };
-use thiserror::Error;
 
-struct Interpreter {}
-
-impl Interpreter {
-    fn interpret(&mut self, expr: &Expr) -> () {
-        match self.visit_expr(expr, ()) {
-            Ok(value) => println!("{:?}", value),
-            Err(error) => eprintln!("{:?}", error),
-        }
-    }
+pub struct Interpreter {
+    env: Environment,
 }
 
-type ExprResult = Result<ScalarTypedValue, RuntimeError>;
-type Ctx = ();
+impl Interpreter {
+    pub fn new(env: Environment) -> Self {
+        Self { env }
+    }
+    pub fn evaluate(&mut self, expr: &Expr) -> Result<ScalarTypedValue, RuntimeError> {
+        self.visit_expr(expr, ())
+    }
+}
 
 macro_rules! comparison_helper {
     ($left:expr, $right:expr, $op:tt, $($variant:path),*) => {{
@@ -25,9 +26,9 @@ macro_rules! comparison_helper {
             $(
                 ($variant(left), $variant(right)) => Ok(ScalarTypedValue::Bool(left $op right)),
             )*
-            _ => Err(RuntimeError {
-                message: format!("expected comparable type, got: {:?} and {:?}", $left, $right),
-            }),
+            _ => Err(RuntimeError::new(
+                format!("expected comparable type, got: {:?} and {:?}", $left, $right),
+            )),
         }
     }}
 }
@@ -38,15 +39,19 @@ macro_rules! arithmetic_helper {
             $(
                 ($variant(left), $variant(right)) => Ok($variant(left $op right)),
             )*
-            _ => Err(RuntimeError {
-                message: format!("expected number type, got: {:?} and {:?}", $left, $right),
-            }),
+            _ => Err(RuntimeError::new(
+                format!("expected number type, got: {:?} and {:?}", $left, $right),
+            )),
         }
     }}
 }
 
 impl Interpreter {
-    fn visit_lazy_binary_expr(&mut self, expr: &BinaryExpr, ctx: Ctx) -> ExprResult {
+    fn visit_lazy_binary_expr(
+        &mut self,
+        expr: &BinaryExpr,
+        ctx: ExprVisitorCtx,
+    ) -> ExprVisitorResult {
         let left = is_truthy(&self.visit_expr(&expr.left, ctx)?);
 
         if let Operator::And | Operator::Or = expr.operator {
@@ -57,34 +62,39 @@ impl Interpreter {
                 Ok(ScalarTypedValue::Bool(left))
             }
         } else {
-            Err(RuntimeError {
-                message: format!("unsupported (lazy) binary operator: {:?}", expr.operator),
-            })
+            Err(RuntimeError::new(format!(
+                "unsupported (lazy) binary operator: {:?}",
+                expr.operator
+            )))
         }
     }
-    fn visit_eager_binary_expr(&mut self, expr: &BinaryExpr, ctx: Ctx) -> ExprResult {
+    fn visit_eager_binary_expr(
+        &mut self,
+        expr: &BinaryExpr,
+        ctx: ExprVisitorCtx,
+    ) -> ExprVisitorResult {
         let left = self.visit_expr(&expr.left, ctx)?;
         let right = self.visit_expr(&expr.right, ctx)?;
 
         match expr.operator {
             Operator::Equal => {
                 comparison_helper!(left, right, ==, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String, ScalarTypedValue::Null)
-            },
+            }
             Operator::NotEqual => {
                 comparison_helper!(left, right, !=, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String, ScalarTypedValue::Null)
-            },
+            }
             Operator::Less => {
                 comparison_helper!(left, right, <, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String)
-            },
+            }
             Operator::LessThan => {
                 comparison_helper!(left, right, <=, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String)
-            },
+            }
             Operator::Greater => {
                 comparison_helper!(left, right, >, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String)
-            },
+            }
             Operator::GreaterThan => {
                 comparison_helper!(left, right, >=, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String)
-            },
+            }
             Operator::Addition => {
                 if let (ScalarTypedValue::String(left), ScalarTypedValue::String(right)) =
                     (&left, &right)
@@ -102,34 +112,33 @@ impl Interpreter {
             Operator::Division => {
                 arithmetic_helper!(left, right, /, ScalarTypedValue::Iint, ScalarTypedValue::Uint)
             }
-            _ => Err(RuntimeError {
-                message: format!("unsupported (eager) binary operator: {:?}", expr.operator),
-            }),
+            _ => Err(RuntimeError::new(format!(
+                "unsupported (eager) binary operator: {:?}",
+                expr.operator
+            ))),
         }
     }
 }
 
-impl Visitor<ExprResult, Ctx> for Interpreter {
-    fn visit_expr(&mut self, expr: &Expr, ctx: Ctx) -> ExprResult {
+type ExprVisitorResult = Result<ScalarTypedValue, RuntimeError>;
+type ExprVisitorCtx = ();
+
+impl ExprVisitor<ExprVisitorResult, ExprVisitorCtx> for Interpreter {
+    fn visit_expr(&mut self, expr: &Expr, ctx: ExprVisitorCtx) -> ExprVisitorResult {
         match expr {
-            Expr::Nary(expr) => self.visit_nary_expr(expr, ctx),
             Expr::Ternary(expr) => self.visit_ternary_expr(expr, ctx),
             Expr::Binary(expr) => self.visit_binary_expr(expr, ctx),
             Expr::Unary(expr) => self.visit_unary_expr(expr, ctx),
-            Expr::Variable(expr) => self.visit_ident_expr(expr, ctx),
-            Expr::Literal(expr) => self.visit_lit_expr(expr, ctx),
+            Expr::Var(expr) => self.visit_var_expr(expr, ctx),
+            Expr::Lit(expr) => self.visit_lit_expr(expr, ctx),
         }
     }
 
-    fn visit_nary_expr(&mut self, expr: &NaryExpr, ctx: Ctx) -> ExprResult {
+    fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: ExprVisitorCtx) -> ExprVisitorResult {
         todo!()
     }
 
-    fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: Ctx) -> ExprResult {
-        todo!()
-    }
-
-    fn visit_binary_expr(&mut self, expr: &BinaryExpr, ctx: Ctx) -> ExprResult {
+    fn visit_binary_expr(&mut self, expr: &BinaryExpr, ctx: ExprVisitorCtx) -> ExprVisitorResult {
         if let Operator::And | Operator::Or = expr.operator {
             self.visit_lazy_binary_expr(expr, ctx)
         } else {
@@ -137,29 +146,55 @@ impl Visitor<ExprResult, Ctx> for Interpreter {
         }
     }
 
-    fn visit_unary_expr(&mut self, expr: &UnaryExpr, ctx: Ctx) -> ExprResult {
+    fn visit_unary_expr(&mut self, expr: &UnaryExpr, ctx: ExprVisitorCtx) -> ExprVisitorResult {
         let operand = self.visit_expr(&expr.operand, ctx)?;
 
         match expr.operator {
             Operator::Subtraction => match operand {
                 ScalarTypedValue::Iint(value) => Ok(ScalarTypedValue::Iint(-value)),
-                _ => Err(RuntimeError {
-                    message: format!("expected signed int, got: {:?}", operand),
-                }),
+                _ => Err(RuntimeError::new(format!(
+                    "expected signed int, got: {:?}",
+                    operand
+                ))),
             },
             Operator::Not => Ok(ScalarTypedValue::Bool(!is_truthy(&operand))),
-            _ => Err(RuntimeError {
-                message: format!("unsupported unary operator: {:?}", expr.operator),
-            }),
+            _ => Err(RuntimeError::new(format!(
+                "unsupported unary operator: {:?}",
+                expr.operator
+            ))),
         }
     }
 
-    fn visit_ident_expr(&mut self, expr: &IdentExpr, ctx: Ctx) -> ExprResult {
-        todo!()
+    fn visit_var_expr(&mut self, expr: &VarExpr, ctx: ExprVisitorCtx) -> ExprVisitorResult {
+        // Maybe make values reference counted instead of cloning here?
+        Ok(self.env.lookup_var(expr).clone())
     }
 
-    fn visit_lit_expr(&mut self, expr: &crate::expr::LitExpr, ctx: Ctx) -> ExprResult {
+    fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: ExprVisitorCtx) -> ExprVisitorResult {
+        // Maybe make values reference counted instead of cloning here?
         Ok(expr.value.clone())
+    }
+}
+
+type StmtVisitorResult = Result<(), RuntimeError>;
+type StmtVisitorCtx = ();
+
+impl StmtVisitor<StmtVisitorResult, StmtVisitorCtx> for Interpreter {
+    fn visit_stmt(&mut self, stmt: &Stmt, ctx: StmtVisitorCtx) -> StmtVisitorResult {
+        match stmt {
+            Stmt::Var(stmt) => self.visit_var_stmt(stmt, ctx),
+        }
+    }
+
+    fn visit_var_stmt(&mut self, stmt: &VarStmt, ctx: StmtVisitorCtx) -> StmtVisitorResult {
+        stmt.initializer
+            .as_ref()
+            .map_or_else(
+                // We default to null if no initializer is provided.
+                || Ok(ScalarTypedValue::default()),
+                |expr| self.evaluate(expr),
+            )
+            .map(|val| self.env.define_var(val))
     }
 }
 
@@ -171,9 +206,23 @@ fn is_truthy(value: &ScalarTypedValue) -> bool {
     }
 }
 
-#[derive(Error, Debug)]
-#[error("runtime error: {message}")]
-struct RuntimeError {
-    message: String,
-    // TODO: token: Token,
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::operator::Operator;
+
+    #[test]
+    fn test_interpreter() {
+        // let mut interpreter = Interpreter::new();
+        // let expr = Expr::Binary(Box::new(BinaryExpr {
+        //     operator: Operator::Addition,
+        //     left: Expr::Lit(Box::new(LitExpr {
+        //         value: ScalarTypedValue::Uint(1),
+        //     })),
+        //     right: Expr::Lit(Box::new(LitExpr {
+        //         value: ScalarTypedValue::Uint(2),
+        //     })),
+        // }));
+        // assert_eq!(Ok(ScalarTypedValue::Uint(3)), interpreter.evaluate(&expr));
+    }
 }

@@ -7,3 +7,5 @@ edition = "2021"
 dbsp = "0.32.0"
 anyhow = { workspace = true }
 thiserror = { workspace = true }
+by_address = "1.2.1"
+rpds = "1.1.0"

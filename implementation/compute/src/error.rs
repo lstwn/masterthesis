@@ -18,8 +18,10 @@ pub struct SyntaxError {
 }
 
 impl SyntaxError {
-    pub fn new(message: String) -> Self {
-        Self { message }
+    pub fn new<T: Into<String>>(message: T) -> Self {
+        Self {
+            message: message.into(),
+        }
     }
 }
 

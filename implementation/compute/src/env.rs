@@ -94,8 +94,22 @@ impl Environment {
     }
 }
 
+struct Variable {
+    initialized: bool,
+    slot: usize,
+}
+
+impl Variable {
+    fn new(slot: usize) -> Self {
+        Self {
+            initialized: false,
+            slot,
+        }
+    }
+}
+
 pub struct Resolver {
-    scopes: Vec<HashMap<String, bool>>,
+    scopes: Vec<HashMap<String, Variable>>,
     side_table: HashMap<NodeRef, VarIdent>,
 }
 
@@ -110,11 +124,49 @@ impl Resolver {
         resolver
     }
     pub fn to_environment(mut self, expr: &Expr) -> Result<Environment, SyntaxError> {
-        self.resolve(expr)
+        self.resolve_expr(expr)
             .map(|()| Environment::new(self.side_table))
     }
-    fn resolve(&mut self, expr: &Expr) -> VisitorResult {
+    fn resolve_expr(&mut self, expr: &Expr) -> VisitorResult {
         self.visit_expr(expr, ())
+    }
+    fn begin_scope(&mut self) -> () {
+        self.scopes.push(HashMap::new());
+    }
+    fn end_scope(&mut self) -> () {
+        self.scopes.pop();
+    }
+    // declare in Lox
+    fn declare_var(&mut self, name: &String) -> Result<(), SyntaxError> {
+        match self.scopes.last_mut() {
+            Some(scope) => scope.insert(name, Variable::new(scope.len())),
+            None => Err(SyntaxError::new("No scope to declare variable in")),
+        }
+    }
+    // define in Lox
+    fn assign_var(&mut self, name: &String) -> Result<(), SyntaxError> {
+        match self.scopes.last_mut() {
+            Some(scope) => match scope.get_mut(name) {
+                Some(var) => {
+                    var.initialized = true;
+                    Ok(())
+                }
+                None => Err(SyntaxError::new("Variable not declared in top-most scope")),
+            },
+            None => Err(SyntaxError::new("No scope to find variable to assign to")),
+        }
+    }
+    // resolveLocal in Lox
+    fn resolve_var(&mut self, expr: &Expr, name: &String) -> Result<(), SyntaxError> {
+        for (i, scope) in self.scopes.iter().enumerate().rev() {
+            if let Some(var) = scope.get(name) {
+                let scope_idx = self.scopes.len() - 1 - i;
+                self.side_table
+                    .insert(NodeRef::from(expr), (scope_idx, var.slot));
+                return Ok(());
+            }
+        }
+        Err(SyntaxError::new("Variable not declared"))
     }
 }
 
@@ -133,26 +185,34 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver {
     }
 
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: VisitorCtx) -> VisitorResult {
-        self.resolve(&expr.left)
-            .and_then(|()| self.resolve(&expr.mid))
-            .and_then(|()| self.resolve(&expr.right))
+        self.resolve_expr(&expr.left)
+            .and_then(|()| self.resolve_expr(&expr.mid))
+            .and_then(|()| self.resolve_expr(&expr.right))
     }
 
     fn visit_binary_expr(&mut self, expr: &BinaryExpr, ctx: VisitorCtx) -> VisitorResult {
-        self.resolve(&expr.left)
-            .and_then(|()| self.resolve(&expr.right))
+        self.resolve_expr(&expr.left)
+            .and_then(|()| self.resolve_expr(&expr.right))
     }
 
     fn visit_unary_expr(&mut self, expr: &UnaryExpr, ctx: VisitorCtx) -> VisitorResult {
-        self.resolve(&expr.operand)
+        self.resolve_expr(&expr.operand)
     }
 
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> VisitorResult {
-        todo!()
+        if let Some(var) = self.scopes.last().and_then(|scope| scope.get(&expr.name)) {
+            if !var.initialized {
+                return Err(SyntaxError::new("Variable used before initialization"));
+            }
+        } else {
+            // TODO: I think this is valid because of mutual recursion!
+            Err(SyntaxError::new("Variable not declared"))
+        }
+        self.resolve_var(expr, &expr.name)
     }
 
     fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: VisitorCtx) -> VisitorResult {
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -164,10 +224,15 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver {
     }
 
     fn visit_var_stmt(&mut self, stmt: &VarStmt, ctx: VisitorCtx) -> VisitorResult {
-        // 1. declare
-        // 2. optionally resolve init expr
-        // 3. define
-        todo!()
+        self.declare_var(&stmt.name)
+            .and_then(|()| {
+                if let Some(expr) = &stmt.initializer {
+                    self.resolve_expr(expr)
+                } else {
+                    Ok(())
+                }
+            })
+            .and_then(|()| self.assign_var(&stmt.name))
     }
 }
 

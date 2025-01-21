@@ -4,7 +4,7 @@ use crate::{
     expr::{BinaryExpr, Expr, ExprVisitor, LitExpr, TernaryExpr, UnaryExpr, VarExpr},
     operator::Operator,
     scalar::ScalarTypedValue,
-    stmt::{Stmt, StmtVisitor, VarStmt},
+    stmt::{ExprStmt, Program, Stmt, StmtVisitor, VarStmt},
 };
 
 pub struct Interpreter {
@@ -15,8 +15,24 @@ impl Interpreter {
     pub fn new(env: Environment) -> Self {
         Self { env }
     }
-    pub fn evaluate(&mut self, expr: &Expr) -> Result<ScalarTypedValue, RuntimeError> {
+    pub fn interpret(
+        &mut self,
+        program: &Program,
+    ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
+        if let Some((last_stmt, first_stmts)) = program.stmts.split_last() {
+            for stmt in first_stmts {
+                self.execute(stmt)?;
+            }
+            self.execute(last_stmt)
+        } else {
+            Ok(None)
+        }
+    }
+    fn evaluate(&mut self, expr: &Expr) -> Result<ScalarTypedValue, RuntimeError> {
         self.visit_expr(expr, ())
+    }
+    fn execute(&mut self, stmt: &Stmt) -> Result<Option<ScalarTypedValue>, RuntimeError> {
+        self.visit_stmt(stmt, ())
     }
 }
 
@@ -176,13 +192,14 @@ impl ExprVisitor<ExprVisitorResult, ExprVisitorCtx> for Interpreter {
     }
 }
 
-type StmtVisitorResult = Result<(), RuntimeError>;
+type StmtVisitorResult = Result<Option<ScalarTypedValue>, RuntimeError>;
 type StmtVisitorCtx = ();
 
 impl StmtVisitor<StmtVisitorResult, StmtVisitorCtx> for Interpreter {
     fn visit_stmt(&mut self, stmt: &Stmt, ctx: StmtVisitorCtx) -> StmtVisitorResult {
         match stmt {
             Stmt::Var(stmt) => self.visit_var_stmt(stmt, ctx),
+            Stmt::Expr(stmt) => self.visit_expr_stmt(stmt, ctx),
         }
     }
 
@@ -194,7 +211,16 @@ impl StmtVisitor<StmtVisitorResult, StmtVisitorCtx> for Interpreter {
                 || Ok(ScalarTypedValue::default()),
                 |expr| self.evaluate(expr),
             )
-            .map(|val| self.env.define_var(val))
+            .map(|val| {
+                self.env.define_var(val);
+                None
+            })
+    }
+
+    fn visit_expr_stmt(&mut self, stmt: &ExprStmt, ctx: StmtVisitorCtx) -> StmtVisitorResult {
+        // Evaluate the expression and return the result.
+        // This is the only statement that can return a value.
+        self.evaluate(&stmt.expr).map(|expr| Some(expr))
     }
 }
 

@@ -1,8 +1,10 @@
 // IDEAS:
 // - [x] add Lox class
 // - [ ] string wrapper struct for identifier
-// - [ ] develop Environment (context)
+// - [x] develop Environment (context)
 //   - [x] use mutable environment
+//   - [ ] fix multiple instances of resolver in REPL
+// - [x] allow printing last expr (statment) without using print
 // - [ ] try out idea from blog post
 //   - [ ] Offer regular AST and flattened AST
 //   - [ ] From regular AST to flattened AST: Post-order traversal
@@ -20,7 +22,7 @@ use crate::{
     error::SyntaxError,
     expr::{BinaryExpr, Expr, ExprVisitor, LitExpr, TernaryExpr, UnaryExpr, VarExpr},
     scalar::ScalarTypedValue,
-    stmt::{Stmt, StmtVisitor, VarStmt},
+    stmt::{ExprStmt, Program, Stmt, StmtVisitor, VarStmt},
     util::MemAddr,
 };
 use std::collections::HashMap;
@@ -123,9 +125,14 @@ impl Resolver {
         resolver.scopes.push(HashMap::new());
         resolver
     }
-    pub fn to_environment(mut self, expr: &Expr) -> Result<Environment, SyntaxError> {
-        self.resolve_expr(expr)
-            .map(|()| Environment::new(self.side_table))
+    pub fn to_environment(mut self, program: &Program) -> Result<Environment, SyntaxError> {
+        for stmt in &program.stmts {
+            self.resolve_stmt(stmt)?;
+        }
+        Ok(Environment::new(self.side_table))
+    }
+    fn resolve_stmt(&mut self, stmt: &Stmt) -> VisitorResult {
+        self.visit_stmt(stmt, ())
     }
     fn resolve_expr(&mut self, expr: &Expr) -> VisitorResult {
         self.visit_expr(expr, ())
@@ -139,12 +146,15 @@ impl Resolver {
     // declare in Lox
     fn declare_var(&mut self, name: &String) -> Result<(), SyntaxError> {
         match self.scopes.last_mut() {
-            Some(scope) => scope.insert(name, Variable::new(scope.len())),
+            Some(scope) => {
+                scope.insert(name.clone(), Variable::new(scope.len()));
+                Ok(())
+            }
             None => Err(SyntaxError::new("No scope to declare variable in")),
         }
     }
     // define in Lox
-    fn assign_var(&mut self, name: &String) -> Result<(), SyntaxError> {
+    fn define_var(&mut self, name: &String) -> Result<(), SyntaxError> {
         match self.scopes.last_mut() {
             Some(scope) => match scope.get_mut(name) {
                 Some(var) => {
@@ -157,7 +167,7 @@ impl Resolver {
         }
     }
     // resolveLocal in Lox
-    fn resolve_var(&mut self, expr: &Expr, name: &String) -> Result<(), SyntaxError> {
+    fn resolve_var(&mut self, expr: &VarExpr, name: &String) -> Result<(), SyntaxError> {
         for (i, scope) in self.scopes.iter().enumerate().rev() {
             if let Some(var) = scope.get(name) {
                 let scope_idx = self.scopes.len() - 1 - i;
@@ -202,12 +212,12 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver {
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> VisitorResult {
         if let Some(var) = self.scopes.last().and_then(|scope| scope.get(&expr.name)) {
             if !var.initialized {
-                return Err(SyntaxError::new("Variable used before initialization"));
+                return Err(SyntaxError::new(
+                    "Variable referenced in its own initializer",
+                ));
             }
-        } else {
-            // TODO: I think this is valid because of mutual recursion!
-            Err(SyntaxError::new("Variable not declared"))
         }
+        // `resolve_var` returns an error if the variable is not declared.
         self.resolve_var(expr, &expr.name)
     }
 
@@ -220,6 +230,7 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver {
     fn visit_stmt(&mut self, stmt: &Stmt, ctx: VisitorCtx) -> VisitorResult {
         match stmt {
             Stmt::Var(stmt) => self.visit_var_stmt(stmt, ctx),
+            Stmt::Expr(stmt) => self.visit_expr_stmt(stmt, ctx),
         }
     }
 
@@ -232,7 +243,11 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver {
                     Ok(())
                 }
             })
-            .and_then(|()| self.assign_var(&stmt.name))
+            .and_then(|()| self.define_var(&stmt.name))
+    }
+
+    fn visit_expr_stmt(&mut self, stmt: &ExprStmt, ctx: VisitorCtx) -> VisitorResult {
+        self.resolve_expr(&stmt.expr)
     }
 }
 

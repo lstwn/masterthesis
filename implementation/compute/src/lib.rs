@@ -14,6 +14,7 @@ use error::IncLogError;
 use expr::Expr;
 use interpreter::Interpreter;
 use scalar::ScalarTypedValue;
+use stmt::Program;
 
 // Var: Variable
 // Val: Value
@@ -35,29 +36,32 @@ impl IncLog {
     }
     fn run_and_print(&mut self, source: String) {
         match self.run(source) {
-            Ok(val) => println!("{}", val),
+            Ok(Some(val)) => println!("{}", val),
+            Ok(None) => (),
             Err(err) => eprintln!("{}", err),
         }
     }
-    fn run(&mut self, source: String) -> Result<ScalarTypedValue, IncLogError> {
-        self.parse(source).and_then(|expr| self.execute(&expr))
+    fn run(&mut self, source: String) -> Result<Option<ScalarTypedValue>, IncLogError> {
+        self.parse(source)
+            .and_then(|program| self.execute(&program))
     }
     // Result<Expr, ParsingError (SyntaxError)>
-    fn parse(&mut self, source: String) -> Result<Expr, IncLogError> {
+    fn parse(&mut self, source: String) -> Result<Program, IncLogError> {
         // Should actually parse the input string and create an expression
         // or a list of statements.
-        let expr = expr::Expr::Lit(Box::new(expr::LitExpr {
-            value: scalar::ScalarTypedValue::Uint(2),
-        }));
-        Ok(expr)
+        // let expr = expr::Expr::Lit(Box::new(expr::LitExpr {
+        //     value: scalar::ScalarTypedValue::Uint(2),
+        // }));
+        // Ok(expr)
+        todo!()
     }
-    fn execute(&mut self, expr: &Expr) -> Result<ScalarTypedValue, IncLogError> {
+    fn execute(&mut self, program: &Program) -> Result<Option<ScalarTypedValue>, IncLogError> {
         Resolver::new()
-            .to_environment(expr)
+            .to_environment(program)
             .map_err(|err| self.ack_syntax_err(err))
             .and_then(|env| {
                 Interpreter::new(env)
-                    .evaluate(expr)
+                    .interpret(program)
                     .map_err(|err| self.ack_runtime_err(err))
             })
     }
@@ -68,5 +72,42 @@ impl IncLog {
     fn ack_runtime_err<T: Into<IncLogError>>(&mut self, err: T) -> IncLogError {
         self.had_runtime_err = true;
         err.into()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use expr::{LitExpr, VarExpr};
+    use scalar::ScalarTypedValue;
+    use stmt::{Stmt, VarStmt};
+
+    use super::*;
+
+    #[test]
+    fn test_inclog() {
+        let mut inclog = IncLog::new();
+
+        let program = Program::from(vec![
+            Stmt::Var(Box::new(VarStmt {
+                name: "a".to_string(),
+                initializer: Some(Expr::Lit(Box::new(LitExpr {
+                    value: ScalarTypedValue::Uint(1),
+                }))),
+            })),
+            Stmt::Var(Box::new(VarStmt {
+                name: "b".to_string(),
+                initializer: Some(Expr::Lit(Box::new(LitExpr {
+                    value: ScalarTypedValue::Uint(2),
+                }))),
+            })),
+            Stmt::Expr(Box::new(stmt::ExprStmt {
+                expr: Expr::Var(Box::new(VarExpr {
+                    name: "a".to_string(),
+                })),
+            })),
+        ]);
+
+        let res = inclog.execute(&program).unwrap();
+        println!("{:?}", res);
     }
 }

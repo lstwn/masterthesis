@@ -11,7 +11,6 @@ mod variable;
 
 use env::Resolver;
 use error::IncLogError;
-use expr::Expr;
 use interpreter::Interpreter;
 use scalar::ScalarTypedValue;
 use stmt::Program;
@@ -23,6 +22,7 @@ use stmt::Program;
 // Ident: Identifier
 
 struct IncLog {
+    interpreter: Interpreter,
     had_syntax_err: bool,
     had_runtime_err: bool,
 }
@@ -30,6 +30,7 @@ struct IncLog {
 impl IncLog {
     fn new() -> Self {
         Self {
+            interpreter: Interpreter::new(),
             had_syntax_err: false,
             had_runtime_err: false,
         }
@@ -56,11 +57,11 @@ impl IncLog {
         todo!()
     }
     fn execute(&mut self, program: &Program) -> Result<Option<ScalarTypedValue>, IncLogError> {
-        Resolver::new()
-            .to_environment(program)
+        Resolver::new(self.interpreter.env_mut())
+            .resolve(program)
             .map_err(|err| self.ack_syntax_err(err))
-            .and_then(|env| {
-                Interpreter::new(env)
+            .and_then(|()| {
+                self.interpreter
                     .interpret(program)
                     .map_err(|err| self.ack_runtime_err(err))
             })
@@ -77,14 +78,14 @@ impl IncLog {
 
 #[cfg(test)]
 mod test {
-    use expr::{LitExpr, VarExpr};
-    use scalar::ScalarTypedValue;
-    use stmt::{Stmt, VarStmt};
-
     use super::*;
+    use expr::{BinaryExpr, Expr, LitExpr, VarExpr};
+    use operator::Operator;
+    use scalar::ScalarTypedValue;
+    use stmt::{ExprStmt, Stmt, VarStmt};
 
     #[test]
-    fn test_inclog() {
+    fn test_inclog() -> Result<(), IncLogError> {
         let mut inclog = IncLog::new();
 
         let program = Program::from(vec![
@@ -100,14 +101,20 @@ mod test {
                     value: ScalarTypedValue::Uint(2),
                 }))),
             })),
-            Stmt::Expr(Box::new(stmt::ExprStmt {
-                expr: Expr::Var(Box::new(VarExpr {
-                    name: "a".to_string(),
+            Stmt::Expr(Box::new(ExprStmt {
+                expr: Expr::Binary(Box::new(BinaryExpr {
+                    operator: Operator::Addition,
+                    left: Expr::Var(Box::new(VarExpr {
+                        name: "a".to_string(),
+                    })),
+                    right: Expr::Var(Box::new(VarExpr {
+                        name: "b".to_string(),
+                    })),
                 })),
             })),
         ]);
 
-        let res = inclog.execute(&program).unwrap();
-        println!("{:?}", res);
+        assert_eq!(Some(ScalarTypedValue::Uint(3)), inclog.execute(&program)?);
+        Ok(())
     }
 }

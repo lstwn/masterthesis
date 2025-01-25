@@ -12,8 +12,10 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
-    pub fn new(env: Environment) -> Self {
-        Self { env }
+    pub fn new() -> Self {
+        Self {
+            env: Environment::new(),
+        }
     }
     pub fn interpret(
         &mut self,
@@ -27,6 +29,9 @@ impl Interpreter {
         } else {
             Ok(None)
         }
+    }
+    pub fn env_mut(&mut self) -> &mut Environment {
+        &mut self.env
     }
     fn evaluate(&mut self, expr: &Expr) -> Result<ScalarTypedValue, RuntimeError> {
         self.visit_expr(expr, ())

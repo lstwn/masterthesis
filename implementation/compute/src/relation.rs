@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use super::scalar::{ScalarType, ScalarTypedValue};
+use std::collections::HashMap;
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone, PartialOrd, Ord)]
 struct Identifier {
@@ -29,14 +28,19 @@ impl TupleType {
     pub fn get(&self, identifier: &Identifier) -> Option<(ScalarType, Index)> {
         self.info.get(identifier).copied()
     }
+    pub fn fields(&self) -> impl Iterator<Item = (&Identifier, ScalarType, Index)> {
+        self.info
+            .iter()
+            .map(|(identifier, (scalar_type, index))| (identifier, *scalar_type, *index))
+    }
 }
 
 struct TupleValue {
     /// The data of the tuple which can be accessed by the index.
     /// Currently, the fields store their types alongside the data. However,
     /// this is redundant and could be removed to save space. Interestingly,
-    /// `ScalarValue` which is a union without a type tag (contrast it
-    /// with `ScalarTypedValue`) has the same size, hence, the extra type tag
+    /// `ScalarValue`, which is a union without a type tag (contrast it
+    /// with `ScalarTypedValue`), has the same size, hence, the extra type tag
     /// does not increase the size currently.
     data: Vec<ScalarTypedValue>,
 }

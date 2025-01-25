@@ -3,7 +3,7 @@
 // - [ ] string wrapper struct for identifier
 // - [x] develop Environment (context)
 //   - [x] use mutable environment
-//   - [ ] fix multiple instances of resolver in REPL
+//   - [x] fix multiple instances of resolver in REPL
 // - [x] allow printing last expr (statment) without using print
 // - [ ] try out idea from blog post
 //   - [ ] Offer regular AST and flattened AST
@@ -62,10 +62,10 @@ pub struct Environment {
 }
 
 impl Environment {
-    fn new(side_table: HashMap<NodeRef, VarIdent>) -> Self {
+    pub fn new() -> Self {
         let mut env = Self {
             scopes: Vec::with_capacity(8),
-            side_table,
+            side_table: HashMap::new(),
         };
         // Create global environment.
         env.begin_scope();
@@ -110,26 +110,26 @@ impl Variable {
     }
 }
 
-pub struct Resolver {
+pub struct Resolver<'a> {
     scopes: Vec<HashMap<String, Variable>>,
-    side_table: HashMap<NodeRef, VarIdent>,
+    env: &'a mut Environment,
 }
 
-impl Resolver {
-    pub fn new() -> Self {
+impl<'a> Resolver<'a> {
+    pub fn new(env: &'a mut Environment) -> Self {
         let mut resolver = Self {
             scopes: Vec::with_capacity(8),
-            side_table: HashMap::new(),
+            env,
         };
         // Create global environment.
         resolver.scopes.push(HashMap::new());
         resolver
     }
-    pub fn to_environment(mut self, program: &Program) -> Result<Environment, SyntaxError> {
+    pub fn resolve(&mut self, program: &Program) -> Result<(), SyntaxError> {
         for stmt in &program.stmts {
             self.resolve_stmt(stmt)?;
         }
-        Ok(Environment::new(self.side_table))
+        Ok(())
     }
     fn resolve_stmt(&mut self, stmt: &Stmt) -> VisitorResult {
         self.visit_stmt(stmt, ())
@@ -171,7 +171,8 @@ impl Resolver {
         for (i, scope) in self.scopes.iter().enumerate().rev() {
             if let Some(var) = scope.get(name) {
                 let scope_idx = self.scopes.len() - 1 - i;
-                self.side_table
+                self.env
+                    .side_table
                     .insert(NodeRef::from(expr), (scope_idx, var.slot));
                 return Ok(());
             }
@@ -183,7 +184,7 @@ impl Resolver {
 type VisitorResult = Result<(), SyntaxError>;
 type VisitorCtx = ();
 
-impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver {
+impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
     fn visit_expr(&mut self, expr: &Expr, ctx: VisitorCtx) -> VisitorResult {
         match expr {
             Expr::Ternary(expr) => self.visit_ternary_expr(expr, ctx),
@@ -226,7 +227,7 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver {
     }
 }
 
-impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver {
+impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
     fn visit_stmt(&mut self, stmt: &Stmt, ctx: VisitorCtx) -> VisitorResult {
         match stmt {
             Stmt::Var(stmt) => self.visit_var_stmt(stmt, ctx),
@@ -249,31 +250,4 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver {
     fn visit_expr_stmt(&mut self, stmt: &ExprStmt, ctx: VisitorCtx) -> VisitorResult {
         self.resolve_expr(&stmt.expr)
     }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    // #[test]
-    // fn test() -> Result<(), RuntimeError> {
-    //     let mut global = Environment::new_root();
-    //     global.defineVar("a".to_owned(), ScalarTypedValue::Uint(0));
-
-    //     {
-    //         let mut local = global.new_child();
-    //         local.assignVar("a".to_owned(), ScalarTypedValue::Uint(1))?;
-    //         assert_eq!(local.lookupVar("a"), Some(&ScalarTypedValue::Uint(1)));
-    //         local.defineVar("a".to_owned(), ScalarTypedValue::Uint(2));
-    //         assert_eq!(local.lookupVar("a"), Some(&ScalarTypedValue::Uint(2)));
-    //         assert_eq!(local.lookupVar("b"), None);
-    //         local.defineVar("b".to_owned(), ScalarTypedValue::Uint(0));
-    //         assert_eq!(local.lookupVar("b"), Some(&ScalarTypedValue::Uint(2)));
-    //     }
-
-    //     assert_eq!(global.lookupVar("a"), Some(&ScalarTypedValue::Uint(1)));
-    //     assert_eq!(global.lookupVar("b"), None);
-
-    //     Ok(())
-    // }
 }

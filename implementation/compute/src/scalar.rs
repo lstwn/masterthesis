@@ -29,7 +29,8 @@ pub type DBool = bool;
 pub type DNull = ();
 
 /// In contrast to `ScalarTypedValue` it only stores a value but not its type.
-/// Currently unused.
+/// Currently unused, as it has the same binary size as `ScalarTypedValue` due
+/// to some smartness of the Rust compiler.
 union ScalarValue {
     string: std::mem::ManuallyDrop<DString>,
     uint: DUint,

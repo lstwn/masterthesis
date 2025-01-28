@@ -351,15 +351,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
 
 [[package]]
-name = "archery"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eae2ed21cd55021f05707a807a5fc85695dafb98832921f6cfa06db67ca5b869"
-dependencies = [
- "triomphe",
-]
-
-[[package]]
 name = "arcstr"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -536,12 +527,6 @@ name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
-
-[[package]]
-name = "by_address"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64fa3c856b712db6612c019f14756e64e4bcea13337a6b33b696333a9eaa2d06"
 
 [[package]]
 name = "bytecheck"
@@ -727,9 +712,7 @@ name = "compute"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "by_address",
  "dbsp",
- "rpds",
  "thiserror 2.0.9",
 ]
 
@@ -907,9 +890,9 @@ dependencies = [
 
 [[package]]
 name = "dbsp"
-version = "0.32.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f551d9242a7171ecfdc1d8290ee50290433f9d33a08c2b639819eeba7c418738"
+checksum = "c41b391041a38ecb389a371a97fde7ae6151672ffe4079b70fc074bcb1408aa7"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -919,7 +902,6 @@ dependencies = [
  "crossbeam",
  "crossbeam-utils",
  "csv",
- "dashmap",
  "derive_more 1.0.0",
  "dyn-clone",
  "fdlimit",
@@ -933,7 +915,6 @@ dependencies = [
  "itertools 0.10.5",
  "lazy_static",
  "libc",
- "log",
  "metrics",
  "mimalloc-rust-sys",
  "minitrace",
@@ -946,7 +927,6 @@ dependencies = [
  "ouroboros",
  "paste",
  "petgraph",
- "priority-queue",
  "ptr_meta 0.2.0",
  "rand",
  "rand_chacha",
@@ -960,6 +940,7 @@ dependencies = [
  "thiserror 1.0.69",
  "time",
  "tokio",
+ "tracing",
  "typedmap",
  "uuid",
  "xxhash-rust",
@@ -1147,9 +1128,9 @@ dependencies = [
 
 [[package]]
 name = "feldera-types"
-version = "0.32.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ebbbb42be4ce1bba271c08a67ad15f84da3b64d737f58bc8870c293aa7c1cc1"
+checksum = "daa0b1ca044f439ff4daf2d67e4735fb27ffa77a2fd1d7ca575f22d12f0fb929"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -2209,16 +2190,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "priority-queue"
-version = "1.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0bda9164fe05bc9225752d54aae413343c36f684380005398a6a8fde95fe785"
-dependencies = [
- "autocfg",
- "indexmap 1.9.3",
-]
-
-[[package]]
 name = "proc-macro-crate"
 version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2449,15 +2420,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7043b63bd0cd1aaa628e476b80e6d4023a3b50eb32789f2728908107bd0c793a"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "rpds"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0e15515d3ce3313324d842629ea4905c25a13f81953eadb88f85516f59290a4"
-dependencies = [
- "archery",
 ]
 
 [[package]]
@@ -3042,12 +3004,6 @@ dependencies = [
  "thread_local",
  "tracing-core",
 ]
-
-[[package]]
-name = "triomphe"
-version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef8f7726da4807b58ea5c96fdc122f80702030edc33b35aff9190a51148ccc85"
 
 [[package]]
 name = "typedmap"

@@ -1,10 +1,10 @@
 use crate::{
     env::Environment,
     error::RuntimeError,
-    expr::{BinaryExpr, Expr, ExprVisitor, LitExpr, TernaryExpr, UnaryExpr, VarExpr},
+    expr::{BinaryExpr, CallExpr, Expr, ExprVisitor, LitExpr, TernaryExpr, UnaryExpr, VarExpr},
     operator::Operator,
     scalar::ScalarTypedValue,
-    stmt::{ExprStmt, Program, Stmt, StmtVisitor, VarStmt},
+    stmt::{BlockStmt, ExprStmt, FunctionStmt, Program, Stmt, StmtVisitor, VarStmt},
 };
 
 pub struct Interpreter {
@@ -21,14 +21,9 @@ impl Interpreter {
         &mut self,
         program: &Program,
     ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
-        if let Some((last_stmt, first_stmts)) = program.stmts.split_last() {
-            for stmt in first_stmts {
-                self.execute(stmt)?;
-            }
-            self.execute(last_stmt)
-        } else {
-            Ok(None)
-        }
+        // Because we call `execute_block` here, we implicitly create a global
+        // scope for the program.
+        self.execute_block(&program.stmts)
     }
     pub fn env_mut(&mut self) -> &mut Environment {
         &mut self.env
@@ -38,6 +33,18 @@ impl Interpreter {
     }
     fn execute(&mut self, stmt: &Stmt) -> Result<Option<ScalarTypedValue>, RuntimeError> {
         self.visit_stmt(stmt, ())
+    }
+    fn execute_block(
+        &mut self,
+        stmts: &Vec<Stmt>,
+    ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
+        self.env.begin_scope();
+        // Functional programming can be so beautiful.
+        let ret = stmts
+            .iter()
+            .try_fold(None, |_prev, stmt| self.execute(stmt));
+        self.env.end_scope();
+        ret
     }
 }
 
@@ -152,6 +159,7 @@ impl ExprVisitor<ExprVisitorResult, ExprVisitorCtx> for Interpreter {
             Expr::Unary(expr) => self.visit_unary_expr(expr, ctx),
             Expr::Var(expr) => self.visit_var_expr(expr, ctx),
             Expr::Lit(expr) => self.visit_lit_expr(expr, ctx),
+            Expr::Call(expr) => self.visit_call_expr(expr, ctx),
         }
     }
 
@@ -195,6 +203,10 @@ impl ExprVisitor<ExprVisitorResult, ExprVisitorCtx> for Interpreter {
         // Maybe make values reference counted instead of cloning here?
         Ok(expr.value.clone())
     }
+
+    fn visit_call_expr(&mut self, expr: &CallExpr, ctx: ExprVisitorCtx) -> ExprVisitorResult {
+        todo!()
+    }
 }
 
 type StmtVisitorResult = Result<Option<ScalarTypedValue>, RuntimeError>;
@@ -205,6 +217,8 @@ impl StmtVisitor<StmtVisitorResult, StmtVisitorCtx> for Interpreter {
         match stmt {
             Stmt::Var(stmt) => self.visit_var_stmt(stmt, ctx),
             Stmt::Expr(stmt) => self.visit_expr_stmt(stmt, ctx),
+            Stmt::Block(stmt) => self.visit_block_stmt(stmt, ctx),
+            Stmt::Function(stmt) => self.visit_function_stmt(stmt, ctx),
         }
     }
 
@@ -227,6 +241,18 @@ impl StmtVisitor<StmtVisitorResult, StmtVisitorCtx> for Interpreter {
         // This is the only statement that can return a value.
         self.evaluate(&stmt.expr).map(|expr| Some(expr))
     }
+
+    fn visit_block_stmt(&mut self, stmt: &BlockStmt, ctx: StmtVisitorCtx) -> StmtVisitorResult {
+        self.execute_block(&stmt.stmts)
+    }
+
+    fn visit_function_stmt(
+        &mut self,
+        stmt: &FunctionStmt,
+        ctx: StmtVisitorCtx,
+    ) -> StmtVisitorResult {
+        todo!()
+    }
 }
 
 fn is_truthy(value: &ScalarTypedValue) -> bool {
@@ -234,26 +260,5 @@ fn is_truthy(value: &ScalarTypedValue) -> bool {
         ScalarTypedValue::Null(()) => false,
         ScalarTypedValue::Bool(value) => *value,
         _ => true,
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::operator::Operator;
-
-    #[test]
-    fn test_interpreter() {
-        // let mut interpreter = Interpreter::new();
-        // let expr = Expr::Binary(Box::new(BinaryExpr {
-        //     operator: Operator::Addition,
-        //     left: Expr::Lit(Box::new(LitExpr {
-        //         value: ScalarTypedValue::Uint(1),
-        //     })),
-        //     right: Expr::Lit(Box::new(LitExpr {
-        //         value: ScalarTypedValue::Uint(2),
-        //     })),
-        // }));
-        // assert_eq!(Ok(ScalarTypedValue::Uint(3)), interpreter.evaluate(&expr));
     }
 }

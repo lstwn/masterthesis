@@ -1,6 +1,8 @@
+mod dbsp_playground;
 mod env;
 mod error;
 mod expr;
+mod function;
 mod interpreter;
 mod operator;
 mod relation;

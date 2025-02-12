@@ -713,6 +713,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "dbsp",
+ "feldera-size-of",
+ "rkyv",
  "thiserror 2.0.9",
 ]
 
@@ -890,9 +892,9 @@ dependencies = [
 
 [[package]]
 name = "dbsp"
-version = "0.35.0"
+version = "0.36.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c41b391041a38ecb389a371a97fde7ae6151672ffe4079b70fc074bcb1408aa7"
+checksum = "7929a58794675c8304a86a28eaf4b7acfb22e1d73d92518c949599c638b57368"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -933,6 +935,7 @@ dependencies = [
  "rkyv",
  "rlimit",
  "serde",
+ "snap",
  "static_assertions",
  "tarpc",
  "tempfile",
@@ -1128,9 +1131,9 @@ dependencies = [
 
 [[package]]
 name = "feldera-types"
-version = "0.35.0"
+version = "0.36.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daa0b1ca044f439ff4daf2d67e4735fb27ffa77a2fd1d7ca575f22d12f0fb929"
+checksum = "d15d4f9b442bf6f8a3a30b3e0cd1a5510a4e7824fa1da90ae2aef913390b5123"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -2623,6 +2626,12 @@ name = "smawk"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7c388c1b5e93756d0c740965c41e8822f866621d41acbdf6336a6a168f8840c"
+
+[[package]]
+name = "snap"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b6b67fb9a61334225b5b790716f609cd58395f895b3fe8b328786812a40bc3b"
 
 [[package]]
 name = "socket2"

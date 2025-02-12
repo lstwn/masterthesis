@@ -4,8 +4,22 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-dbsp = "0.35.0"
 anyhow = { workspace = true }
 thiserror = { workspace = true }
+dbsp = "0.36.0"
+rkyv = { version = "0.7.45", default-features = false, features = [
+    "std",
+    "size_64",
+    "validation",
+    "uuid",
+] }
+size-of = { version = "0.1.5", package = "feldera-size-of", features = [
+    "hashbrown",
+    "time-std",
+    "xxhash-xxh3",
+    "arcstr",
+    "chrono",
+    "ordered-float",
+] }
 # by_address = "1.2.1"
 # rpds = "1.1.0"

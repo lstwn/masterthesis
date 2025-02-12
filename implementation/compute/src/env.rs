@@ -1,6 +1,7 @@
 // IDEAS:
 // - [x] add Lox class
 // - [ ] string wrapper struct for identifier
+// - [ ] implement functions
 // - [x] develop Environment (context)
 //   - [x] use mutable environment
 //   - [x] fix multiple instances of resolver in REPL
@@ -20,9 +21,9 @@
 
 use crate::{
     error::SyntaxError,
-    expr::{BinaryExpr, Expr, ExprVisitor, LitExpr, TernaryExpr, UnaryExpr, VarExpr},
+    expr::{BinaryExpr, CallExpr, Expr, ExprVisitor, LitExpr, TernaryExpr, UnaryExpr, VarExpr},
     scalar::ScalarTypedValue,
-    stmt::{ExprStmt, Program, Stmt, StmtVisitor, VarStmt},
+    stmt::{BlockStmt, ExprStmt, FunctionStmt, Program, Stmt, StmtVisitor, VarStmt},
     util::MemAddr,
 };
 use std::collections::HashMap;
@@ -63,13 +64,10 @@ pub struct Environment {
 
 impl Environment {
     pub fn new() -> Self {
-        let mut env = Self {
+        Self {
             scopes: Vec::with_capacity(8),
             side_table: HashMap::new(),
-        };
-        // Create global environment.
-        env.begin_scope();
-        env
+        }
     }
     pub fn begin_scope(&mut self) -> () {
         self.scopes.push(Vec::new());
@@ -117,19 +115,13 @@ pub struct Resolver<'a> {
 
 impl<'a> Resolver<'a> {
     pub fn new(env: &'a mut Environment) -> Self {
-        let mut resolver = Self {
+        Self {
             scopes: Vec::with_capacity(8),
             env,
-        };
-        // Create global environment.
-        resolver.scopes.push(HashMap::new());
-        resolver
+        }
     }
     pub fn resolve(&mut self, program: &Program) -> Result<(), SyntaxError> {
-        for stmt in &program.stmts {
-            self.resolve_stmt(stmt)?;
-        }
-        Ok(())
+        self.visit_block(&program.stmts)
     }
     fn resolve_stmt(&mut self, stmt: &Stmt) -> VisitorResult {
         self.visit_stmt(stmt, ())
@@ -179,6 +171,14 @@ impl<'a> Resolver<'a> {
         }
         Err(SyntaxError::new("Variable not declared"))
     }
+    fn visit_block(&mut self, stmts: &Vec<Stmt>) -> Result<(), SyntaxError> {
+        self.begin_scope();
+        for stmt in stmts {
+            self.resolve_stmt(stmt)?;
+        }
+        self.end_scope();
+        Ok(())
+    }
 }
 
 type VisitorResult = Result<(), SyntaxError>;
@@ -192,6 +192,7 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
             Expr::Unary(expr) => self.visit_unary_expr(expr, ctx),
             Expr::Var(expr) => self.visit_var_expr(expr, ctx),
             Expr::Lit(expr) => self.visit_lit_expr(expr, ctx),
+            Expr::Call(expr) => self.visit_call_expr(expr, ctx),
         }
     }
 
@@ -225,6 +226,10 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
     fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: VisitorCtx) -> VisitorResult {
         Ok(())
     }
+
+    fn visit_call_expr(&mut self, expr: &CallExpr, ctx: VisitorCtx) -> VisitorResult {
+        todo!()
+    }
 }
 
 impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
@@ -232,6 +237,8 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
         match stmt {
             Stmt::Var(stmt) => self.visit_var_stmt(stmt, ctx),
             Stmt::Expr(stmt) => self.visit_expr_stmt(stmt, ctx),
+            Stmt::Block(stmt) => self.visit_block_stmt(stmt, ctx),
+            Stmt::Function(stmt) => self.visit_function_stmt(stmt, ctx),
         }
     }
 
@@ -249,5 +256,13 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
 
     fn visit_expr_stmt(&mut self, stmt: &ExprStmt, ctx: VisitorCtx) -> VisitorResult {
         self.resolve_expr(&stmt.expr)
+    }
+
+    fn visit_block_stmt(&mut self, stmt: &BlockStmt, ctx: VisitorCtx) -> VisitorResult {
+        self.visit_block(&stmt.stmts)
+    }
+
+    fn visit_function_stmt(&mut self, stmt: &FunctionStmt, ctx: VisitorCtx) -> VisitorResult {
+        todo!()
     }
 }

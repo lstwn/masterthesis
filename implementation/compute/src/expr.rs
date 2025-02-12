@@ -7,6 +7,7 @@ pub enum Expr {
     Unary(Box<UnaryExpr>),
     Var(Box<VarExpr>),
     Lit(Box<LitExpr>),
+    Call(Box<CallExpr>),
 }
 
 pub struct TernaryExpr {
@@ -35,6 +36,11 @@ pub struct LitExpr {
     pub value: ScalarTypedValue,
 }
 
+pub struct CallExpr {
+    pub callee: Expr,
+    pub arguments: Vec<Expr>,
+}
+
 pub trait ExprVisitor<T, C> {
     fn visit_expr(&mut self, expr: &Expr, ctx: C) -> T;
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: C) -> T;
@@ -42,6 +48,7 @@ pub trait ExprVisitor<T, C> {
     fn visit_unary_expr(&mut self, expr: &UnaryExpr, ctx: C) -> T;
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: C) -> T;
     fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: C) -> T;
+    fn visit_call_expr(&mut self, expr: &CallExpr, ctx: C) -> T;
 }
 
 impl MemAddr for Expr {}
@@ -50,3 +57,4 @@ impl MemAddr for BinaryExpr {}
 impl MemAddr for UnaryExpr {}
 impl MemAddr for VarExpr {}
 impl MemAddr for LitExpr {}
+impl MemAddr for CallExpr {}

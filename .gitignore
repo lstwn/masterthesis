@@ -1,5 +1,6 @@
 local_backup/
 clones/
+references/
 
 # mac os
 .DS_Store

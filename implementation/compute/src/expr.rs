@@ -1,6 +1,9 @@
 use super::{operator::Operator, scalar::ScalarTypedValue};
 use crate::util::MemAddr;
 
+// TODO: FunctionExpr
+
+#[derive(Clone)]
 pub enum Expr {
     Ternary(Box<TernaryExpr>),
     Binary(Box<BinaryExpr>),
@@ -10,6 +13,7 @@ pub enum Expr {
     Call(Box<CallExpr>),
 }
 
+#[derive(Clone)]
 pub struct TernaryExpr {
     pub operator: Operator,
     pub left: Expr,
@@ -17,25 +21,30 @@ pub struct TernaryExpr {
     pub right: Expr,
 }
 
+#[derive(Clone)]
 pub struct BinaryExpr {
     pub operator: Operator,
     pub left: Expr,
     pub right: Expr,
 }
 
+#[derive(Clone)]
 pub struct UnaryExpr {
     pub operator: Operator,
     pub operand: Expr,
 }
 
+#[derive(Clone)]
 pub struct VarExpr {
     pub name: String,
 }
 
+#[derive(Clone)]
 pub struct LitExpr {
     pub value: ScalarTypedValue,
 }
 
+#[derive(Clone)]
 pub struct CallExpr {
     pub callee: Expr,
     pub arguments: Vec<Expr>,

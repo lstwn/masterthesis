@@ -1,6 +1,8 @@
 use std::fmt::{self, Display, Formatter};
 
-/// Stores a value plus its type.
+use crate::env::Val;
+
+/// Stores a scalar value plus its type.
 #[derive(
     Debug,
     Clone,
@@ -32,6 +34,21 @@ pub enum ScalarTypedValue {
 impl Default for ScalarTypedValue {
     fn default() -> Self {
         ScalarTypedValue::Null(())
+    }
+}
+
+impl TryFrom<Val> for ScalarTypedValue {
+    type Error = ();
+
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        match value {
+            Val::String(value) => Ok(ScalarTypedValue::String(value)),
+            Val::Uint(value) => Ok(ScalarTypedValue::Uint(value)),
+            Val::Iint(value) => Ok(ScalarTypedValue::Iint(value)),
+            Val::Bool(value) => Ok(ScalarTypedValue::Bool(value)),
+            Val::Null(()) => Ok(ScalarTypedValue::Null(())),
+            _ => Err(()),
+        }
     }
 }
 

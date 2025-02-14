@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_variables)]
+
 mod dbsp_playground;
 mod env;
 mod error;
@@ -11,10 +13,9 @@ mod stmt;
 mod util;
 mod variable;
 
-use env::Resolver;
+use env::{Resolver, Val};
 use error::IncLogError;
 use interpreter::Interpreter;
-use scalar::ScalarTypedValue;
 use stmt::Program;
 
 // Var: Variable
@@ -44,7 +45,7 @@ impl IncLog {
             Err(err) => eprintln!("{}", err),
         }
     }
-    fn run(&mut self, source: String) -> Result<Option<ScalarTypedValue>, IncLogError> {
+    fn run(&mut self, source: String) -> Result<Option<Val>, IncLogError> {
         self.parse(source)
             .and_then(|program| self.execute(&program))
     }
@@ -58,8 +59,8 @@ impl IncLog {
         // Ok(expr)
         todo!()
     }
-    fn execute(&mut self, program: &Program) -> Result<Option<ScalarTypedValue>, IncLogError> {
-        Resolver::new(self.interpreter.env_mut())
+    fn execute(&mut self, program: &Program) -> Result<Option<Val>, IncLogError> {
+        Resolver::new(&mut self.interpreter)
             .resolve(program)
             .map_err(|err| self.ack_syntax_err(err))
             .and_then(|()| {
@@ -116,7 +117,7 @@ mod test {
             })),
         ]);
 
-        assert_eq!(Some(ScalarTypedValue::Uint(3)), inclog.execute(&program)?);
+        assert_eq!(Some(Val::Uint(3)), inclog.execute(&program)?);
         Ok(())
     }
 }

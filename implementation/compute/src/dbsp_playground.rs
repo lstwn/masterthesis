@@ -54,6 +54,7 @@ impl IndexedTestStream {
             // - Define vars with a var declaration stmt with an initializer?
             //   But this requires running the resolver for each tuple.
             // - Hacky through the interpreter?
+            // - Through an (anonymous) function call?
             // execute filter expression
             // return result
             let access_copy = copy;

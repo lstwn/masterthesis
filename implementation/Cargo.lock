@@ -553,9 +553,9 @@ dependencies = [
 
 [[package]]
 name = "bytemuck"
-version = "1.20.0"
+version = "1.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b37c88a63ffd85d15b406896cc343916d7cf57838a847b3a6f2ca5d39a5695a"
+checksum = "ef657dfab802224e671f5818e9a4935f9b1957ed18e58292690cc39e7a4092a3"
 
 [[package]]
 name = "byteorder"
@@ -892,13 +892,14 @@ dependencies = [
 
 [[package]]
 name = "dbsp"
-version = "0.36.0"
+version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7929a58794675c8304a86a28eaf4b7acfb22e1d73d92518c949599c638b57368"
+checksum = "e3dd13cd566389dbff1e11df1b43eedd5ae5ca2e64437c86a664504ac7926141"
 dependencies = [
  "anyhow",
  "arc-swap",
  "binrw",
+ "bytemuck",
  "clap",
  "crc32c",
  "crossbeam",
@@ -906,6 +907,8 @@ dependencies = [
  "csv",
  "derive_more 1.0.0",
  "dyn-clone",
+ "enum-map",
+ "fastbloom",
  "fdlimit",
  "feldera-size-of",
  "feldera-types",
@@ -915,7 +918,6 @@ dependencies = [
  "impl-trait-for-tuples",
  "io-uring",
  "itertools 0.10.5",
- "lazy_static",
  "libc",
  "metrics",
  "mimalloc-rust-sys",
@@ -1099,6 +1101,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastbloom"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b679f25009b51b71506296f95fb6362ba7d0151172fa7373a8d1611b8bc5d10f"
+dependencies = [
+ "getrandom",
+ "rand",
+ "siphasher",
+ "wide",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1131,9 +1145,9 @@ dependencies = [
 
 [[package]]
 name = "feldera-types"
-version = "0.36.0"
+version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d15d4f9b442bf6f8a3a30b3e0cd1a5510a4e7824fa1da90ae2aef913390b5123"
+checksum = "db60823433af4f370ad63d66b182003847f53371d771c92e8557837377910970"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -2469,6 +2483,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
 
 [[package]]
+name = "safe_arch"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96b02de82ddbe1b636e6170c21be622223aea188ef2e139be0a5b219ec215323"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2594,6 +2617,12 @@ name = "simdutf8"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+
+[[package]]
+name = "siphasher"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 
 [[package]]
 name = "size-of-derive"
@@ -3202,6 +3231,16 @@ checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "wide"
+version = "0.7.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41b5576b9a81633f3e8df296ce0063042a73507636cbe956c61133dd7034ab22"
+dependencies = [
+ "bytemuck",
+ "safe_arch",
 ]
 
 [[package]]

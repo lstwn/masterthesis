@@ -22,11 +22,18 @@
 use crate::{
     error::SyntaxError,
     expr::{BinaryExpr, CallExpr, Expr, ExprVisitor, LitExpr, TernaryExpr, UnaryExpr, VarExpr},
+    function::Function,
+    interpreter::Interpreter,
     scalar::ScalarTypedValue,
     stmt::{BlockStmt, ExprStmt, FunctionStmt, Program, Stmt, StmtVisitor, VarStmt},
     util::MemAddr,
 };
-use std::collections::HashMap;
+use std::{
+    cell::{Ref, RefCell},
+    collections::HashMap,
+    fmt,
+    rc::Rc,
+};
 
 /// An AST node identifier.
 /// Can be its address in memory if using a pointer-based AST
@@ -46,51 +53,116 @@ impl<T: MemAddr> From<&T> for NodeRef {
     }
 }
 
-/// Just an alias to a value of a variable. May be a closure in the future to
-/// avoid eagerly filling all attributes of a relation _regardless_ if they are
-/// used or not.
-type Val = ScalarTypedValue;
+/// The value of a variable.
+/// Idea: Turn into a closure in the future to avoid eagerly filling all
+/// attributes of a relation _regardless_ if they are used or not. Or solve via
+/// resolver?
+#[derive(Clone, Debug)]
+pub enum Val {
+    /// String.
+    String(String),
+    /// Unsigned integer value of 64 bits.
+    Uint(u64),
+    /// Signed integer value of 64 bits.
+    Iint(i64),
+    /// Boolean.
+    Bool(bool),
+    /// Null.
+    Null(()),
+    /// Function.
+    Function(Function),
+}
+
+impl Default for Val {
+    fn default() -> Self {
+        Val::Null(())
+    }
+}
+
+impl From<ScalarTypedValue> for Val {
+    fn from(value: ScalarTypedValue) -> Self {
+        match value {
+            ScalarTypedValue::String(value) => Val::String(value),
+            ScalarTypedValue::Uint(value) => Val::Uint(value),
+            ScalarTypedValue::Iint(value) => Val::Iint(value),
+            ScalarTypedValue::Bool(value) => Val::Bool(value),
+            ScalarTypedValue::Null(()) => Val::Null(()),
+        }
+    }
+}
+
+impl fmt::Display for Val {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Val::String(value) => write!(f, "{}", value),
+            Val::Uint(value) => write!(f, "{}", value),
+            Val::Iint(value) => write!(f, "{}", value),
+            Val::Bool(value) => write!(f, "{}", value),
+            Val::Null(()) => write!(f, "null"),
+            Val::Function(function) => write!(f, "{}", function),
+        }
+    }
+}
 
 /// First entry is the scope, second entry is the variable within that scope.
-type VarIdent = (usize, usize);
+pub type VarIdent = (usize, usize);
 
+#[derive(Clone)]
+struct Scope {
+    /// Variable slots of an environment.
+    inner: Rc<RefCell<Vec<Val>>>,
+}
+
+impl Scope {
+    fn new() -> Self {
+        Self {
+            inner: Rc::new(RefCell::new(Vec::new())),
+        }
+    }
+    fn define_var(&mut self, val: Val) -> () {
+        self.inner.borrow_mut().push(val);
+    }
+    fn assign_var(&mut self, slot: usize, val: Val) -> () {
+        self.inner.borrow_mut()[slot] = val;
+    }
+    fn lookup_var(&self, slot: usize) -> Ref<Val> {
+        let vec = self.inner.borrow();
+        Ref::map(vec, |vec| &vec[slot])
+    }
+}
+
+#[derive(Clone)]
 pub struct Environment {
-    // Outer vector is the stack of scopes.
-    // Inner vector stores the variable slots in a scope.
-    scopes: Vec<Vec<Val>>,
-    // Side table to store the VarIdent for each variable.
-    side_table: HashMap<NodeRef, VarIdent>,
+    /// The vector models a stack of scopes with the root environment at
+    /// the bottom and the innermost scope at the top.
+    scopes: Vec<Scope>,
 }
 
 impl Environment {
     pub fn new() -> Self {
         Self {
             scopes: Vec::with_capacity(8),
-            side_table: HashMap::new(),
         }
     }
     pub fn begin_scope(&mut self) -> () {
-        self.scopes.push(Vec::new());
+        self.scopes.push(Scope::new());
     }
     pub fn end_scope(&mut self) -> () {
         self.scopes.pop();
     }
-    pub fn define_var(&mut self, val: Val) -> () {
-        self.scopes.last_mut().expect("no root env").push(val);
+    pub fn define_var<T: Into<Val>>(&mut self, val: T) -> () {
+        self.scopes
+            .last_mut()
+            .expect("no root env")
+            .define_var(val.into());
     }
-    pub fn assign_var(&mut self, node_ref: NodeRef, val: Val) -> () {
-        let (scope, slot) = self.get_slots(&node_ref);
-        self.scopes[scope][slot] = val;
+    pub fn assign_var(&mut self, at: &VarIdent, val: Val) -> () {
+        let (scope, slot) = *at;
+        self.scopes[scope].assign_var(slot, val);
     }
-    pub fn lookup_var<T: Into<NodeRef>>(&self, node_ref: T) -> &ScalarTypedValue {
-        let (scope, slot) = self.get_slots(&node_ref.into());
-        &self.scopes[scope][slot]
-    }
-    fn get_slots(&self, node_ref: &NodeRef) -> VarIdent {
-        *self
-            .side_table
-            .get(node_ref)
-            .expect("No variable associated with NodeRef")
+    pub fn lookup_var(&self, at: &VarIdent) -> Ref<Val> {
+        let (scope, slot) = *at;
+        self.scopes[scope].lookup_var(slot)
     }
 }
 
@@ -110,24 +182,18 @@ impl Variable {
 
 pub struct Resolver<'a> {
     scopes: Vec<HashMap<String, Variable>>,
-    env: &'a mut Environment,
+    interpreter: &'a mut Interpreter,
 }
 
 impl<'a> Resolver<'a> {
-    pub fn new(env: &'a mut Environment) -> Self {
+    pub fn new(interpreter: &'a mut Interpreter) -> Self {
         Self {
             scopes: Vec::with_capacity(8),
-            env,
+            interpreter,
         }
     }
     pub fn resolve(&mut self, program: &Program) -> Result<(), SyntaxError> {
-        self.visit_block(&program.stmts)
-    }
-    fn resolve_stmt(&mut self, stmt: &Stmt) -> VisitorResult {
-        self.visit_stmt(stmt, ())
-    }
-    fn resolve_expr(&mut self, expr: &Expr) -> VisitorResult {
-        self.visit_expr(expr, ())
+        self.visit_block(&program.stmts, ())
     }
     fn begin_scope(&mut self) -> () {
         self.scopes.push(HashMap::new());
@@ -163,19 +229,22 @@ impl<'a> Resolver<'a> {
         for (i, scope) in self.scopes.iter().enumerate().rev() {
             if let Some(var) = scope.get(name) {
                 let scope_idx = self.scopes.len() - 1 - i;
-                self.env
-                    .side_table
-                    .insert(NodeRef::from(expr), (scope_idx, var.slot));
+                let slot_idx = var.slot;
+                self.interpreter.resolve(expr, (scope_idx, slot_idx));
                 return Ok(());
             }
         }
         Err(SyntaxError::new("Variable not declared"))
     }
-    fn visit_block(&mut self, stmts: &Vec<Stmt>) -> Result<(), SyntaxError> {
-        self.begin_scope();
+    fn visit_stmts(&mut self, stmts: &Vec<Stmt>, ctx: VisitorCtx) -> VisitorResult {
         for stmt in stmts {
-            self.resolve_stmt(stmt)?;
+            self.visit_stmt(stmt, ctx)?;
         }
+        Ok(())
+    }
+    fn visit_block(&mut self, stmts: &Vec<Stmt>, ctx: VisitorCtx) -> Result<(), SyntaxError> {
+        self.begin_scope();
+        self.visit_stmts(stmts, ctx)?;
         self.end_scope();
         Ok(())
     }
@@ -197,18 +266,18 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
     }
 
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: VisitorCtx) -> VisitorResult {
-        self.resolve_expr(&expr.left)
-            .and_then(|()| self.resolve_expr(&expr.mid))
-            .and_then(|()| self.resolve_expr(&expr.right))
+        self.visit_expr(&expr.left, ctx)
+            .and_then(|()| self.visit_expr(&expr.mid, ctx))
+            .and_then(|()| self.visit_expr(&expr.right, ctx))
     }
 
     fn visit_binary_expr(&mut self, expr: &BinaryExpr, ctx: VisitorCtx) -> VisitorResult {
-        self.resolve_expr(&expr.left)
-            .and_then(|()| self.resolve_expr(&expr.right))
+        self.visit_expr(&expr.left, ctx)
+            .and_then(|()| self.visit_expr(&expr.right, ctx))
     }
 
     fn visit_unary_expr(&mut self, expr: &UnaryExpr, ctx: VisitorCtx) -> VisitorResult {
-        self.resolve_expr(&expr.operand)
+        self.visit_expr(&expr.operand, ctx)
     }
 
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> VisitorResult {
@@ -228,6 +297,7 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
     }
 
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: VisitorCtx) -> VisitorResult {
+        // IDEA: check for arity here!
         todo!()
     }
 }
@@ -246,7 +316,7 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
         self.declare_var(&stmt.name)
             .and_then(|()| {
                 if let Some(expr) = &stmt.initializer {
-                    self.resolve_expr(expr)
+                    self.visit_expr(expr, ctx)
                 } else {
                     Ok(())
                 }
@@ -255,14 +325,24 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
     }
 
     fn visit_expr_stmt(&mut self, stmt: &ExprStmt, ctx: VisitorCtx) -> VisitorResult {
-        self.resolve_expr(&stmt.expr)
+        self.visit_expr(&stmt.expr, ctx)
     }
 
     fn visit_block_stmt(&mut self, stmt: &BlockStmt, ctx: VisitorCtx) -> VisitorResult {
-        self.visit_block(&stmt.stmts)
+        self.visit_block(&stmt.stmts, ctx)
     }
 
     fn visit_function_stmt(&mut self, stmt: &FunctionStmt, ctx: VisitorCtx) -> VisitorResult {
-        todo!()
+        self.declare_var(&stmt.name)?;
+        self.define_var(&stmt.name)?;
+
+        self.begin_scope();
+        for parameter in &stmt.parameters {
+            self.declare_var(parameter)?;
+            self.define_var(parameter)?;
+        }
+        self.visit_stmts(&stmt.body.stmts, ctx)?;
+        self.end_scope();
+        Ok(())
     }
 }

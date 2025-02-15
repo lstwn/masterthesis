@@ -1,12 +1,16 @@
 // IDEAS:
 // - [x] add Lox class
+// - [ ] Make functions first class citizens:
+//   - [ ] Add environment context to visitor functions.
+//   - [ ] Add function expressions.
+//   - [ ] Remove function statements.
 // - [ ] string wrapper struct for identifier
-// - [ ] implement functions
 // - [x] develop Environment (context)
 //   - [x] use mutable environment
 //   - [x] fix multiple instances of resolver in REPL
 // - [x] allow printing last expr (statment) without using print
-// - [ ] try out idea from blog post
+// - [ ] try out idea from blog post:
+//       https://www.cs.cornell.edu/~asampson/blog/flattening.html
 //   - [ ] Offer regular AST and flattened AST
 //   - [ ] From regular AST to flattened AST: Post-order traversal
 //   - [ ] From flattened AST to regular AST: ???
@@ -21,7 +25,9 @@
 
 use crate::{
     error::SyntaxError,
-    expr::{BinaryExpr, CallExpr, Expr, ExprVisitor, LitExpr, TernaryExpr, UnaryExpr, VarExpr},
+    expr::{
+        BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, LitExpr, TernaryExpr, UnaryExpr, VarExpr,
+    },
     function::Function,
     interpreter::Interpreter,
     scalar::ScalarTypedValue,
@@ -70,7 +76,7 @@ pub enum Val {
     /// Null.
     Null(()),
     /// Function.
-    Function(Function),
+    Function(Rc<RefCell<Function>>),
 }
 
 impl Default for Val {
@@ -99,7 +105,7 @@ impl fmt::Display for Val {
             Val::Iint(value) => write!(f, "{}", value),
             Val::Bool(value) => write!(f, "{}", value),
             Val::Null(()) => write!(f, "null"),
-            Val::Function(function) => write!(f, "{}", function),
+            Val::Function(function) => write!(f, "{}", function.borrow()),
         }
     }
 }
@@ -193,7 +199,7 @@ impl<'a> Resolver<'a> {
         }
     }
     pub fn resolve(&mut self, program: &Program) -> Result<(), SyntaxError> {
-        self.visit_block(&program.stmts, ())
+        self.visit_block(&program.stmts, (), |_resolver| Ok(()))
     }
     fn begin_scope(&mut self) -> () {
         self.scopes.push(HashMap::new());
@@ -242,8 +248,17 @@ impl<'a> Resolver<'a> {
         }
         Ok(())
     }
-    fn visit_block(&mut self, stmts: &Vec<Stmt>, ctx: VisitorCtx) -> Result<(), SyntaxError> {
+    fn visit_block<F>(
+        &mut self,
+        stmts: &Vec<Stmt>,
+        ctx: VisitorCtx,
+        after_new_scope_actions: F,
+    ) -> Result<(), SyntaxError>
+    where
+        F: FnOnce(&mut Self) -> Result<(), SyntaxError>,
+    {
         self.begin_scope();
+        after_new_scope_actions(self)?;
         self.visit_stmts(stmts, ctx)?;
         self.end_scope();
         Ok(())
@@ -254,17 +269,6 @@ type VisitorResult = Result<(), SyntaxError>;
 type VisitorCtx = ();
 
 impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
-    fn visit_expr(&mut self, expr: &Expr, ctx: VisitorCtx) -> VisitorResult {
-        match expr {
-            Expr::Ternary(expr) => self.visit_ternary_expr(expr, ctx),
-            Expr::Binary(expr) => self.visit_binary_expr(expr, ctx),
-            Expr::Unary(expr) => self.visit_unary_expr(expr, ctx),
-            Expr::Var(expr) => self.visit_var_expr(expr, ctx),
-            Expr::Lit(expr) => self.visit_lit_expr(expr, ctx),
-            Expr::Call(expr) => self.visit_call_expr(expr, ctx),
-        }
-    }
-
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: VisitorCtx) -> VisitorResult {
         self.visit_expr(&expr.left, ctx)
             .and_then(|()| self.visit_expr(&expr.mid, ctx))
@@ -296,22 +300,27 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
         Ok(())
     }
 
+    fn visit_function_expr(&mut self, expr: &FunctionExpr, ctx: VisitorCtx) -> VisitorResult {
+        self.visit_block(&expr.body.stmts, ctx, |resolver| {
+            for parameter in &expr.parameters {
+                resolver.declare_var(parameter)?;
+                resolver.define_var(parameter)?;
+            }
+            Ok(())
+        })
+    }
+
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: VisitorCtx) -> VisitorResult {
-        // IDEA: check for arity here!
-        todo!()
+        // TODO: check for arity here just once statically.
+        self.visit_expr(&expr.callee, ctx)?;
+        for arg in &expr.arguments {
+            self.visit_expr(arg, ctx)?;
+        }
+        Ok(())
     }
 }
 
 impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
-    fn visit_stmt(&mut self, stmt: &Stmt, ctx: VisitorCtx) -> VisitorResult {
-        match stmt {
-            Stmt::Var(stmt) => self.visit_var_stmt(stmt, ctx),
-            Stmt::Expr(stmt) => self.visit_expr_stmt(stmt, ctx),
-            Stmt::Block(stmt) => self.visit_block_stmt(stmt, ctx),
-            Stmt::Function(stmt) => self.visit_function_stmt(stmt, ctx),
-        }
-    }
-
     fn visit_var_stmt(&mut self, stmt: &VarStmt, ctx: VisitorCtx) -> VisitorResult {
         self.declare_var(&stmt.name)
             .and_then(|()| {
@@ -329,20 +338,19 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
     }
 
     fn visit_block_stmt(&mut self, stmt: &BlockStmt, ctx: VisitorCtx) -> VisitorResult {
-        self.visit_block(&stmt.stmts, ctx)
+        self.visit_block(&stmt.stmts, ctx, |_resolver| Ok(()))
     }
 
     fn visit_function_stmt(&mut self, stmt: &FunctionStmt, ctx: VisitorCtx) -> VisitorResult {
         self.declare_var(&stmt.name)?;
         self.define_var(&stmt.name)?;
 
-        self.begin_scope();
-        for parameter in &stmt.parameters {
-            self.declare_var(parameter)?;
-            self.define_var(parameter)?;
-        }
-        self.visit_stmts(&stmt.body.stmts, ctx)?;
-        self.end_scope();
-        Ok(())
+        self.visit_block(&stmt.body.stmts, ctx, |resolver| {
+            for parameter in &stmt.parameters {
+                resolver.declare_var(parameter)?;
+                resolver.define_var(parameter)?;
+            }
+            Ok(())
+        })
     }
 }

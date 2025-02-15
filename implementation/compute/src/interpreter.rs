@@ -1,11 +1,14 @@
 use crate::{
     env::{Environment, NodeRef, Val, VarIdent},
     error::RuntimeError,
-    expr::{BinaryExpr, CallExpr, Expr, ExprVisitor, LitExpr, TernaryExpr, UnaryExpr, VarExpr},
+    expr::{
+        BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, LitExpr, TernaryExpr, UnaryExpr, VarExpr,
+    },
+    function::Function,
     operator::Operator,
     stmt::{BlockStmt, ExprStmt, FunctionStmt, Program, Stmt, StmtVisitor, VarStmt},
 };
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 type ScalarTypedValue = Val;
 
@@ -28,7 +31,7 @@ impl Interpreter {
     ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
         // Because we call `execute_block` here, we implicitly create a global
         // scope for the program.
-        self.visit_block(&program.stmts, ())
+        self.visit_block(&program.stmts, (), |_env| ())
     }
     pub fn resolve<T: Into<NodeRef>>(&mut self, expr: T, ident: VarIdent) -> () {
         self.side_table.insert(expr.into(), ident);
@@ -44,12 +47,14 @@ impl Interpreter {
             .iter()
             .try_fold(None, |_prev, stmt| self.visit_stmt(stmt, ctx))
     }
-    fn visit_block(
+    fn visit_block<F: FnOnce(&mut Environment) -> ()>(
         &mut self,
         stmts: &Vec<Stmt>,
         ctx: VisitorCtx,
+        environment: F,
     ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
         self.env.begin_scope();
+        environment(&mut self.env); // TODO: env as ctx param
         let ret = self.visit_stmts(stmts, ctx);
         self.env.end_scope();
         ret
@@ -153,17 +158,6 @@ type VisitorCtx = ();
 type ExprVisitorResult = Result<ScalarTypedValue, RuntimeError>;
 
 impl ExprVisitor<ExprVisitorResult, VisitorCtx> for Interpreter {
-    fn visit_expr(&mut self, expr: &Expr, ctx: VisitorCtx) -> ExprVisitorResult {
-        match expr {
-            Expr::Ternary(expr) => self.visit_ternary_expr(expr, ctx),
-            Expr::Binary(expr) => self.visit_binary_expr(expr, ctx),
-            Expr::Unary(expr) => self.visit_unary_expr(expr, ctx),
-            Expr::Var(expr) => self.visit_var_expr(expr, ctx),
-            Expr::Lit(expr) => self.visit_lit_expr(expr, ctx),
-            Expr::Call(expr) => self.visit_call_expr(expr, ctx),
-        }
-    }
-
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         todo!()
     }
@@ -206,16 +200,25 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx> for Interpreter {
         Ok(Val::from(expr.value.clone()))
     }
 
+    fn visit_function_expr(&mut self, expr: &FunctionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
+        Ok(Val::Function(Rc::new(RefCell::new(Function::new(
+            None,
+            expr.clone(),     // OPTIMIZE: clone
+            self.env.clone(), // Clone is cheap and necessary here.
+        )))))
+    }
+
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         let callee = match self.visit_expr(&expr.callee, ctx)? {
             Val::Function(callee) => callee,
             _ => return Err(RuntimeError::new("Expected function".to_string())),
         };
+        let callee = callee.borrow_mut();
 
-        // TODO: check arity in resolver just _once_ statically
+        // TODO: check arity in resolver just _once_ statically.
         if expr.arguments.len() != callee.arity() {
             return Err(RuntimeError::new(format!(
-                "Expected {} arguments, got {}",
+                "Expected exactly {} arguments, but got {}",
                 callee.arity(),
                 expr.arguments.len()
             )));
@@ -227,22 +230,21 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx> for Interpreter {
             .map(|arg| self.visit_expr(arg, ctx))
             .collect::<Result<Vec<_>, _>>()?;
 
-        todo!()
+        // TODO: use env from function
+        self.visit_block(&callee.declaration.body.stmts, ctx, move |env| {
+            for arg in args.into_iter() {
+                env.define_var(arg);
+            }
+        })
+        // We return the default value of `null` if the function does not return
+        // anything.
+        .map(|val| val.unwrap_or_default())
     }
 }
 
 type StmtVisitorResult = Result<Option<ScalarTypedValue>, RuntimeError>;
 
 impl StmtVisitor<StmtVisitorResult, VisitorCtx> for Interpreter {
-    fn visit_stmt(&mut self, stmt: &Stmt, ctx: VisitorCtx) -> StmtVisitorResult {
-        match stmt {
-            Stmt::Var(stmt) => self.visit_var_stmt(stmt, ctx),
-            Stmt::Expr(stmt) => self.visit_expr_stmt(stmt, ctx),
-            Stmt::Block(stmt) => self.visit_block_stmt(stmt, ctx),
-            Stmt::Function(stmt) => self.visit_function_stmt(stmt, ctx),
-        }
-    }
-
     fn visit_var_stmt(&mut self, stmt: &VarStmt, ctx: VisitorCtx) -> StmtVisitorResult {
         stmt.initializer
             .as_ref()
@@ -264,7 +266,7 @@ impl StmtVisitor<StmtVisitorResult, VisitorCtx> for Interpreter {
     }
 
     fn visit_block_stmt(&mut self, stmt: &BlockStmt, ctx: VisitorCtx) -> StmtVisitorResult {
-        self.visit_block(&stmt.stmts, ctx)
+        self.visit_block(&stmt.stmts, ctx, |_env| ())
     }
 
     fn visit_function_stmt(&mut self, stmt: &FunctionStmt, ctx: VisitorCtx) -> StmtVisitorResult {

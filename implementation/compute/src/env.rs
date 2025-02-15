@@ -79,6 +79,22 @@ pub enum Val {
     Function(Rc<RefCell<Function>>),
 }
 
+impl Eq for Val {}
+
+impl PartialEq for Val {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Val::String(a), Val::String(b)) => a == b,
+            (Val::Uint(a), Val::Uint(b)) => a == b,
+            (Val::Iint(a), Val::Iint(b)) => a == b,
+            (Val::Bool(a), Val::Bool(b)) => a == b,
+            (Val::Null(()), Val::Null(())) => true,
+            (Val::Function(a), Val::Function(b)) => Rc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
 impl Default for Val {
     fn default() -> Self {
         Val::Null(())

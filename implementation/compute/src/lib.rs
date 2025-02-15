@@ -117,7 +117,7 @@ mod test {
             })),
         ]);
 
-        assert_eq!(Some(Val::Uint(3)), inclog.execute(&program)?);
+        assert_eq!(inclog.execute(&program)?, Some(Val::Uint(3)));
         Ok(())
     }
 }

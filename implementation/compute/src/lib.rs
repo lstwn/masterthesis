@@ -81,7 +81,7 @@ impl IncLog {
 
 #[cfg(test)]
 mod test {
-    use crate::expr::AssignExpr;
+    use crate::expr::{AssignExpr, CallExpr};
 
     use super::*;
     use expr::{BinaryExpr, Expr, LitExpr, VarExpr};
@@ -90,24 +90,25 @@ mod test {
     use stmt::{ExprStmt, Stmt, VarStmt};
 
     #[test]
-    fn test_inclog() -> Result<(), IncLogError> {
+    fn test_variable_init_assign() -> Result<(), IncLogError> {
         let mut inclog = IncLog::new();
 
-        let program = Program::from(vec![
-            // We initialize two variables a and b with the values 1 and 2.
+        let initialization = Program::from(vec![Stmt::Var(Box::new(VarStmt {
+            name: "a".to_string(),
+            initializer: Some(Expr::Lit(Box::new(LitExpr {
+                value: ScalarTypedValue::Uint(1),
+            }))),
+        }))]);
+
+        let assignment = Program::from(vec![
+            // TODO: What if we don't have a variable declaration but reuse the
+            // variable from above like in a REPL session?
             Stmt::Var(Box::new(VarStmt {
                 name: "a".to_string(),
                 initializer: Some(Expr::Lit(Box::new(LitExpr {
                     value: ScalarTypedValue::Uint(1),
                 }))),
             })),
-            Stmt::Var(Box::new(VarStmt {
-                name: "b".to_string(),
-                initializer: Some(Expr::Lit(Box::new(LitExpr {
-                    value: ScalarTypedValue::Uint(2),
-                }))),
-            })),
-            // We assign the value 2 to a.
             Stmt::Expr(Box::new(ExprStmt {
                 expr: Expr::Assign(Box::new(AssignExpr {
                     name: "a".to_string(),
@@ -116,22 +117,88 @@ mod test {
                     })),
                 })),
             })),
-            // We add the values of a and b.
+        ]);
+
+        assert_eq!(inclog.execute(&initialization)?.unwrap(), Val::Uint(1));
+
+        assert_eq!(inclog.execute(&assignment)?.unwrap(), Val::Uint(2));
+
+        Ok(())
+    }
+
+    // A function adding two values.
+    fn new_add_function_expr() -> Expr {
+        Expr::Function(Box::new(expr::FunctionExpr {
+            parameters: vec!["a".to_string(), "b".to_string()],
+            body: stmt::BlockStmt {
+                stmts: vec![Stmt::Expr(Box::new(ExprStmt {
+                    expr: Expr::Binary(Box::new(BinaryExpr {
+                        operator: Operator::Addition,
+                        left: Expr::Var(Box::new(VarExpr {
+                            name: "a".to_string(),
+                        })),
+                        right: Expr::Var(Box::new(VarExpr {
+                            name: "b".to_string(),
+                        })),
+                    })),
+                }))],
+            },
+        }))
+    }
+
+    #[test]
+    fn test_function_declarations() -> Result<(), IncLogError> {
+        let mut inclog = IncLog::new();
+
+        let anonymous_function = Program::from(vec![Stmt::Expr(Box::new(ExprStmt {
+            expr: new_add_function_expr(),
+        }))]);
+
+        let named_function = Program::from(vec![Stmt::Var(Box::new(VarStmt {
+            name: "add".to_string(),
+            initializer: Some(new_add_function_expr()),
+        }))]);
+
+        let result = inclog.execute(&anonymous_function)?.unwrap();
+        assert_eq!(format!("{}", result), "<anonymous fn(a, b)>");
+
+        let result = inclog.execute(&named_function)?.unwrap();
+        assert_eq!(format!("{}", result), "<fn add(a, b)>");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_function_call() -> Result<(), IncLogError> {
+        let mut inclog = IncLog::new();
+
+        // TODO: DEBUG!
+
+        let function_call = Program::from(vec![
+            Stmt::Var(Box::new(VarStmt {
+                name: "add".to_string(),
+                initializer: Some(new_add_function_expr()),
+            })),
             Stmt::Expr(Box::new(ExprStmt {
-                expr: Expr::Binary(Box::new(BinaryExpr {
-                    operator: Operator::Addition,
-                    left: Expr::Var(Box::new(VarExpr {
-                        name: "a".to_string(),
+                expr: Expr::Call(Box::new(CallExpr {
+                    callee: Expr::Var(Box::new(VarExpr {
+                        name: "add".to_string(),
                     })),
-                    right: Expr::Var(Box::new(VarExpr {
-                        name: "b".to_string(),
-                    })),
+                    arguments: vec![
+                        Expr::Lit(Box::new(LitExpr {
+                            value: ScalarTypedValue::Uint(1),
+                        })),
+                        Expr::Lit(Box::new(LitExpr {
+                            value: ScalarTypedValue::Uint(2),
+                        })),
+                    ],
                 })),
             })),
         ]);
 
-        // The result should be 4.
-        assert_eq!(inclog.execute(&program)?, Some(Val::Uint(4)));
+        let result = inclog.execute(&function_call)?.unwrap();
+        assert_eq!(Val::Uint(3), result);
+
         Ok(())
     }
 }

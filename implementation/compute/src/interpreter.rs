@@ -15,7 +15,7 @@ type ScalarTypedValue = Val;
 
 pub struct Interpreter {
     /// Side table to store the VarIdent for each variable.
-    /// TODO: move to VisitorCtx?
+    /// TODO: move to VisitorCtx? And what about environment? Put into `Context`?
     side_table: HashMap<NodeRef, VarIdent>,
 }
 
@@ -286,8 +286,8 @@ impl StmtVisitor<StmtVisitorResult, VisitorCtx<'_>> for Interpreter {
                 },
             )
             .map(|val| {
-                ctx.define_var(val);
-                None
+                ctx.define_var(val.clone());
+                Some(val)
             })
     }
 

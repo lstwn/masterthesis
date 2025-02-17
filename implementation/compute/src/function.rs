@@ -7,6 +7,7 @@ use std::{
 
 pub type FunctionRef = Rc<RefCell<Function>>;
 
+/// A helper function to avoid writing the interior mutability boilerplate.
 pub fn new_function(
     name: Option<String>,
     declaration: FunctionExpr,

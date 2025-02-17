@@ -1,5 +1,19 @@
 use crate::{env::Environment, expr::FunctionExpr};
-use std::fmt::{self, Debug, Display};
+use std::{
+    cell::RefCell,
+    fmt::{self, Debug, Display},
+    rc::Rc,
+};
+
+pub type FunctionRef = Rc<RefCell<Function>>;
+
+pub fn new_function(
+    name: Option<String>,
+    declaration: FunctionExpr,
+    environment: Environment,
+) -> FunctionRef {
+    Rc::new(RefCell::new(Function::new(name, declaration, environment)))
+}
 
 #[derive(Clone)]
 pub struct Function {

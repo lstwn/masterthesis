@@ -4,24 +4,23 @@ use crate::{
     expr::{
         BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, LitExpr, TernaryExpr, UnaryExpr, VarExpr,
     },
-    function::Function,
+    function::new_function,
     operator::Operator,
-    stmt::{BlockStmt, ExprStmt, FunctionStmt, Program, Stmt, StmtVisitor, VarStmt},
+    stmt::{BlockStmt, ExprStmt, Program, Stmt, StmtVisitor, VarStmt},
 };
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 type ScalarTypedValue = Val;
 
 pub struct Interpreter {
-    env: Environment,
     /// Side table to store the VarIdent for each variable.
+    /// TODO: move to VisitorCtx?
     side_table: HashMap<NodeRef, VarIdent>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
-            env: Environment::new(),
             side_table: HashMap::new(),
         }
     }
@@ -31,7 +30,7 @@ impl Interpreter {
     ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
         // Because we call `execute_block` here, we implicitly create a global
         // scope for the program.
-        self.visit_block(&program.stmts, (), |_env| ())
+        self.visit_block(&program.stmts, &mut Environment::new(), |_env| ())
     }
     pub fn resolve<T: Into<NodeRef>>(&mut self, expr: T, ident: VarIdent) -> () {
         self.side_table.insert(expr.into(), ident);
@@ -50,13 +49,13 @@ impl Interpreter {
     fn visit_block<F: FnOnce(&mut Environment) -> ()>(
         &mut self,
         stmts: &Vec<Stmt>,
-        ctx: VisitorCtx,
+        mut ctx: VisitorCtx,
         environment: F,
     ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
-        self.env.begin_scope();
-        environment(&mut self.env); // TODO: env as ctx param
+        ctx.begin_scope();
+        environment(&mut ctx);
         let ret = self.visit_stmts(stmts, ctx);
-        self.env.end_scope();
+        ctx.end_scope();
         ret
     }
 }
@@ -153,11 +152,12 @@ impl Interpreter {
     }
 }
 
-type VisitorCtx = ();
+type VisitorCtx<'a> = &'a mut Environment;
 
 type ExprVisitorResult = Result<ScalarTypedValue, RuntimeError>;
 
-impl ExprVisitor<ExprVisitorResult, VisitorCtx> for Interpreter {
+impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_>> for Interpreter {
+    // TODO: Remove ternary expressions.
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         todo!()
     }
@@ -192,7 +192,7 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx> for Interpreter {
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         let ident = self.side_table.get(&NodeRef::from(expr)).unwrap();
         // Maybe make values reference counted instead of cloning here?
-        Ok(self.env.lookup_var(ident).clone())
+        Ok(ctx.lookup_var(ident).clone())
     }
 
     fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: VisitorCtx) -> ExprVisitorResult {
@@ -201,11 +201,12 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx> for Interpreter {
     }
 
     fn visit_function_expr(&mut self, expr: &FunctionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        Ok(Val::Function(Rc::new(RefCell::new(Function::new(
+        Ok(Val::Function(new_function(
+            // For now, we assume that the function is anonymous, that is, nameless.
             None,
-            expr.clone(),     // OPTIMIZE: clone
-            self.env.clone(), // Clone is cheap and necessary here.
-        )))))
+            expr.clone(), // OPTIMIZE: clone
+            ctx.clone(),  // Clone is cheap and necessary here.
+        )))
     }
 
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: VisitorCtx) -> ExprVisitorResult {
@@ -213,7 +214,7 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx> for Interpreter {
             Val::Function(callee) => callee,
             _ => return Err(RuntimeError::new("Expected function".to_string())),
         };
-        let callee = callee.borrow_mut();
+        let mut callee = callee.borrow_mut();
 
         // TODO: check arity in resolver just _once_ statically.
         if expr.arguments.len() != callee.arity() {
@@ -230,10 +231,16 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx> for Interpreter {
             .map(|arg| self.visit_expr(arg, ctx))
             .collect::<Result<Vec<_>, _>>()?;
 
-        // TODO: use env from function
-        self.visit_block(&callee.declaration.body.stmts, ctx, move |env| {
+        let body: &Vec<Stmt> =
+            // This is a sin, I know, please forgive me. I bet there is a nicer solution.
+            // Yet, this is safe because the the `body` and `environment` are disjoint
+            // borrows from the `callee` struct.
+            unsafe { &*std::ptr::from_ref(&callee.declaration.body.stmts) as &Vec<Stmt> };
+        let environment = &mut callee.environment;
+
+        self.visit_block(body, environment, move |environment| {
             for arg in args.into_iter() {
-                env.define_var(arg);
+                environment.define_var(arg);
             }
         })
         // We return the default value of `null` if the function does not return
@@ -244,17 +251,25 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx> for Interpreter {
 
 type StmtVisitorResult = Result<Option<ScalarTypedValue>, RuntimeError>;
 
-impl StmtVisitor<StmtVisitorResult, VisitorCtx> for Interpreter {
+impl StmtVisitor<StmtVisitorResult, VisitorCtx<'_>> for Interpreter {
     fn visit_var_stmt(&mut self, stmt: &VarStmt, ctx: VisitorCtx) -> StmtVisitorResult {
         stmt.initializer
             .as_ref()
             .map_or_else(
                 // We default to null if no initializer is provided.
                 || Ok(ScalarTypedValue::default()),
-                |expr| self.visit_expr(expr, ctx),
+                |expr| {
+                    self.visit_expr(expr, ctx).map(|val| {
+                        if let Val::Function(function) = &val {
+                            // Here, a function turns from anonymous to named.
+                            function.borrow_mut().name = Some(stmt.name.clone());
+                        }
+                        val
+                    })
+                },
             )
             .map(|val| {
-                self.env.define_var(val);
+                ctx.define_var(val);
                 None
             })
     }
@@ -267,10 +282,6 @@ impl StmtVisitor<StmtVisitorResult, VisitorCtx> for Interpreter {
 
     fn visit_block_stmt(&mut self, stmt: &BlockStmt, ctx: VisitorCtx) -> StmtVisitorResult {
         self.visit_block(&stmt.stmts, ctx, |_env| ())
-    }
-
-    fn visit_function_stmt(&mut self, stmt: &FunctionStmt, ctx: VisitorCtx) -> StmtVisitorResult {
-        todo!()
     }
 }
 

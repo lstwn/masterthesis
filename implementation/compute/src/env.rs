@@ -28,10 +28,10 @@ use crate::{
     expr::{
         BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, LitExpr, TernaryExpr, UnaryExpr, VarExpr,
     },
-    function::Function,
+    function::FunctionRef,
     interpreter::Interpreter,
     scalar::ScalarTypedValue,
-    stmt::{BlockStmt, ExprStmt, FunctionStmt, Program, Stmt, StmtVisitor, VarStmt},
+    stmt::{BlockStmt, ExprStmt, Program, Stmt, StmtVisitor, VarStmt},
     util::MemAddr,
 };
 use std::{
@@ -76,7 +76,7 @@ pub enum Val {
     /// Null.
     Null(()),
     /// Function.
-    Function(Rc<RefCell<Function>>),
+    Function(FunctionRef),
 }
 
 impl Eq for Val {}
@@ -355,18 +355,5 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
 
     fn visit_block_stmt(&mut self, stmt: &BlockStmt, ctx: VisitorCtx) -> VisitorResult {
         self.visit_block(&stmt.stmts, ctx, |_resolver| Ok(()))
-    }
-
-    fn visit_function_stmt(&mut self, stmt: &FunctionStmt, ctx: VisitorCtx) -> VisitorResult {
-        self.declare_var(&stmt.name)?;
-        self.define_var(&stmt.name)?;
-
-        self.visit_block(&stmt.body.stmts, ctx, |resolver| {
-            for parameter in &stmt.parameters {
-                resolver.declare_var(parameter)?;
-                resolver.define_var(parameter)?;
-            }
-            Ok(())
-        })
     }
 }

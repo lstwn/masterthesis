@@ -7,6 +7,7 @@ pub enum Expr {
     Binary(Box<BinaryExpr>),
     Unary(Box<UnaryExpr>),
     Var(Box<VarExpr>),
+    Assign(Box<AssignExpr>),
     Lit(Box<LitExpr>),
     Call(Box<CallExpr>),
     Function(Box<FunctionExpr>),
@@ -39,6 +40,12 @@ pub struct VarExpr {
 }
 
 #[derive(Clone)]
+pub struct AssignExpr {
+    pub name: String,
+    pub value: Expr,
+}
+
+#[derive(Clone)]
 pub struct LitExpr {
     pub value: ScalarTypedValue,
 }
@@ -62,6 +69,7 @@ pub trait ExprVisitor<T, C> {
             Expr::Binary(expr) => self.visit_binary_expr(expr, ctx),
             Expr::Unary(expr) => self.visit_unary_expr(expr, ctx),
             Expr::Var(expr) => self.visit_var_expr(expr, ctx),
+            Expr::Assign(expr) => self.visit_assign_expr(expr, ctx),
             Expr::Lit(expr) => self.visit_lit_expr(expr, ctx),
             Expr::Function(expr) => self.visit_function_expr(expr, ctx),
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
@@ -71,6 +79,7 @@ pub trait ExprVisitor<T, C> {
     fn visit_binary_expr(&mut self, expr: &BinaryExpr, ctx: C) -> T;
     fn visit_unary_expr(&mut self, expr: &UnaryExpr, ctx: C) -> T;
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: C) -> T;
+    fn visit_assign_expr(&mut self, expr: &AssignExpr, ctx: C) -> T;
     fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: C) -> T;
     fn visit_function_expr(&mut self, expr: &FunctionExpr, ctx: C) -> T;
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: C) -> T;
@@ -81,6 +90,7 @@ impl MemAddr for TernaryExpr {}
 impl MemAddr for BinaryExpr {}
 impl MemAddr for UnaryExpr {}
 impl MemAddr for VarExpr {}
+impl MemAddr for AssignExpr {}
 impl MemAddr for LitExpr {}
 impl MemAddr for FunctionExpr {}
 impl MemAddr for CallExpr {}

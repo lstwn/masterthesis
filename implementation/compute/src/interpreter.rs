@@ -2,7 +2,8 @@ use crate::{
     env::{Environment, NodeRef, Val, VarIdent},
     error::RuntimeError,
     expr::{
-        BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, LitExpr, TernaryExpr, UnaryExpr, VarExpr,
+        AssignExpr, BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, LitExpr, TernaryExpr,
+        UnaryExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
@@ -193,6 +194,18 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_>> for Interpreter {
         let ident = self.side_table.get(&NodeRef::from(expr)).unwrap();
         // Maybe make values reference counted instead of cloning here?
         Ok(ctx.lookup_var(ident).clone())
+    }
+
+    fn visit_assign_expr(&mut self, expr: &AssignExpr, ctx: VisitorCtx) -> ExprVisitorResult {
+        self.visit_expr(&expr.value, ctx).and_then(|value| {
+            self.side_table
+                .get(&NodeRef::from(expr))
+                .ok_or_else(|| RuntimeError::new(format!("Undefined variable '{}'.", expr.name)))
+                .map(|ident| {
+                    ctx.assign_var(ident, value.clone());
+                    value
+                })
+        })
     }
 
     fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: VisitorCtx) -> ExprVisitorResult {

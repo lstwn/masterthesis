@@ -26,7 +26,8 @@
 use crate::{
     error::SyntaxError,
     expr::{
-        BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, LitExpr, TernaryExpr, UnaryExpr, VarExpr,
+        AssignExpr, BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, LitExpr, TernaryExpr,
+        UnaryExpr, VarExpr,
     },
     function::FunctionRef,
     interpreter::Interpreter,
@@ -66,6 +67,7 @@ impl<T: MemAddr> From<&T> for NodeRef {
 #[derive(Clone, Debug)]
 pub enum Val {
     /// String.
+    // TODO: maybe make strings reference counted to avoid cloning costs?
     String(String),
     /// Unsigned integer value of 64 bits.
     Uint(u64),
@@ -247,7 +249,7 @@ impl<'a> Resolver<'a> {
         }
     }
     // resolveLocal in Lox
-    fn resolve_var(&mut self, expr: &VarExpr, name: &String) -> Result<(), SyntaxError> {
+    fn resolve_var<T: Into<NodeRef>>(&mut self, expr: T, name: &String) -> Result<(), SyntaxError> {
         for (i, scope) in self.scopes.iter().enumerate().rev() {
             if let Some(var) = scope.get(name) {
                 let scope_idx = self.scopes.len() - 1 - i;
@@ -308,6 +310,12 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
                 ));
             }
         }
+        // `resolve_var` returns an error if the variable is not declared.
+        self.resolve_var(expr, &expr.name)
+    }
+
+    fn visit_assign_expr(&mut self, expr: &AssignExpr, ctx: VisitorCtx) -> VisitorResult {
+        self.visit_expr(&expr.value, ctx)?;
         // `resolve_var` returns an error if the variable is not declared.
         self.resolve_var(expr, &expr.name)
     }

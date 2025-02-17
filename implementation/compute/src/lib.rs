@@ -81,6 +81,8 @@ impl IncLog {
 
 #[cfg(test)]
 mod test {
+    use crate::expr::AssignExpr;
+
     use super::*;
     use expr::{BinaryExpr, Expr, LitExpr, VarExpr};
     use operator::Operator;
@@ -92,6 +94,7 @@ mod test {
         let mut inclog = IncLog::new();
 
         let program = Program::from(vec![
+            // We initialize two variables a and b with the values 1 and 2.
             Stmt::Var(Box::new(VarStmt {
                 name: "a".to_string(),
                 initializer: Some(Expr::Lit(Box::new(LitExpr {
@@ -104,6 +107,16 @@ mod test {
                     value: ScalarTypedValue::Uint(2),
                 }))),
             })),
+            // We assign the value 2 to a.
+            Stmt::Expr(Box::new(ExprStmt {
+                expr: Expr::Assign(Box::new(AssignExpr {
+                    name: "a".to_string(),
+                    value: Expr::Lit(Box::new(LitExpr {
+                        value: ScalarTypedValue::Uint(2),
+                    })),
+                })),
+            })),
+            // We add the values of a and b.
             Stmt::Expr(Box::new(ExprStmt {
                 expr: Expr::Binary(Box::new(BinaryExpr {
                     operator: Operator::Addition,
@@ -117,7 +130,8 @@ mod test {
             })),
         ]);
 
-        assert_eq!(inclog.execute(&program)?, Some(Val::Uint(3)));
+        // The result should be 4.
+        assert_eq!(inclog.execute(&program)?, Some(Val::Uint(4)));
         Ok(())
     }
 }

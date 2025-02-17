@@ -13,6 +13,7 @@ impl From<Vec<Stmt>> for Program {
 
 #[derive(Clone)]
 pub enum Stmt {
+    // TODO: control flow: IfStmt, WhileStmt, Return?, Print?
     Var(Box<VarStmt>),
     Expr(Box<ExprStmt>),
     Block(Box<BlockStmt>),

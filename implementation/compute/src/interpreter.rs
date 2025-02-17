@@ -2,8 +2,8 @@ use crate::{
     env::{Environment, NodeRef, Val, VarIdent},
     error::RuntimeError,
     expr::{
-        AssignExpr, BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, LitExpr, TernaryExpr,
-        UnaryExpr, VarExpr,
+        AssignExpr, BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, GroupingExpr, LitExpr,
+        TernaryExpr, UnaryExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
@@ -188,6 +188,10 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_>> for Interpreter {
                 expr.operator
             ))),
         }
+    }
+
+    fn visit_grouping_expr(&mut self, expr: &GroupingExpr, ctx: VisitorCtx) -> ExprVisitorResult {
+        self.visit_expr(&expr.expr, ctx)
     }
 
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> ExprVisitorResult {

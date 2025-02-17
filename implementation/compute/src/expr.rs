@@ -3,9 +3,11 @@ use crate::{stmt::BlockStmt, util::MemAddr};
 
 #[derive(Clone)]
 pub enum Expr {
+    // TODO: factor out LogicalExpr from BinaryExpr
     Ternary(Box<TernaryExpr>),
     Binary(Box<BinaryExpr>),
     Unary(Box<UnaryExpr>),
+    Grouping(Box<GroupingExpr>),
     Var(Box<VarExpr>),
     Assign(Box<AssignExpr>),
     Lit(Box<LitExpr>),
@@ -32,6 +34,11 @@ pub struct BinaryExpr {
 pub struct UnaryExpr {
     pub operator: Operator,
     pub operand: Expr,
+}
+
+#[derive(Clone)]
+pub struct GroupingExpr {
+    pub expr: Expr,
 }
 
 #[derive(Clone)]
@@ -68,6 +75,7 @@ pub trait ExprVisitor<T, C> {
             Expr::Ternary(expr) => self.visit_ternary_expr(expr, ctx),
             Expr::Binary(expr) => self.visit_binary_expr(expr, ctx),
             Expr::Unary(expr) => self.visit_unary_expr(expr, ctx),
+            Expr::Grouping(expr) => self.visit_grouping_expr(expr, ctx),
             Expr::Var(expr) => self.visit_var_expr(expr, ctx),
             Expr::Assign(expr) => self.visit_assign_expr(expr, ctx),
             Expr::Lit(expr) => self.visit_lit_expr(expr, ctx),
@@ -78,6 +86,7 @@ pub trait ExprVisitor<T, C> {
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: C) -> T;
     fn visit_binary_expr(&mut self, expr: &BinaryExpr, ctx: C) -> T;
     fn visit_unary_expr(&mut self, expr: &UnaryExpr, ctx: C) -> T;
+    fn visit_grouping_expr(&mut self, expr: &GroupingExpr, ctx: C) -> T;
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: C) -> T;
     fn visit_assign_expr(&mut self, expr: &AssignExpr, ctx: C) -> T;
     fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: C) -> T;
@@ -89,6 +98,7 @@ impl MemAddr for Expr {}
 impl MemAddr for TernaryExpr {}
 impl MemAddr for BinaryExpr {}
 impl MemAddr for UnaryExpr {}
+impl MemAddr for GroupingExpr {}
 impl MemAddr for VarExpr {}
 impl MemAddr for AssignExpr {}
 impl MemAddr for LitExpr {}

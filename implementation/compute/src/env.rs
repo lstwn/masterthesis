@@ -1,9 +1,9 @@
 // IDEAS:
 // - [x] add Lox class
-// - [ ] Make functions first class citizens:
-//   - [ ] Add environment context to visitor functions.
-//   - [ ] Add function expressions.
-//   - [ ] Remove function statements.
+// - [x] Make functions first class citizens:
+//   - [x] Add environment context to visitor functions.
+//   - [x] Add function expressions.
+//   - [x] Remove function statements.
 // - [ ] string wrapper struct for identifier
 // - [x] develop Environment (context)
 //   - [x] use mutable environment
@@ -26,8 +26,8 @@
 use crate::{
     error::SyntaxError,
     expr::{
-        AssignExpr, BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, LitExpr, TernaryExpr,
-        UnaryExpr, VarExpr,
+        AssignExpr, BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, GroupingExpr, LitExpr,
+        TernaryExpr, UnaryExpr, VarExpr,
     },
     function::FunctionRef,
     interpreter::Interpreter,
@@ -300,6 +300,10 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
 
     fn visit_unary_expr(&mut self, expr: &UnaryExpr, ctx: VisitorCtx) -> VisitorResult {
         self.visit_expr(&expr.operand, ctx)
+    }
+
+    fn visit_grouping_expr(&mut self, expr: &GroupingExpr, ctx: VisitorCtx) -> VisitorResult {
+        self.visit_expr(&expr.expr, ctx)
     }
 
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> VisitorResult {

@@ -281,6 +281,8 @@ impl StmtVisitor<StmtVisitorResult, VisitorCtx<'_>> for Interpreter {
                     self.visit_expr(expr, ctx).map(|val| {
                         if let Val::Function(function) = &val {
                             // Here, a function turns from anonymous to named.
+                            // If the function is later aliased, that is, reassigned to another
+                            // variable, we stick to this original name (NodeJS does it, too).
                             function.borrow_mut().name = Some(stmt.name.clone());
                         }
                         val

@@ -1,7 +1,7 @@
 use super::{operator::Operator, scalar::ScalarTypedValue};
 use crate::{stmt::BlockStmt, util::MemAddr};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Expr {
     // TODO: factor out LogicalExpr from BinaryExpr
     Ternary(Box<TernaryExpr>),
@@ -15,7 +15,7 @@ pub enum Expr {
     Function(Box<FunctionExpr>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TernaryExpr {
     pub operator: Operator,
     pub left: Expr,
@@ -23,47 +23,47 @@ pub struct TernaryExpr {
     pub right: Expr,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BinaryExpr {
     pub operator: Operator,
     pub left: Expr,
     pub right: Expr,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct UnaryExpr {
     pub operator: Operator,
     pub operand: Expr,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GroupingExpr {
     pub expr: Expr,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VarExpr {
     pub name: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AssignExpr {
     pub name: String,
     pub value: Expr,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LitExpr {
     pub value: ScalarTypedValue,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunctionExpr {
     pub parameters: Vec<String>,
     pub body: BlockStmt,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CallExpr {
     pub callee: Expr,
     pub arguments: Vec<Expr>,

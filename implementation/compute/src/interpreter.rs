@@ -221,8 +221,10 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_>> for Interpreter {
         Ok(Val::Function(new_function(
             // For now, we assume that the function is anonymous, that is, nameless.
             None,
-            expr.clone(), // OPTIMIZE: clone
-            ctx.clone(),  // Clone is cheap and necessary here.
+            // We also assume that the code (in form of the AST) lives at least as long
+            // as this function struct.
+            &expr,
+            ctx.clone(), // Clone is cheap and necessary here.
         )))
     }
 
@@ -252,7 +254,7 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_>> for Interpreter {
             // This is a sin, I know, please forgive me. I bet there is a nicer solution.
             // Yet, this is safe because the the `body` and `environment` are disjoint
             // borrows from the `callee` struct.
-            unsafe { &*std::ptr::from_ref(&callee.declaration.body.stmts) as &Vec<Stmt> };
+            unsafe { &*std::ptr::from_ref(&callee.declaration().body.stmts) as &Vec<Stmt> };
         let environment = &mut callee.environment;
 
         self.visit_block(body, environment, move |environment| {

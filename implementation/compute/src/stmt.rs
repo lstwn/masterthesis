@@ -1,6 +1,6 @@
 use crate::{expr::Expr, util::MemAddr};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Program {
     pub stmts: Vec<Stmt>,
 }
@@ -11,7 +11,7 @@ impl From<Vec<Stmt>> for Program {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Stmt {
     // TODO: control flow: IfStmt, WhileStmt, Return?, Print?
     Var(Box<VarStmt>),
@@ -19,7 +19,7 @@ pub enum Stmt {
     Block(Box<BlockStmt>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VarStmt {
     pub name: String,
     pub initializer: Option<Expr>,
@@ -27,12 +27,12 @@ pub struct VarStmt {
 
 // NOTE: When parsing, allow it to behave just like an expression if it is
 // the last statement
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ExprStmt {
     pub expr: Expr,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BlockStmt {
     pub stmts: Vec<Stmt>,
 }

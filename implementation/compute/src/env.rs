@@ -45,7 +45,7 @@ use std::{
 /// An AST node identifier.
 /// Can be its address in memory if using a pointer-based AST
 /// or its index if using a flattened AST.
-#[derive(Eq, PartialEq, Hash, Clone, Copy)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 pub struct NodeRef(usize);
 
 impl From<usize> for NodeRef {
@@ -146,12 +146,12 @@ impl Scope {
     fn define_var(&mut self, val: Val) -> () {
         self.inner.borrow_mut().push(val);
     }
-    fn assign_var(&mut self, slot: usize, val: Val) -> () {
-        self.inner.borrow_mut()[slot] = val;
+    fn assign_var(&mut self, slot_idx: usize, val: Val) -> () {
+        self.inner.borrow_mut()[slot_idx] = val;
     }
-    fn lookup_var(&self, slot: usize) -> Ref<Val> {
+    fn lookup_var(&self, slot_idx: usize) -> Ref<Val> {
         let vec = self.inner.borrow();
-        Ref::map(vec, |vec| &vec[slot])
+        Ref::map(vec, |vec| &vec[slot_idx])
     }
 }
 
@@ -181,15 +181,16 @@ impl Environment {
             .define_var(val.into());
     }
     pub fn assign_var(&mut self, at: &VarIdent, val: Val) -> () {
-        let (scope, slot) = *at;
-        self.scopes[scope].assign_var(slot, val);
+        let (scope_idx, slot_idx) = *at;
+        self.scopes[scope_idx].assign_var(slot_idx, val);
     }
     pub fn lookup_var(&self, at: &VarIdent) -> Ref<Val> {
-        let (scope, slot) = *at;
-        self.scopes[scope].lookup_var(slot)
+        let (scope_idx, slot_idx) = *at;
+        self.scopes[scope_idx].lookup_var(slot_idx)
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 struct Variable {
     initialized: bool,
     slot: usize,
@@ -250,7 +251,7 @@ impl<'a> Resolver<'a> {
     }
     // resolveLocal in Lox
     fn resolve_var<T: Into<NodeRef>>(&mut self, expr: T, name: &String) -> Result<(), SyntaxError> {
-        for (i, scope) in self.scopes.iter().enumerate().rev() {
+        for (i, scope) in self.scopes.iter().rev().enumerate() {
             if let Some(var) = scope.get(name) {
                 let scope_idx = self.scopes.len() - 1 - i;
                 let slot_idx = var.slot;

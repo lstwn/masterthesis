@@ -126,7 +126,7 @@ mod test {
         Ok(())
     }
 
-    // A function adding two values.
+    // A function with two parameters which adds two values.
     fn new_add_function_expr() -> Expr {
         Expr::Function(Box::new(expr::FunctionExpr {
             parameters: vec!["a".to_string(), "b".to_string()],
@@ -171,8 +171,6 @@ mod test {
     #[test]
     fn test_function_call() -> Result<(), IncLogError> {
         let mut inclog = IncLog::new();
-
-        // TODO: DEBUG!
 
         let function_call = Program::from(vec![
             Stmt::Var(Box::new(VarStmt {

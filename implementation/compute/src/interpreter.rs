@@ -24,9 +24,15 @@ impl Interpreter {
         stmts: impl IntoIterator<Item = &'a Stmt>,
         ctx: &mut InterpreterContext,
     ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
-        // Because we call `visit_block` here, we implicitly create a global
-        // scope for the program.
-        self.visit_block(stmts, ctx, |_env| ())
+        // Ensure we have a global scope before interpreting.
+        debug_assert!(ctx.environment.just_global());
+        // We do not call `visit_block` here because the root scope is created
+        // in the `Environment` constructor and should remain intact across
+        // multiple calls to `interpret`.
+        let ret = self.visit_stmts(stmts, ctx);
+        // Ensure we have a global scope after interpreting.
+        debug_assert!(ctx.environment.just_global());
+        ret
     }
     fn visit_stmts<'a>(
         &mut self,

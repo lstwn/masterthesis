@@ -1,5 +1,5 @@
 use crate::{
-    env::{Environment, NodeRef, VarIdent, Variable},
+    env::{Environment, NodeRef, ScopeStack, VarIdent},
     stmt::Program,
 };
 use std::collections::HashMap;
@@ -18,7 +18,7 @@ pub struct ProgramContext {
     pub environment: Environment,
     /// Scope stack for the resolver.
     /// Writable during resolution and not accessed during interpretation.
-    pub scopes: Vec<HashMap<String, Variable>>,
+    pub scopes: ScopeStack,
 }
 
 impl ProgramContext {
@@ -27,7 +27,7 @@ impl ProgramContext {
             program: Program::empty(),
             side_table: HashMap::new(),
             environment: Environment::new(),
-            scopes: Vec::new(),
+            scopes: ScopeStack::new(),
         }
     }
 }
@@ -50,7 +50,7 @@ impl InterpreterContext<'_> {
 }
 
 pub struct ResolverContext<'a> {
-    pub scopes: &'a mut Vec<HashMap<String, Variable>>,
+    pub scopes: &'a mut ScopeStack,
     pub side_table: &'a mut HashMap<NodeRef, VarIdent>,
 }
 

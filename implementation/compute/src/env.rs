@@ -155,6 +155,8 @@ impl Scope {
     }
 }
 
+const SCOPES_CAPACITY: usize = 8;
+
 #[derive(Clone)]
 pub struct Environment {
     /// The vector models a stack of scopes with the root environment at
@@ -164,9 +166,12 @@ pub struct Environment {
 
 impl Environment {
     pub fn new() -> Self {
-        Self {
-            scopes: Vec::with_capacity(8),
-        }
+        let mut environment = Self {
+            scopes: Vec::with_capacity(SCOPES_CAPACITY),
+        };
+        // Create the global scope.
+        environment.begin_scope();
+        environment
     }
     pub fn just_global(&self) -> bool {
         self.scopes.len() == 1
@@ -208,6 +213,36 @@ impl Variable {
     }
 }
 
+pub struct ScopeStack {
+    inner: Vec<HashMap<String, Variable>>,
+}
+
+impl ScopeStack {
+    pub fn new() -> Self {
+        let mut scope_stack = Self {
+            inner: Vec::with_capacity(SCOPES_CAPACITY),
+        };
+        // Create the global scope.
+        scope_stack.begin_scope();
+        scope_stack
+    }
+    fn just_global(&self) -> bool {
+        self.inner.len() == 1
+    }
+    fn begin_scope(&mut self) -> () {
+        self.inner.push(HashMap::new());
+    }
+    fn end_scope(&mut self) -> () {
+        self.inner.pop();
+    }
+    fn innermost(&self) -> Option<&HashMap<String, Variable>> {
+        self.inner.last()
+    }
+    fn innermost_mut(&mut self) -> Option<&mut HashMap<String, Variable>> {
+        self.inner.last_mut()
+    }
+}
+
 pub struct Resolver {}
 
 impl Resolver {
@@ -219,17 +254,19 @@ impl Resolver {
         stmts: impl IntoIterator<Item = &'a Stmt>,
         ctx: VisitorCtx,
     ) -> Result<(), SyntaxError> {
-        self.visit_block(stmts, ctx, |_resolver, _ctx| Ok(()))
-    }
-    fn begin_scope(&mut self, ctx: VisitorCtx) -> () {
-        ctx.scopes.push(HashMap::new());
-    }
-    fn end_scope(&mut self, ctx: VisitorCtx) -> () {
-        ctx.scopes.pop();
+        // Ensure we have a global scope before resolving.
+        debug_assert!(ctx.scopes.just_global());
+        // We do not call `visit_block` here because the root scope is created
+        // in the `ScopeStack` constructor and should remain intact across
+        // multiple calls to `resolve`.
+        let ret = self.visit_stmts(stmts, ctx);
+        // Ensure we have a global scope after resolving.
+        debug_assert!(ctx.scopes.just_global());
+        ret
     }
     // declare in Lox
     fn declare_var(&mut self, name: &String, ctx: VisitorCtx) -> Result<(), SyntaxError> {
-        match ctx.scopes.last_mut() {
+        match ctx.scopes.innermost_mut() {
             Some(scope) => {
                 scope.insert(name.clone(), Variable::new(scope.len()));
                 Ok(())
@@ -239,13 +276,13 @@ impl Resolver {
     }
     // define in Lox
     fn define_var(&mut self, name: &String, ctx: VisitorCtx) -> Result<(), SyntaxError> {
-        match ctx.scopes.last_mut() {
+        match ctx.scopes.innermost_mut() {
             Some(scope) => match scope.get_mut(name) {
                 Some(var) => {
                     var.initialized = true;
                     Ok(())
                 }
-                None => Err(SyntaxError::new("Variable not declared in top-most scope")),
+                None => Err(SyntaxError::new("Variable not declared in innermost scope")),
             },
             None => Err(SyntaxError::new("No scope to find variable to assign to")),
         }
@@ -257,7 +294,7 @@ impl Resolver {
         name: &String,
         ctx: VisitorCtx,
     ) -> Result<(), SyntaxError> {
-        for (scope_idx, scope) in ctx.scopes.iter().enumerate().rev() {
+        for (scope_idx, scope) in ctx.scopes.inner.iter().enumerate().rev() {
             if let Some(var) = scope.get(name) {
                 let slot_idx = var.slot;
                 ctx.resolve(expr, (scope_idx, slot_idx));
@@ -285,10 +322,10 @@ impl Resolver {
     where
         F: FnOnce(&mut Self, VisitorCtx) -> Result<(), SyntaxError>,
     {
-        self.begin_scope(ctx);
+        ctx.scopes.begin_scope();
         after_new_scope_actions(self, ctx)?;
         self.visit_stmts(stmts, ctx)?;
-        self.end_scope(ctx);
+        ctx.scopes.end_scope();
         Ok(())
     }
 }
@@ -317,7 +354,11 @@ impl<'a, 'b> ExprVisitor<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
     }
 
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> VisitorResult {
-        if let Some(var) = ctx.scopes.last().and_then(|scope| scope.get(&expr.name)) {
+        if let Some(var) = ctx
+            .scopes
+            .innermost()
+            .and_then(|scope| scope.get(&expr.name))
+        {
             if !var.initialized {
                 return Err(SyntaxError::new(
                     "Variable referenced in its own initializer",

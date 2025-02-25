@@ -120,24 +120,14 @@ mod test {
             }))),
         }))];
 
-        let assignment = vec![
-            // // TODO: What if we don't have a variable declaration but reuse the
-            // // variable from above like in a REPL session?
-            // Stmt::Var(Box::new(VarStmt {
-            //     name: "a".to_string(),
-            //     initializer: Some(Expr::Lit(Box::new(LitExpr {
-            //         value: ScalarTypedValue::Uint(1),
-            //     }))),
-            // })),
-            Stmt::Expr(Box::new(ExprStmt {
-                expr: Expr::Assign(Box::new(AssignExpr {
-                    name: "a".to_string(),
-                    value: Expr::Lit(Box::new(LitExpr {
-                        value: ScalarTypedValue::Uint(2),
-                    })),
+        let assignment = vec![Stmt::Expr(Box::new(ExprStmt {
+            expr: Expr::Assign(Box::new(AssignExpr {
+                name: "a".to_string(),
+                value: Expr::Lit(Box::new(LitExpr {
+                    value: ScalarTypedValue::Uint(2),
                 })),
             })),
-        ];
+        }))];
 
         assert_eq!(inclog.execute(initialization)?.unwrap(), Val::Uint(1));
 

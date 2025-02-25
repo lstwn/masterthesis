@@ -24,15 +24,15 @@
 // - [ ] add parser for string representation
 
 use crate::{
+    context::ResolverContext,
     error::SyntaxError,
     expr::{
         AssignExpr, BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, GroupingExpr, LitExpr,
         TernaryExpr, UnaryExpr, VarExpr,
     },
     function::FunctionRef,
-    interpreter::Interpreter,
     scalar::ScalarTypedValue,
-    stmt::{BlockStmt, ExprStmt, Program, Stmt, StmtVisitor, VarStmt},
+    stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
     util::MemAddr,
 };
 use std::{
@@ -168,6 +168,9 @@ impl Environment {
             scopes: Vec::with_capacity(8),
         }
     }
+    pub fn just_global(&self) -> bool {
+        self.scopes.len() == 1
+    }
     pub fn begin_scope(&mut self) -> () {
         self.scopes.push(Scope::new());
     }
@@ -191,7 +194,7 @@ impl Environment {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Variable {
+pub struct Variable {
     initialized: bool,
     slot: usize,
 }
@@ -205,30 +208,28 @@ impl Variable {
     }
 }
 
-pub struct Resolver<'a> {
-    scopes: Vec<HashMap<String, Variable>>,
-    interpreter: &'a mut Interpreter,
-}
+pub struct Resolver {}
 
-impl<'a> Resolver<'a> {
-    pub fn new(interpreter: &'a mut Interpreter) -> Self {
-        Self {
-            scopes: Vec::with_capacity(8),
-            interpreter,
-        }
+impl Resolver {
+    pub fn new() -> Self {
+        Self {}
     }
-    pub fn resolve(&mut self, program: &Program) -> Result<(), SyntaxError> {
-        self.visit_block(&program.stmts, (), |_resolver| Ok(()))
+    pub fn resolve<'a>(
+        &mut self,
+        stmts: impl IntoIterator<Item = &'a Stmt>,
+        ctx: VisitorCtx,
+    ) -> Result<(), SyntaxError> {
+        self.visit_block(stmts, ctx, |_resolver, _ctx| Ok(()))
     }
-    fn begin_scope(&mut self) -> () {
-        self.scopes.push(HashMap::new());
+    fn begin_scope(&mut self, ctx: VisitorCtx) -> () {
+        ctx.scopes.push(HashMap::new());
     }
-    fn end_scope(&mut self) -> () {
-        self.scopes.pop();
+    fn end_scope(&mut self, ctx: VisitorCtx) -> () {
+        ctx.scopes.pop();
     }
     // declare in Lox
-    fn declare_var(&mut self, name: &String) -> Result<(), SyntaxError> {
-        match self.scopes.last_mut() {
+    fn declare_var(&mut self, name: &String, ctx: VisitorCtx) -> Result<(), SyntaxError> {
+        match ctx.scopes.last_mut() {
             Some(scope) => {
                 scope.insert(name.clone(), Variable::new(scope.len()));
                 Ok(())
@@ -237,8 +238,8 @@ impl<'a> Resolver<'a> {
         }
     }
     // define in Lox
-    fn define_var(&mut self, name: &String) -> Result<(), SyntaxError> {
-        match self.scopes.last_mut() {
+    fn define_var(&mut self, name: &String, ctx: VisitorCtx) -> Result<(), SyntaxError> {
+        match ctx.scopes.last_mut() {
             Some(scope) => match scope.get_mut(name) {
                 Some(var) => {
                     var.initialized = true;
@@ -250,44 +251,52 @@ impl<'a> Resolver<'a> {
         }
     }
     // resolveLocal in Lox
-    fn resolve_var<T: Into<NodeRef>>(&mut self, expr: T, name: &String) -> Result<(), SyntaxError> {
-        for (i, scope) in self.scopes.iter().rev().enumerate() {
+    fn resolve_var<T: Into<NodeRef>>(
+        &mut self,
+        expr: T,
+        name: &String,
+        ctx: VisitorCtx,
+    ) -> Result<(), SyntaxError> {
+        for (scope_idx, scope) in ctx.scopes.iter().enumerate().rev() {
             if let Some(var) = scope.get(name) {
-                let scope_idx = self.scopes.len() - 1 - i;
                 let slot_idx = var.slot;
-                self.interpreter.resolve(expr, (scope_idx, slot_idx));
+                ctx.resolve(expr, (scope_idx, slot_idx));
                 return Ok(());
             }
         }
-        Err(SyntaxError::new("Variable not declared"))
+        Err(SyntaxError::new(format!("Variable '{name}' not declared")))
     }
-    fn visit_stmts(&mut self, stmts: &Vec<Stmt>, ctx: VisitorCtx) -> VisitorResult {
+    fn visit_stmts<'a>(
+        &mut self,
+        stmts: impl IntoIterator<Item = &'a Stmt>,
+        ctx: VisitorCtx,
+    ) -> VisitorResult {
         for stmt in stmts {
             self.visit_stmt(stmt, ctx)?;
         }
         Ok(())
     }
-    fn visit_block<F>(
+    fn visit_block<'a, F>(
         &mut self,
-        stmts: &Vec<Stmt>,
+        stmts: impl IntoIterator<Item = &'a Stmt>,
         ctx: VisitorCtx,
         after_new_scope_actions: F,
     ) -> Result<(), SyntaxError>
     where
-        F: FnOnce(&mut Self) -> Result<(), SyntaxError>,
+        F: FnOnce(&mut Self, VisitorCtx) -> Result<(), SyntaxError>,
     {
-        self.begin_scope();
-        after_new_scope_actions(self)?;
+        self.begin_scope(ctx);
+        after_new_scope_actions(self, ctx)?;
         self.visit_stmts(stmts, ctx)?;
-        self.end_scope();
+        self.end_scope(ctx);
         Ok(())
     }
 }
 
 type VisitorResult = Result<(), SyntaxError>;
-type VisitorCtx = ();
+type VisitorCtx<'a, 'b> = &'a mut ResolverContext<'b>;
 
-impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
+impl<'a, 'b> ExprVisitor<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: VisitorCtx) -> VisitorResult {
         self.visit_expr(&expr.left, ctx)
             .and_then(|()| self.visit_expr(&expr.mid, ctx))
@@ -308,7 +317,7 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
     }
 
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> VisitorResult {
-        if let Some(var) = self.scopes.last().and_then(|scope| scope.get(&expr.name)) {
+        if let Some(var) = ctx.scopes.last().and_then(|scope| scope.get(&expr.name)) {
             if !var.initialized {
                 return Err(SyntaxError::new(
                     "Variable referenced in its own initializer",
@@ -316,13 +325,13 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
             }
         }
         // `resolve_var` returns an error if the variable is not declared.
-        self.resolve_var(expr, &expr.name)
+        self.resolve_var(expr, &expr.name, ctx)
     }
 
     fn visit_assign_expr(&mut self, expr: &AssignExpr, ctx: VisitorCtx) -> VisitorResult {
         self.visit_expr(&expr.value, ctx)?;
         // `resolve_var` returns an error if the variable is not declared.
-        self.resolve_var(expr, &expr.name)
+        self.resolve_var(expr, &expr.name, ctx)
     }
 
     fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: VisitorCtx) -> VisitorResult {
@@ -330,10 +339,10 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
     }
 
     fn visit_function_expr(&mut self, expr: &FunctionExpr, ctx: VisitorCtx) -> VisitorResult {
-        self.visit_block(&expr.body.stmts, ctx, |resolver| {
+        self.visit_block(&expr.body.stmts, ctx, |resolver, ctx| {
             for parameter in &expr.parameters {
-                resolver.declare_var(parameter)?;
-                resolver.define_var(parameter)?;
+                resolver.declare_var(parameter, ctx)?;
+                resolver.define_var(parameter, ctx)?;
             }
             Ok(())
         })
@@ -349,9 +358,9 @@ impl ExprVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
     }
 }
 
-impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
+impl<'a, 'b> StmtVisitor<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
     fn visit_var_stmt(&mut self, stmt: &VarStmt, ctx: VisitorCtx) -> VisitorResult {
-        self.declare_var(&stmt.name)
+        self.declare_var(&stmt.name, ctx)
             .and_then(|()| {
                 if let Some(expr) = &stmt.initializer {
                     self.visit_expr(expr, ctx)
@@ -359,7 +368,7 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
                     Ok(())
                 }
             })
-            .and_then(|()| self.define_var(&stmt.name))
+            .and_then(|()| self.define_var(&stmt.name, ctx))
     }
 
     fn visit_expr_stmt(&mut self, stmt: &ExprStmt, ctx: VisitorCtx) -> VisitorResult {
@@ -367,6 +376,6 @@ impl StmtVisitor<VisitorResult, VisitorCtx> for Resolver<'_> {
     }
 
     fn visit_block_stmt(&mut self, stmt: &BlockStmt, ctx: VisitorCtx) -> VisitorResult {
-        self.visit_block(&stmt.stmts, ctx, |_resolver| Ok(()))
+        self.visit_block(&stmt.stmts, ctx, |_resolver, _ctx| Ok(()))
     }
 }

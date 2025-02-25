@@ -1,5 +1,6 @@
 use crate::{
-    env::{Environment, NodeRef, Val, VarIdent},
+    context::InterpreterContext,
+    env::{Environment, NodeRef, Val},
     error::RuntimeError,
     expr::{
         AssignExpr, BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, GroupingExpr, LitExpr,
@@ -7,56 +8,47 @@ use crate::{
     },
     function::new_function,
     operator::Operator,
-    stmt::{BlockStmt, ExprStmt, Program, Stmt, StmtVisitor, VarStmt},
+    stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
 };
-use std::collections::HashMap;
 
 type ScalarTypedValue = Val;
 
-pub struct Interpreter {
-    /// Side table to store the VarIdent for each variable.
-    /// TODO: move to VisitorCtx? And what about environment? Put into `Context`?
-    side_table: HashMap<NodeRef, VarIdent>,
-}
+pub struct Interpreter {}
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self {
-            side_table: HashMap::new(),
-        }
+        Self {}
     }
-    pub fn interpret(
+    pub fn interpret<'a>(
         &mut self,
-        program: &Program,
+        stmts: impl IntoIterator<Item = &'a Stmt>,
+        ctx: &mut InterpreterContext,
     ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
-        // Because we call `execute_block` here, we implicitly create a global
+        // Because we call `visit_block` here, we implicitly create a global
         // scope for the program.
-        self.visit_block(&program.stmts, &mut Environment::new(), |_env| ())
+        self.visit_block(stmts, ctx, |_env| ())
     }
-    pub fn resolve<T: Into<NodeRef>>(&mut self, expr: T, ident: VarIdent) -> () {
-        self.side_table.insert(expr.into(), ident);
-    }
-    fn visit_stmts(
+    fn visit_stmts<'a>(
         &mut self,
-        stmts: &Vec<Stmt>,
+        stmts: impl IntoIterator<Item = &'a Stmt>,
         ctx: VisitorCtx,
     ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
         // Functional programming can be so beautiful. Return the last value
         // if any.
         stmts
-            .iter()
+            .into_iter()
             .try_fold(None, |_prev, stmt| self.visit_stmt(stmt, ctx))
     }
-    fn visit_block<F: FnOnce(&mut Environment) -> ()>(
+    fn visit_block<'a, F: FnOnce(&mut Environment) -> ()>(
         &mut self,
-        stmts: &Vec<Stmt>,
-        mut ctx: VisitorCtx,
+        stmts: impl IntoIterator<Item = &'a Stmt>,
+        ctx: VisitorCtx,
         environment: F,
     ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
-        ctx.begin_scope();
-        environment(&mut ctx);
+        ctx.environment.begin_scope();
+        environment(&mut ctx.environment);
         let ret = self.visit_stmts(stmts, ctx);
-        ctx.end_scope();
+        ctx.environment.end_scope();
         ret
     }
 }
@@ -153,11 +145,11 @@ impl Interpreter {
     }
 }
 
-type VisitorCtx<'a> = &'a mut Environment;
+type VisitorCtx<'a, 'b> = &'a mut InterpreterContext<'b>;
 
 type ExprVisitorResult = Result<ScalarTypedValue, RuntimeError>;
 
-impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_>> for Interpreter {
+impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter {
     // TODO: Remove ternary expressions.
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         todo!()
@@ -195,18 +187,18 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_>> for Interpreter {
     }
 
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        let ident = self.side_table.get(&NodeRef::from(expr)).unwrap();
+        let ident = ctx.side_table.get(&NodeRef::from(expr)).unwrap();
         // Maybe make values reference counted instead of cloning here?
-        Ok(ctx.lookup_var(ident).clone())
+        Ok(ctx.environment.lookup_var(ident).clone())
     }
 
     fn visit_assign_expr(&mut self, expr: &AssignExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         self.visit_expr(&expr.value, ctx).and_then(|value| {
-            self.side_table
+            ctx.side_table
                 .get(&NodeRef::from(expr))
                 .ok_or_else(|| RuntimeError::new(format!("Undefined variable '{}'.", expr.name)))
                 .map(|ident| {
-                    ctx.assign_var(ident, value.clone());
+                    ctx.environment.assign_var(ident, value.clone());
                     value
                 })
         })
@@ -224,7 +216,7 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_>> for Interpreter {
             // We also assume that the code (in form of the AST) lives at least as long
             // as this function struct.
             &expr,
-            ctx.clone(), // Clone is cheap and necessary here.
+            ctx.environment.clone(), // Clone is cheap and necessary here.
         )))
     }
 
@@ -255,9 +247,9 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_>> for Interpreter {
             // Yet, this is safe because the the `body` and `environment` are disjoint
             // borrows from the `callee` struct.
             unsafe { &*std::ptr::from_ref(&callee.declaration().body.stmts) as &Vec<Stmt> };
-        let environment = &mut callee.environment;
+        let mut new_ctx = ctx.with_new_environment(&mut callee.environment);
 
-        self.visit_block(body, environment, move |environment| {
+        self.visit_block(body, &mut new_ctx, move |environment| {
             for arg in args.into_iter() {
                 environment.define_var(arg);
             }
@@ -270,7 +262,7 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_>> for Interpreter {
 
 type StmtVisitorResult = Result<Option<ScalarTypedValue>, RuntimeError>;
 
-impl StmtVisitor<StmtVisitorResult, VisitorCtx<'_>> for Interpreter {
+impl<'a, 'b> StmtVisitor<StmtVisitorResult, VisitorCtx<'a, 'b>> for Interpreter {
     fn visit_var_stmt(&mut self, stmt: &VarStmt, ctx: VisitorCtx) -> StmtVisitorResult {
         stmt.initializer
             .as_ref()
@@ -290,7 +282,7 @@ impl StmtVisitor<StmtVisitorResult, VisitorCtx<'_>> for Interpreter {
                 },
             )
             .map(|val| {
-                ctx.define_var(val.clone());
+                ctx.environment.define_var(val.clone());
                 Some(val)
             })
     }

@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
+mod context;
 mod dbsp_playground;
 mod env;
 mod error;
@@ -13,10 +14,11 @@ mod stmt;
 mod util;
 mod variable;
 
+use context::{InterpreterContext, ProgramContext, ResolverContext};
 use env::{Resolver, Val};
 use error::IncLogError;
 use interpreter::Interpreter;
-use stmt::Program;
+use stmt::{Program, Stmt};
 
 // Var: Variable
 // Val: Value
@@ -25,32 +27,32 @@ use stmt::Program;
 // Ident: Identifier
 
 struct IncLog {
-    interpreter: Interpreter,
+    program_context: ProgramContext,
     had_syntax_err: bool,
     had_runtime_err: bool,
 }
 
 impl IncLog {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            interpreter: Interpreter::new(),
+            program_context: ProgramContext::new(),
             had_syntax_err: false,
             had_runtime_err: false,
         }
     }
-    fn run_and_print(&mut self, source: String) {
+    pub fn run_and_print(&mut self, source: String) {
         match self.run(source) {
             Ok(Some(val)) => println!("{}", val),
             Ok(None) => (),
             Err(err) => eprintln!("{}", err),
         }
     }
-    fn run(&mut self, source: String) -> Result<Option<Val>, IncLogError> {
+    pub fn run(&mut self, source: String) -> Result<Option<Val>, IncLogError> {
         self.parse(source)
-            .and_then(|program| self.execute(&program))
+            .and_then(|program| self.execute(program.stmts))
     }
     // Result<Expr, ParsingError (SyntaxError)>
-    fn parse(&mut self, source: String) -> Result<Program, IncLogError> {
+    pub fn parse(&mut self, source: String) -> Result<Program, IncLogError> {
         // Should actually parse the input string and create an expression
         // or a list of statements.
         // let expr = expr::Expr::Lit(Box::new(expr::LitExpr {
@@ -59,13 +61,33 @@ impl IncLog {
         // Ok(expr)
         todo!()
     }
-    fn execute(&mut self, program: &Program) -> Result<Option<Val>, IncLogError> {
-        Resolver::new(&mut self.interpreter)
-            .resolve(program)
+    pub fn execute(
+        &mut self,
+        code: impl IntoIterator<Item = Stmt>,
+    ) -> Result<Option<Val>, IncLogError> {
+        self.program_context
+            .program
+            .extend_program(code.into_iter());
+        let mut resolver_ctx = ResolverContext {
+            scopes: &mut self.program_context.scopes,
+            side_table: &mut self.program_context.side_table,
+        };
+        Resolver::new()
+            .resolve(
+                self.program_context.program.unexecuted_code(),
+                &mut resolver_ctx,
+            )
             .map_err(|err| self.ack_syntax_err(err))
             .and_then(|()| {
-                self.interpreter
-                    .interpret(program)
+                let mut interpreter_ctx = InterpreterContext {
+                    side_table: &self.program_context.side_table,
+                    environment: &mut self.program_context.environment,
+                };
+                Interpreter::new()
+                    .interpret(
+                        self.program_context.program.unexecuted_code(),
+                        &mut interpreter_ctx,
+                    )
                     .map_err(|err| self.ack_runtime_err(err))
             })
     }
@@ -81,10 +103,8 @@ impl IncLog {
 
 #[cfg(test)]
 mod test {
-    use crate::expr::{AssignExpr, CallExpr};
-
     use super::*;
-    use expr::{BinaryExpr, Expr, LitExpr, VarExpr};
+    use expr::{AssignExpr, BinaryExpr, CallExpr, Expr, LitExpr, VarExpr};
     use operator::Operator;
     use scalar::ScalarTypedValue;
     use stmt::{ExprStmt, Stmt, VarStmt};
@@ -93,22 +113,22 @@ mod test {
     fn test_variable_init_assign() -> Result<(), IncLogError> {
         let mut inclog = IncLog::new();
 
-        let initialization = Program::from(vec![Stmt::Var(Box::new(VarStmt {
+        let initialization = vec![Stmt::Var(Box::new(VarStmt {
             name: "a".to_string(),
             initializer: Some(Expr::Lit(Box::new(LitExpr {
                 value: ScalarTypedValue::Uint(1),
             }))),
-        }))]);
+        }))];
 
-        let assignment = Program::from(vec![
-            // TODO: What if we don't have a variable declaration but reuse the
-            // variable from above like in a REPL session?
-            Stmt::Var(Box::new(VarStmt {
-                name: "a".to_string(),
-                initializer: Some(Expr::Lit(Box::new(LitExpr {
-                    value: ScalarTypedValue::Uint(1),
-                }))),
-            })),
+        let assignment = vec![
+            // // TODO: What if we don't have a variable declaration but reuse the
+            // // variable from above like in a REPL session?
+            // Stmt::Var(Box::new(VarStmt {
+            //     name: "a".to_string(),
+            //     initializer: Some(Expr::Lit(Box::new(LitExpr {
+            //         value: ScalarTypedValue::Uint(1),
+            //     }))),
+            // })),
             Stmt::Expr(Box::new(ExprStmt {
                 expr: Expr::Assign(Box::new(AssignExpr {
                     name: "a".to_string(),
@@ -117,11 +137,11 @@ mod test {
                     })),
                 })),
             })),
-        ]);
+        ];
 
-        assert_eq!(inclog.execute(&initialization)?.unwrap(), Val::Uint(1));
+        assert_eq!(inclog.execute(initialization)?.unwrap(), Val::Uint(1));
 
-        assert_eq!(inclog.execute(&assignment)?.unwrap(), Val::Uint(2));
+        assert_eq!(inclog.execute(assignment)?.unwrap(), Val::Uint(2));
 
         Ok(())
     }
@@ -150,19 +170,19 @@ mod test {
     fn test_function_declarations() -> Result<(), IncLogError> {
         let mut inclog = IncLog::new();
 
-        let anonymous_function = Program::from(vec![Stmt::Expr(Box::new(ExprStmt {
+        let anonymous_function = vec![Stmt::Expr(Box::new(ExprStmt {
             expr: new_add_function_expr(),
-        }))]);
+        }))];
 
-        let named_function = Program::from(vec![Stmt::Var(Box::new(VarStmt {
+        let named_function = vec![Stmt::Var(Box::new(VarStmt {
             name: "add".to_string(),
             initializer: Some(new_add_function_expr()),
-        }))]);
+        }))];
 
-        let result = inclog.execute(&anonymous_function)?.unwrap();
+        let result = inclog.execute(anonymous_function)?.unwrap();
         assert_eq!(format!("{}", result), "<anonymous fn(a, b)>");
 
-        let result = inclog.execute(&named_function)?.unwrap();
+        let result = inclog.execute(named_function)?.unwrap();
         assert_eq!(format!("{}", result), "<fn add(a, b)>");
 
         Ok(())
@@ -172,7 +192,7 @@ mod test {
     fn test_function_call() -> Result<(), IncLogError> {
         let mut inclog = IncLog::new();
 
-        let function_call = Program::from(vec![
+        let function_call = vec![
             Stmt::Var(Box::new(VarStmt {
                 name: "add".to_string(),
                 initializer: Some(new_add_function_expr()),
@@ -192,9 +212,9 @@ mod test {
                     ],
                 })),
             })),
-        ]);
+        ];
 
-        let result = inclog.execute(&function_call)?.unwrap();
+        let result = inclog.execute(function_call)?.unwrap();
         assert_eq!(Val::Uint(3), result);
 
         Ok(())

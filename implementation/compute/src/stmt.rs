@@ -1,14 +1,16 @@
 use crate::{expr::Expr, util::MemAddr};
 
+pub type Code = Vec<Stmt>;
+
 #[derive(Clone, Debug)]
 pub struct Program {
-    pub stmts: Vec<Stmt>,
+    stmts: Code,
     /// Index from which unexecuted code is stored in the program.
     partition_index: usize,
 }
 
-impl From<Vec<Stmt>> for Program {
-    fn from(stmts: Vec<Stmt>) -> Self {
+impl From<Code> for Program {
+    fn from(stmts: Code) -> Self {
         Self {
             stmts,
             partition_index: 0,
@@ -24,7 +26,7 @@ impl Program {
         }
     }
     pub fn unexecuted_code(&self) -> impl Iterator<Item = &Stmt> {
-        self.stmts[self.partition_index..].iter()
+        self.stmts.iter().skip(self.partition_index)
     }
     pub fn extend_program(&mut self, code: impl Iterator<Item = Stmt>) {
         self.partition_index = self.stmts.len();

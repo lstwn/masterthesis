@@ -18,7 +18,7 @@ use context::{InterpreterContext, ProgramContext, ResolverContext};
 use env::{Resolver, Val};
 use error::IncLogError;
 use interpreter::Interpreter;
-use stmt::{Program, Stmt};
+use stmt::{Code, Stmt};
 
 // Var: Variable
 // Val: Value
@@ -48,11 +48,9 @@ impl IncLog {
         }
     }
     pub fn run(&mut self, source: String) -> Result<Option<Val>, IncLogError> {
-        self.parse(source)
-            .and_then(|program| self.execute(program.stmts))
+        self.parse(source).and_then(|stmts| self.execute(stmts))
     }
-    // Result<Expr, ParsingError (SyntaxError)>
-    pub fn parse(&mut self, source: String) -> Result<Program, IncLogError> {
+    pub fn parse(&mut self, source: String) -> Result<Code, IncLogError> {
         // Should actually parse the input string and create an expression
         // or a list of statements.
         // let expr = expr::Expr::Lit(Box::new(expr::LitExpr {

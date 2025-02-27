@@ -12,7 +12,6 @@ mod relation;
 mod scalar;
 mod stmt;
 mod util;
-mod variable;
 
 use context::{InterpreterContext, ProgramContext, ResolverContext};
 use env::{Resolver, Val};

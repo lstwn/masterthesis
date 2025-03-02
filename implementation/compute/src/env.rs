@@ -25,10 +25,11 @@
 
 use crate::{
     context::ResolverContext,
+    dbsp_playground::RelationRef,
     error::SyntaxError,
     expr::{
         AssignExpr, BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, GroupingExpr, LitExpr,
-        TernaryExpr, UnaryExpr, VarExpr,
+        SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
     },
     function::FunctionRef,
     scalar::ScalarTypedValue,
@@ -79,6 +80,8 @@ pub enum Val {
     Null(()),
     /// Function.
     Function(FunctionRef),
+    /// Relation.
+    Relation(RelationRef),
 }
 
 impl Eq for Val {}
@@ -124,6 +127,7 @@ impl fmt::Display for Val {
             Val::Bool(value) => write!(f, "{}", value),
             Val::Null(()) => write!(f, "null"),
             Val::Function(function) => write!(f, "{}", function.borrow()),
+            Val::Relation(relation) => write!(f, "relation"),
         }
     }
 }
@@ -131,7 +135,7 @@ impl fmt::Display for Val {
 /// First entry is the scope, second entry is the variable within that scope.
 pub type VarIdent = (usize, usize);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Scope {
     /// Variable slots of an environment.
     inner: Rc<RefCell<Vec<Val>>>,
@@ -157,7 +161,7 @@ impl Scope {
 
 const SCOPES_CAPACITY: usize = 8;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Environment {
     /// The vector models a stack of scopes with the root environment at
     /// the bottom and the innermost scope at the top.
@@ -396,6 +400,10 @@ impl<'a, 'b> ExprVisitor<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
             self.visit_expr(arg, ctx)?;
         }
         Ok(())
+    }
+    fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: VisitorCtx) -> VisitorResult {
+        self.visit_expr(&expr.relation, ctx)
+            .and_then(|()| self.visit_expr(&expr.condition, ctx))
     }
 }
 

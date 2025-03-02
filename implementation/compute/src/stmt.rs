@@ -28,6 +28,9 @@ impl Program {
     pub fn unexecuted_code(&self) -> impl Iterator<Item = &Stmt> {
         self.stmts.iter().skip(self.partition_index)
     }
+    pub fn unexecuted_code_mut(&mut self) -> impl Iterator<Item = &mut Stmt> {
+        self.stmts.iter_mut().skip(self.partition_index)
+    }
     pub fn extend_program(&mut self, code: impl Iterator<Item = Stmt>) {
         self.partition_index = self.stmts.len();
         self.stmts.extend(code);
@@ -71,6 +74,32 @@ pub trait StmtVisitor<T, C> {
     fn visit_var_stmt(&mut self, stmt: &VarStmt, ctx: C) -> T;
     fn visit_expr_stmt(&mut self, stmt: &ExprStmt, ctx: C) -> T;
     fn visit_block_stmt(&mut self, stmt: &BlockStmt, ctx: C) -> T;
+}
+
+pub trait StmtVisitorMut<T, C> {
+    fn visit_stmt(&mut self, stmt: &mut Stmt, ctx: C) -> T {
+        match stmt {
+            Stmt::Var(stmt) => self.visit_var_stmt(stmt, ctx),
+            Stmt::Expr(stmt) => self.visit_expr_stmt(stmt, ctx),
+            Stmt::Block(stmt) => self.visit_block_stmt(stmt, ctx),
+        }
+    }
+    fn visit_var_stmt(&mut self, stmt: &mut VarStmt, ctx: C) -> T;
+    fn visit_expr_stmt(&mut self, stmt: &mut ExprStmt, ctx: C) -> T;
+    fn visit_block_stmt(&mut self, stmt: &mut BlockStmt, ctx: C) -> T;
+}
+
+pub trait StmtVisitorOwn<T, C> {
+    fn visit_stmt(&mut self, stmt: Stmt, ctx: C) -> T {
+        match stmt {
+            Stmt::Var(stmt) => self.visit_var_stmt(*stmt, ctx),
+            Stmt::Expr(stmt) => self.visit_expr_stmt(*stmt, ctx),
+            Stmt::Block(stmt) => self.visit_block_stmt(*stmt, ctx),
+        }
+    }
+    fn visit_var_stmt(&mut self, stmt: VarStmt, ctx: C) -> T;
+    fn visit_expr_stmt(&mut self, stmt: ExprStmt, ctx: C) -> T;
+    fn visit_block_stmt(&mut self, stmt: BlockStmt, ctx: C) -> T;
 }
 
 impl MemAddr for Stmt {}

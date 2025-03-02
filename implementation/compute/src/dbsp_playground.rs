@@ -1,3 +1,10 @@
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fmt::{self, Debug, Display},
+    rc::Rc,
+};
+
 use crate::relation::{TupleKey, TupleValue};
 use dbsp::{ChildCircuit, OrdIndexedZSet, OrdZSet, Stream};
 
@@ -32,11 +39,57 @@ impl OrderedTestStream {
     }
 }
 
-pub type OrdIndexedStream = Stream<ChildCircuit<()>, OrdIndexedZSet<TupleKey, TupleValue>>;
+pub type OrdIndexedStream<Circuit = ChildCircuit<()>> =
+    Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>;
+
+pub type RelationRef<Circuit = ChildCircuit<()>> = Rc<RefCell<Relation<Circuit>>>;
+
+pub fn new_relation(name: String, schema: Schema, inner: OrdIndexedStream) -> RelationRef {
+    Rc::new(RefCell::new(Relation::new(name, schema, inner)))
+}
+
+// A relation's schema is a set of attributes and we store the index of each.
+#[derive(Clone)]
+pub struct Schema {
+    pub key_attributes: HashMap<String, usize>,
+    pub all_attributes: HashMap<String, usize>,
+}
+
+#[derive(Clone)]
+pub struct Relation<Circuit = ChildCircuit<()>> {
+    pub name: String,
+    pub schema: Schema,
+    pub inner: Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>,
+}
+
+impl Relation {
+    pub fn new(name: String, schema: Schema, inner: OrdIndexedStream) -> Self {
+        Self {
+            name,
+            schema,
+            inner,
+        }
+    }
+    pub fn to_string_helper(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<relation {}>", self.name)
+    }
+}
+
+impl Display for Relation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.to_string_helper(f)
+    }
+}
+
+impl Debug for Relation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.to_string_helper(f)
+    }
+}
 
 struct IndexedTestStream {
-    inner: OrdIndexedStream,
-    other: OrdIndexedStream,
+    a: Relation,
+    b: Relation,
 }
 
 impl IndexedTestStream {
@@ -46,7 +99,7 @@ impl IndexedTestStream {
 
         // TODO: How to move interpreter state into the closure?
 
-        let selected: OrdIndexedStream = self.inner.filter(move |tuple| {
+        let selected: OrdIndexedStream = self.a.inner.filter(move |tuple| {
             // Put attributes into scope. How?
             // - Define vars uninitialized beforehand and just assign them here?
             //   This would allow to run the resolver just once before the
@@ -62,7 +115,7 @@ impl IndexedTestStream {
             true
         });
 
-        let joined: OrdIndexedStream = selected.join_index(&self.other, |k, left, right| {
+        let joined: OrdIndexedStream = selected.join_index(&self.b.inner, |k, left, right| {
             // merge left and right tuple
             Some((k.clone(), right.clone()))
         });

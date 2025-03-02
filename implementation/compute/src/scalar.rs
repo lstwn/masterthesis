@@ -28,7 +28,6 @@ pub enum ScalarTypedValue {
     Bool(bool),
     /// Null.
     Null(()),
-    // QUESTION: Add `TupleValue` variant? Or push its attributes as scalars?
 }
 
 impl Default for ScalarTypedValue {

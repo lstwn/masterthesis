@@ -13,6 +13,7 @@ pub enum Expr {
     Lit(Box<LitExpr>),
     Call(Box<CallExpr>),
     Function(Box<FunctionExpr>),
+    Selection(Box<SelectionExpr>),
 }
 
 #[derive(Clone, Debug)]
@@ -69,6 +70,12 @@ pub struct CallExpr {
     pub arguments: Vec<Expr>,
 }
 
+#[derive(Clone, Debug)]
+pub struct SelectionExpr {
+    pub relation: Expr,
+    pub condition: Expr,
+}
+
 pub trait ExprVisitor<T, C> {
     fn visit_expr(&mut self, expr: &Expr, ctx: C) -> T {
         match expr {
@@ -81,6 +88,7 @@ pub trait ExprVisitor<T, C> {
             Expr::Lit(expr) => self.visit_lit_expr(expr, ctx),
             Expr::Function(expr) => self.visit_function_expr(expr, ctx),
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
+            Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
         }
     }
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: C) -> T;
@@ -92,6 +100,61 @@ pub trait ExprVisitor<T, C> {
     fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: C) -> T;
     fn visit_function_expr(&mut self, expr: &FunctionExpr, ctx: C) -> T;
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: C) -> T;
+    fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: C) -> T;
+}
+
+pub trait ExprVisitorMut<T, C> {
+    fn visit_expr(&mut self, expr: &mut Expr, ctx: C) -> T {
+        match expr {
+            Expr::Ternary(expr) => self.visit_ternary_expr(expr, ctx),
+            Expr::Binary(expr) => self.visit_binary_expr(expr, ctx),
+            Expr::Unary(expr) => self.visit_unary_expr(expr, ctx),
+            Expr::Grouping(expr) => self.visit_grouping_expr(expr, ctx),
+            Expr::Var(expr) => self.visit_var_expr(expr, ctx),
+            Expr::Assign(expr) => self.visit_assign_expr(expr, ctx),
+            Expr::Lit(expr) => self.visit_lit_expr(expr, ctx),
+            Expr::Function(expr) => self.visit_function_expr(expr, ctx),
+            Expr::Call(expr) => self.visit_call_expr(expr, ctx),
+            Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
+        }
+    }
+    fn visit_ternary_expr(&mut self, expr: &mut TernaryExpr, ctx: C) -> T;
+    fn visit_binary_expr(&mut self, expr: &mut BinaryExpr, ctx: C) -> T;
+    fn visit_unary_expr(&mut self, expr: &mut UnaryExpr, ctx: C) -> T;
+    fn visit_grouping_expr(&mut self, expr: &mut GroupingExpr, ctx: C) -> T;
+    fn visit_var_expr(&mut self, expr: &mut VarExpr, ctx: C) -> T;
+    fn visit_assign_expr(&mut self, expr: &mut AssignExpr, ctx: C) -> T;
+    fn visit_lit_expr(&mut self, expr: &mut LitExpr, ctx: C) -> T;
+    fn visit_function_expr(&mut self, expr: &mut FunctionExpr, ctx: C) -> T;
+    fn visit_call_expr(&mut self, expr: &mut CallExpr, ctx: C) -> T;
+    fn visit_selection_expr(&mut self, expr: &mut SelectionExpr, ctx: C) -> T;
+}
+
+pub trait ExprVisitorOwn<T, C> {
+    fn visit_expr(&mut self, expr: Expr, ctx: C) -> T {
+        match expr {
+            Expr::Ternary(expr) => self.visit_ternary_expr(*expr, ctx),
+            Expr::Binary(expr) => self.visit_binary_expr(*expr, ctx),
+            Expr::Unary(expr) => self.visit_unary_expr(*expr, ctx),
+            Expr::Grouping(expr) => self.visit_grouping_expr(*expr, ctx),
+            Expr::Var(expr) => self.visit_var_expr(*expr, ctx),
+            Expr::Assign(expr) => self.visit_assign_expr(*expr, ctx),
+            Expr::Lit(expr) => self.visit_lit_expr(*expr, ctx),
+            Expr::Function(expr) => self.visit_function_expr(*expr, ctx),
+            Expr::Call(expr) => self.visit_call_expr(*expr, ctx),
+            Expr::Selection(expr) => self.visit_selection_expr(*expr, ctx),
+        }
+    }
+    fn visit_ternary_expr(&mut self, expr: TernaryExpr, ctx: C) -> T;
+    fn visit_binary_expr(&mut self, expr: BinaryExpr, ctx: C) -> T;
+    fn visit_unary_expr(&mut self, expr: UnaryExpr, ctx: C) -> T;
+    fn visit_grouping_expr(&mut self, expr: GroupingExpr, ctx: C) -> T;
+    fn visit_var_expr(&mut self, expr: VarExpr, ctx: C) -> T;
+    fn visit_assign_expr(&mut self, expr: AssignExpr, ctx: C) -> T;
+    fn visit_lit_expr(&mut self, expr: LitExpr, ctx: C) -> T;
+    fn visit_function_expr(&mut self, expr: FunctionExpr, ctx: C) -> T;
+    fn visit_call_expr(&mut self, expr: CallExpr, ctx: C) -> T;
+    fn visit_selection_expr(&mut self, expr: SelectionExpr, ctx: C) -> T;
 }
 
 impl MemAddr for Expr {}
@@ -104,3 +167,4 @@ impl MemAddr for AssignExpr {}
 impl MemAddr for LitExpr {}
 impl MemAddr for FunctionExpr {}
 impl MemAddr for CallExpr {}
+impl MemAddr for SelectionExpr {}

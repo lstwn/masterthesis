@@ -32,6 +32,7 @@ impl ProgramContext {
     }
 }
 
+#[derive(Debug)]
 pub struct InterpreterContext<'a> {
     pub side_table: &'a HashMap<NodeRef, VarIdent>,
     pub environment: &'a mut Environment,

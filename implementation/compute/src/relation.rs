@@ -36,6 +36,12 @@ pub struct TupleValue {
     pub data: Vec<ScalarTypedValue>,
 }
 
+impl Tuple for TupleValue {
+    fn data(&self, index: usize) -> &ScalarTypedValue {
+        &self.data[index]
+    }
+}
+
 #[derive(
     Clone,
     Default,
@@ -53,6 +59,16 @@ pub struct TupleValue {
 #[archive_attr(derive(Ord, Eq, PartialEq, PartialOrd))]
 pub struct TupleKey {
     data: Vec<ScalarTypedValue>,
+}
+
+impl Tuple for TupleKey {
+    fn data(&self, index: usize) -> &ScalarTypedValue {
+        &self.data[index]
+    }
+}
+
+pub trait Tuple {
+    fn data(&self, index: usize) -> &ScalarTypedValue;
 }
 
 // /// An enum of all possible types a field of a relation can assume.

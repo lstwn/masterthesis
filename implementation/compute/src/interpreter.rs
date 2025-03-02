@@ -1,23 +1,63 @@
+use std::collections::HashMap;
+
 use crate::{
     context::InterpreterContext,
+    dbsp_playground::{Schema, new_relation},
     env::{Environment, NodeRef, Val},
     error::RuntimeError,
     expr::{
-        AssignExpr, BinaryExpr, CallExpr, ExprVisitor, FunctionExpr, GroupingExpr, LitExpr,
-        TernaryExpr, UnaryExpr, VarExpr,
+        AssignExpr, BinaryExpr, CallExpr, Expr, ExprVisitor, FunctionExpr, GroupingExpr, LitExpr,
+        SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
+    relation::Tuple,
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
 };
 
+// Benefits from having a separate *code gen* pass before interpretation.
+// - It can take ownership of the AST and generate extra code, e.g., a function
+//   (useful for implementing e.g. SelectionExpr)
+//   SelectionExpr can carry a function call instead of a condition.
+//   BUT: How to fix naming(-leak) issue of the function for that condition?
+// - No need to clone some values from the AST:
+//   - literals can be moved instead of cloned
+//   - function bodies can be moved instead of unsafely referenced by pointer
+//     and functions can own their code! No need to store the AST in the
+//     environment anymore!
+//   - VarStmts' name can be moved instead of cloned
+//   - A SelectionExpr's condition can be moved into a function instead of cloned
+// - A pointer based AST can be transformed into a flattened AST before execution
+//
+// Benefits of a type checker pass:
+// - It can check the types of expressions and statements
+// - We can deduce the schema of relations throughout the program to be able to
+//   define functions with the right number of arguments. Maybe only the truly
+//   accessed fields of a tuple?
+
 type ScalarTypedValue = Val;
 
-pub struct Interpreter {}
+pub struct Interpreter {
+    /// If the interpreter runs within a DBSP context, we store the currently
+    /// processing tuple here for making each of its fields accessible
+    /// as a variable.
+    // No need to wrap it in an Option because an empty HashMap does not allocate!
+    tuple_vars: HashMap<String, crate::scalar::ScalarTypedValue>,
+}
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            tuple_vars: HashMap::new(),
+        }
+    }
+    pub fn with_tuple_ctx<T: Tuple>(schema: &Schema, tuple: &T) -> Self {
+        let tuple_vars = schema
+            .all_attributes
+            .iter()
+            .map(|(name, index)| (name.clone(), tuple.data(*index).clone()))
+            .collect();
+        Self { tuple_vars }
     }
     pub fn interpret<'a>(
         &mut self,
@@ -33,6 +73,9 @@ impl Interpreter {
         // Ensure we have a global scope after interpreting.
         debug_assert!(ctx.environment.just_global());
         ret
+    }
+    fn evaluate(&mut self, expr: &Expr, ctx: VisitorCtx) -> Result<ScalarTypedValue, RuntimeError> {
+        self.visit_expr(expr, ctx)
     }
     fn visit_stmts<'a>(
         &mut self,
@@ -193,9 +236,17 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
     }
 
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        let ident = ctx.side_table.get(&NodeRef::from(expr)).unwrap();
-        // Maybe make values reference counted instead of cloning here?
-        Ok(ctx.environment.lookup_var(ident).clone())
+        let name = &expr.name;
+        if let Some(value) = self.tuple_vars.get(name) {
+            Ok(Val::from(value.clone()))
+        } else {
+            let ident = ctx
+                .side_table
+                .get(&NodeRef::from(expr))
+                .expect(&format!("Unresolved variable '{name}'"));
+            // Maybe make values reference counted instead of cloning here?
+            Ok(ctx.environment.lookup_var(ident).clone())
+        }
     }
 
     fn visit_assign_expr(&mut self, expr: &AssignExpr, ctx: VisitorCtx) -> ExprVisitorResult {
@@ -233,7 +284,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         };
         let mut callee = callee.borrow_mut();
 
-        // TODO: check arity in resolver just _once_ statically.
+        // TODO: Optimize by checking arity in resolver just _once_ statically.
         if expr.arguments.len() != callee.arity() {
             return Err(RuntimeError::new(format!(
                 "Expected exactly {} arguments, but got {}",
@@ -264,6 +315,46 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         // anything.
         .map(|val| val.unwrap_or_default())
     }
+    fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
+        let relation = match self.visit_expr(&expr.relation, ctx)? {
+            Val::Relation(relation) => relation,
+            _ => return Err(RuntimeError::new("Expected relation".to_string())),
+        };
+        let relation_ref = relation.borrow();
+
+        let relation_clone = std::rc::Rc::clone(&relation);
+        // ISSUE: Due to the clone, the address changes and the side_table
+        // lookups will fail! Maybe don't use side_table anymore but instead
+        // switch to storing the information directly in the AST?
+        let condition = expr.condition.clone();
+        let environment = ctx.environment.clone();
+        let selected = relation_ref.inner.filter(move |(key, tuple)| {
+            let schema = &relation_clone.borrow().schema;
+            let mut environment = environment.clone();
+
+            // No need to run resolver here, already resolved!
+
+            is_truthy(
+                &Interpreter::with_tuple_ctx(schema, tuple)
+                    .evaluate(
+                        &condition,
+                        &mut InterpreterContext {
+                            // Another reason to get rid of the side_table.
+                            side_table: &HashMap::new(),
+                            environment: &mut environment,
+                        },
+                    )
+                    .expect("Runtime error while interpreting selection condition"),
+            )
+        });
+
+        Ok(Val::Relation(new_relation(
+            relation_ref.name.clone(),
+            // With selections, the schema stays the same.
+            relation_ref.schema.clone(),
+            selected,
+        )))
+    }
 }
 
 type StmtVisitorResult = Result<Option<ScalarTypedValue>, RuntimeError>;
@@ -287,9 +378,9 @@ impl<'a, 'b> StmtVisitor<StmtVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                     })
                 },
             )
-            .map(|val| {
-                ctx.environment.define_var(val.clone());
-                Some(val)
+            .map(|value| {
+                ctx.environment.define_var(value.clone());
+                Some(value)
             })
     }
 

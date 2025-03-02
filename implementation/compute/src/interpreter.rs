@@ -15,25 +15,27 @@ use crate::{
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
 };
 
-// Benefits from having a separate *code gen* pass before interpretation.
-// - It can take ownership of the AST and generate extra code, e.g., a function
-//   (useful for implementing e.g. SelectionExpr)
-//   SelectionExpr can carry a function call instead of a condition.
-//   BUT: How to fix naming(-leak) issue of the function for that condition?
+// Benefits of removing the side_table but instead storing the information
+// directly in the AST:
+// + No need to carry over the side table over to DBSP contexts and maintain
+//   it within the resolver
+// + Cloning parts of the AST is safe because lookups in the side table are not
+//   done based on memory location anymore but on the AST node itself.
+// - The resolver requires mutable access to the AST nodes to store the resolved
+//   information.
+//
+// Benefits from having a separate *code gen* pass before interpretation which
+// consumes the AST:
+// - A pointer based AST can be transformed into a flattened AST before execution
 // - No need to clone some values from the AST:
 //   - literals can be moved instead of cloned
 //   - function bodies can be moved instead of unsafely referenced by pointer
 //     and functions can own their code! No need to store the AST in the
 //     environment anymore!
 //   - VarStmts' name can be moved instead of cloned
-//   - A SelectionExpr's condition can be moved into a function instead of cloned
-// - A pointer based AST can be transformed into a flattened AST before execution
 //
-// Benefits of a type checker pass:
+// Benefits of a type checker pass which immutably references the AST:
 // - It can check the types of expressions and statements
-// - We can deduce the schema of relations throughout the program to be able to
-//   define functions with the right number of arguments. Maybe only the truly
-//   accessed fields of a tuple?
 
 type ScalarTypedValue = Val;
 

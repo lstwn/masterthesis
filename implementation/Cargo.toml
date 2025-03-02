@@ -5,7 +5,7 @@ members = ["parser", "compute", "cli"]
 [workspace.package]
 version = "0.0.1"
 authors = ["Leo Stewen"]
-description = "Implementation of Masterthesis 'Expressing CRDTs using Datalog"
+description = "Implementation of Masterthesis 'Expressing CRDTs using Datalog'"
 homepage = "https://github.com/lstwn/masterthesis"
 repository = "https://github.com/lstwn/masterthesis"
 

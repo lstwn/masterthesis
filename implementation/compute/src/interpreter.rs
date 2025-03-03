@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     context::InterpreterContext,
     dbsp_playground::{Schema, new_relation},
-    env::{Environment, NodeRef, Val},
+    env::{Environment, Val},
     error::RuntimeError,
     expr::{
         AssignExpr, BinaryExpr, CallExpr, Expr, ExprVisitor, FunctionExpr, GroupingExpr, LitExpr,
@@ -15,15 +15,6 @@ use crate::{
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
 };
 
-// Benefits of removing the side_table but instead storing the information
-// directly in the AST:
-// + No need to carry over the side table over to DBSP contexts and maintain
-//   it within the resolver
-// + Cloning parts of the AST is safe because lookups in the side table are not
-//   done based on memory location anymore but on the AST node itself.
-// - The resolver requires mutable access to the AST nodes to store the resolved
-//   information.
-//
 // Benefits from having a separate *code gen* pass before interpretation which
 // consumes the AST:
 // - A pointer based AST can be transformed into a flattened AST before execution
@@ -239,27 +230,33 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
 
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         let name = &expr.name;
-        if let Some(value) = self.tuple_vars.get(name) {
-            Ok(Val::from(value.clone()))
-        } else {
-            let ident = ctx
-                .side_table
-                .get(&NodeRef::from(expr))
-                .expect(&format!("Unresolved variable '{name}'"));
-            // Maybe make values reference counted instead of cloning here?
-            Ok(ctx.environment.lookup_var(ident).clone())
-        }
+        self.tuple_vars.get(name).map_or_else(
+            || {
+                let resolved = expr
+                    .resolved
+                    .as_ref()
+                    // This should never happen because the resolver should have resolved
+                    // all non-tuple variables before the interpreter starts.
+                    .expect(&format!("Unresolved variable '{name}'."));
+                // Maybe make values reference counted instead of cloning here?
+                Ok(ctx.environment.lookup_var(resolved).clone())
+            },
+            |value| Ok(Val::from(value.clone())),
+        )
     }
 
     fn visit_assign_expr(&mut self, expr: &AssignExpr, ctx: VisitorCtx) -> ExprVisitorResult {
+        let name = &expr.name;
         self.visit_expr(&expr.value, ctx).and_then(|value| {
-            ctx.side_table
-                .get(&NodeRef::from(expr))
-                .ok_or_else(|| RuntimeError::new(format!("Undefined variable '{}'.", expr.name)))
-                .map(|ident| {
-                    ctx.environment.assign_var(ident, value.clone());
-                    value
-                })
+            let resolved = expr
+                .resolved
+                .as_ref()
+                // This should never happen because the resolver should have resolved
+                // all non-tuple variables before the interpreter starts and assigning
+                // to tuple variables is not allowed.
+                .expect(&format!("Unresolved variable '{name}'."));
+            ctx.environment.assign_var(resolved, value.clone());
+            Ok(value)
         })
     }
 
@@ -306,7 +303,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             // Yet, this is safe because the the `body` and `environment` are disjoint
             // borrows from the `callee` struct.
             unsafe { &*std::ptr::from_ref(&callee.declaration().body.stmts) as &Vec<Stmt> };
-        let mut new_ctx = ctx.with_new_environment(&mut callee.environment);
+        let mut new_ctx = InterpreterContext::new(&mut callee.environment);
 
         self.visit_block(body, &mut new_ctx, move |environment| {
             for arg in args.into_iter() {
@@ -323,29 +320,18 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             _ => return Err(RuntimeError::new("Expected relation".to_string())),
         };
         let relation_ref = relation.borrow();
+        let relation_clone = Rc::clone(&relation);
 
-        let relation_clone = std::rc::Rc::clone(&relation);
-        // ISSUE: Due to the clone, the address changes and the side_table
-        // lookups will fail! Maybe don't use side_table anymore but instead
-        // switch to storing the information directly in the AST?
         let condition = expr.condition.clone();
         let environment = ctx.environment.clone();
         let selected = relation_ref.inner.filter(move |(key, tuple)| {
-            let schema = &relation_clone.borrow().schema;
-            let mut environment = environment.clone();
-
             // No need to run resolver here, already resolved!
-
+            let schema = &relation_clone.borrow().schema;
+            let mut environment = &mut environment.clone();
+            let mut new_ctx = InterpreterContext::new(&mut environment);
             is_truthy(
                 &Interpreter::with_tuple_ctx(schema, tuple)
-                    .evaluate(
-                        &condition,
-                        &mut InterpreterContext {
-                            // Another reason to get rid of the side_table.
-                            side_table: &HashMap::new(),
-                            environment: &mut environment,
-                        },
-                    )
+                    .evaluate(&condition, &mut new_ctx)
                     .expect("Runtime error while interpreting selection condition"),
             )
         });

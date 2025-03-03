@@ -1,5 +1,9 @@
 use super::{operator::Operator, scalar::ScalarTypedValue};
-use crate::{stmt::BlockStmt, util::MemAddr};
+use crate::{
+    env::VarIdent,
+    stmt::BlockStmt,
+    util::{MemAddr, Named, Resolvable},
+};
 
 #[derive(Clone, Debug)]
 pub enum Expr {
@@ -45,12 +49,57 @@ pub struct GroupingExpr {
 #[derive(Clone, Debug)]
 pub struct VarExpr {
     pub name: String,
+    pub resolved: Option<VarIdent>,
+}
+
+impl VarExpr {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            resolved: None,
+        }
+    }
+}
+
+impl Resolvable for VarExpr {
+    fn set_resolved(&mut self, info: VarIdent) -> () {
+        self.resolved = Some(info);
+    }
+}
+
+impl Named for VarExpr {
+    fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct AssignExpr {
     pub name: String,
     pub value: Expr,
+    pub resolved: Option<VarIdent>,
+}
+
+impl AssignExpr {
+    pub fn new(name: String, value: Expr) -> Self {
+        Self {
+            name,
+            value,
+            resolved: None,
+        }
+    }
+}
+
+impl Resolvable for AssignExpr {
+    fn set_resolved(&mut self, info: VarIdent) -> () {
+        self.resolved = Some(info);
+    }
+}
+
+impl Named for AssignExpr {
+    fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 #[derive(Clone, Debug)]

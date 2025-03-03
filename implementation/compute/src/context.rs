@@ -1,8 +1,7 @@
 use crate::{
-    env::{Environment, NodeRef, ScopeStack, VarIdent},
+    env::{Environment, ScopeStack},
     stmt::Program,
 };
-use std::collections::HashMap;
 
 pub struct ProgramContext {
     /// We have to keep the AST in memory because functions may be stored
@@ -10,9 +9,6 @@ pub struct ProgramContext {
     /// session.
     /// Read-only during resolution and interpretation.
     pub program: Program,
-    /// Side table to store the resolved VarIdents for each variable.
-    /// Writable during resolution. Read-only during interpretation.
-    pub side_table: HashMap<NodeRef, VarIdent>,
     /// The environment stores the variables and their values.
     /// Writable and _changing_ during interpretation.
     pub environment: Environment,
@@ -25,7 +21,6 @@ impl ProgramContext {
     pub fn new() -> Self {
         Self {
             program: Program::empty(),
-            side_table: HashMap::new(),
             environment: Environment::new(),
             scopes: ScopeStack::new(),
         }
@@ -34,29 +29,31 @@ impl ProgramContext {
 
 #[derive(Debug)]
 pub struct InterpreterContext<'a> {
-    pub side_table: &'a HashMap<NodeRef, VarIdent>,
     pub environment: &'a mut Environment,
 }
 
 impl InterpreterContext<'_> {
-    pub fn with_new_environment<'a>(
-        &'a mut self,
-        environment: &'a mut Environment,
-    ) -> InterpreterContext<'a> {
-        InterpreterContext {
-            side_table: self.side_table,
-            environment,
-        }
+    pub fn new<'a>(environment: &'a mut Environment) -> InterpreterContext<'a> {
+        InterpreterContext { environment }
     }
 }
 
 pub struct ResolverContext<'a> {
     pub scopes: &'a mut ScopeStack,
-    pub side_table: &'a mut HashMap<NodeRef, VarIdent>,
+    pub is_tuple_context: bool,
 }
 
 impl ResolverContext<'_> {
-    pub fn resolve<T: Into<NodeRef>>(&mut self, expr: T, ident: VarIdent) -> () {
-        self.side_table.insert(expr.into(), ident);
+    pub fn new<'a>(scopes: &'a mut ScopeStack) -> ResolverContext<'a> {
+        ResolverContext {
+            scopes,
+            is_tuple_context: false,
+        }
+    }
+    pub fn begin_tuple_context(&mut self) {
+        self.is_tuple_context = true;
+    }
+    pub fn end_tuple_context(&mut self) {
+        self.is_tuple_context = false;
     }
 }

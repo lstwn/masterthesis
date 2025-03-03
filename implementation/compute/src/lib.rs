@@ -65,19 +65,15 @@ impl IncLog {
         self.program_context
             .program
             .extend_program(code.into_iter());
-        let mut resolver_ctx = ResolverContext {
-            scopes: &mut self.program_context.scopes,
-            side_table: &mut self.program_context.side_table,
-        };
+        let mut resolver_ctx = ResolverContext::new(&mut self.program_context.scopes);
         Resolver::new()
             .resolve(
-                self.program_context.program.unexecuted_code(),
+                self.program_context.program.unexecuted_code_mut(),
                 &mut resolver_ctx,
             )
             .map_err(|err| self.ack_syntax_err(err))
             .and_then(|()| {
                 let mut interpreter_ctx = InterpreterContext {
-                    side_table: &self.program_context.side_table,
                     environment: &mut self.program_context.environment,
                 };
                 Interpreter::new()
@@ -118,12 +114,12 @@ mod test {
         }))];
 
         let assignment = vec![Stmt::Expr(Box::new(ExprStmt {
-            expr: Expr::Assign(Box::new(AssignExpr {
-                name: "a".to_string(),
-                value: Expr::Lit(Box::new(LitExpr {
+            expr: Expr::Assign(Box::new(AssignExpr::new(
+                "a".to_string(),
+                Expr::Lit(Box::new(LitExpr {
                     value: ScalarTypedValue::Uint(2),
                 })),
-            })),
+            ))),
         }))];
 
         assert_eq!(inclog.execute(initialization)?.unwrap(), Val::Uint(1));
@@ -141,12 +137,8 @@ mod test {
                 stmts: vec![Stmt::Expr(Box::new(ExprStmt {
                     expr: Expr::Binary(Box::new(BinaryExpr {
                         operator: Operator::Addition,
-                        left: Expr::Var(Box::new(VarExpr {
-                            name: "a".to_string(),
-                        })),
-                        right: Expr::Var(Box::new(VarExpr {
-                            name: "b".to_string(),
-                        })),
+                        left: Expr::Var(Box::new(VarExpr::new("a".to_string()))),
+                        right: Expr::Var(Box::new(VarExpr::new("b".to_string()))),
                     })),
                 }))],
             },
@@ -186,9 +178,7 @@ mod test {
             })),
             Stmt::Expr(Box::new(ExprStmt {
                 expr: Expr::Call(Box::new(CallExpr {
-                    callee: Expr::Var(Box::new(VarExpr {
-                        name: "add".to_string(),
-                    })),
+                    callee: Expr::Var(Box::new(VarExpr::new("add".to_string()))),
                     arguments: vec![
                         Expr::Lit(Box::new(LitExpr {
                             value: ScalarTypedValue::Uint(1),

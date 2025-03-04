@@ -58,6 +58,8 @@ pub struct Schema {
 #[derive(Clone)]
 pub struct Relation<Circuit = ChildCircuit<()>> {
     pub name: String,
+    /// The schema of the relation. We need to track it on a per-relation basis
+    /// because it may change during execution.
     pub schema: Schema,
     pub inner: Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>,
 }

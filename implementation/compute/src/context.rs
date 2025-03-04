@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+
 use crate::{
+    dbsp_playground::Schema,
     env::{Environment, ScopeStack},
+    relation::Tuple,
     stmt::Program,
 };
 
@@ -30,11 +34,26 @@ impl ProgramContext {
 #[derive(Debug)]
 pub struct InterpreterContext<'a> {
     pub environment: &'a mut Environment,
+    /// If the interpreter runs within a DBSP context, we store the currently
+    /// processing tuple here for making each of its fields accessible
+    /// as a variable.
+    // No need to wrap it in an Option because HashMap::new() does not allocate!
+    pub tuple_vars: HashMap<String, crate::scalar::ScalarTypedValue>,
 }
 
 impl InterpreterContext<'_> {
     pub fn new<'a>(environment: &'a mut Environment) -> InterpreterContext<'a> {
-        InterpreterContext { environment }
+        InterpreterContext {
+            environment,
+            tuple_vars: HashMap::new(),
+        }
+    }
+    pub fn set_tuple_ctx<T: Tuple>(&mut self, schema: &Schema, tuple: &T) {
+        self.tuple_vars = schema
+            .all_attributes
+            .iter()
+            .map(|(name, index)| (name.clone(), tuple.data(*index).clone()))
+            .collect();
     }
 }
 

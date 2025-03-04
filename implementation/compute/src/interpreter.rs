@@ -1,8 +1,6 @@
-use std::{collections::HashMap, rc::Rc};
-
 use crate::{
     context::InterpreterContext,
-    dbsp_playground::{Schema, new_relation},
+    dbsp_playground::new_relation,
     env::{Environment, Val},
     error::RuntimeError,
     expr::{
@@ -11,46 +9,23 @@ use crate::{
     },
     function::new_function,
     operator::Operator,
-    relation::Tuple,
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
 };
+use std::rc::Rc;
 
-// Benefits from having a separate *code gen* pass before interpretation which
-// consumes the AST:
+// Benefits of a code gen pass taking ownership of the AST:
 // - A pointer based AST can be transformed into a flattened AST before execution
-// - No need to clone some values from the AST:
-//   - literals can be moved instead of cloned
-//   - function bodies can be moved instead of unsafely referenced by pointer
-//     and functions can own their code! No need to store the AST in the
-//     environment anymore!
-//   - VarStmts' name can be moved instead of cloned
 //
 // Benefits of a type checker pass which immutably references the AST:
 // - It can check the types of expressions and statements
 
 type ScalarTypedValue = Val;
 
-pub struct Interpreter {
-    /// If the interpreter runs within a DBSP context, we store the currently
-    /// processing tuple here for making each of its fields accessible
-    /// as a variable.
-    // No need to wrap it in an Option because an empty HashMap does not allocate!
-    tuple_vars: HashMap<String, crate::scalar::ScalarTypedValue>,
-}
+pub struct Interpreter {}
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self {
-            tuple_vars: HashMap::new(),
-        }
-    }
-    pub fn with_tuple_ctx<T: Tuple>(schema: &Schema, tuple: &T) -> Self {
-        let tuple_vars = schema
-            .all_attributes
-            .iter()
-            .map(|(name, index)| (name.clone(), tuple.data(*index).clone()))
-            .collect();
-        Self { tuple_vars }
+        Self {}
     }
     pub fn interpret<'a>(
         &mut self,
@@ -230,7 +205,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
 
     fn visit_var_expr(&mut self, expr: &VarExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         let name = &expr.name;
-        self.tuple_vars.get(name).map_or_else(
+        ctx.tuple_vars.get(name).map_or_else(
             || {
                 let resolved = expr
                     .resolved
@@ -269,9 +244,9 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         Ok(Val::Function(new_function(
             // For now, we assume that the function is anonymous, that is, nameless.
             None,
-            // We also assume that the code (in form of the AST) lives at least as long
-            // as this function struct.
-            &expr,
+            // We clone here to let functions own their code and thus,
+            // we do not have to worry about the lifetime of their code.
+            expr.clone(),
             ctx.environment.clone(), // Clone is cheap and necessary here.
         )))
     }
@@ -329,8 +304,9 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             let schema = &relation_clone.borrow().schema;
             let mut environment = &mut environment.clone();
             let mut new_ctx = InterpreterContext::new(&mut environment);
+            new_ctx.set_tuple_ctx(schema, tuple);
             is_truthy(
-                &Interpreter::with_tuple_ctx(schema, tuple)
+                &Interpreter::new()
                     .evaluate(&condition, &mut new_ctx)
                     .expect("Runtime error while interpreting selection condition"),
             )

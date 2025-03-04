@@ -10,7 +10,7 @@ pub type FunctionRef = Rc<RefCell<Function>>;
 /// A helper function to avoid writing the interior mutability boilerplate.
 pub fn new_function(
     name: Option<String>,
-    declaration: &FunctionExpr,
+    declaration: FunctionExpr,
     environment: Environment,
 ) -> FunctionRef {
     Rc::new(RefCell::new(Function::new(name, declaration, environment)))
@@ -19,13 +19,12 @@ pub fn new_function(
 #[derive(Clone)]
 pub struct Function {
     pub name: Option<String>,
-    /// Make sure that the pointed AST lives at least as long as this Function.
-    pub declaration: *const FunctionExpr,
+    pub declaration: FunctionExpr,
     pub environment: Environment,
 }
 
 impl Function {
-    pub fn new(name: Option<String>, declaration: &FunctionExpr, environment: Environment) -> Self {
+    pub fn new(name: Option<String>, declaration: FunctionExpr, environment: Environment) -> Self {
         Self {
             name,
             declaration,
@@ -33,7 +32,7 @@ impl Function {
         }
     }
     pub fn declaration(&self) -> &FunctionExpr {
-        unsafe { &*self.declaration }
+        &self.declaration
     }
     pub fn arity(&self) -> usize {
         self.declaration().parameters.len()

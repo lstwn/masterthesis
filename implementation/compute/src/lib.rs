@@ -73,9 +73,8 @@ impl IncLog {
             )
             .map_err(|err| self.ack_syntax_err(err))
             .and_then(|()| {
-                let mut interpreter_ctx = InterpreterContext {
-                    environment: &mut self.program_context.environment,
-                };
+                let mut interpreter_ctx =
+                    InterpreterContext::new(&mut self.program_context.environment);
                 Interpreter::new()
                     .interpret(
                         self.program_context.program.unexecuted_code(),

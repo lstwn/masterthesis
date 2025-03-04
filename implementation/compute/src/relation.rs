@@ -80,14 +80,14 @@ impl Display for Identifier {
     }
 }
 
+/// Convenience type alias for a reference to a [`Relation`].
 pub type RelationRef<Circuit = ChildCircuit<()>> = Rc<RefCell<Relation<Circuit>>>;
 
 pub fn new_relation(name: String, schema: Schema, inner: OrdIndexedStream) -> RelationRef {
     Rc::new(RefCell::new(Relation::new(name, schema, inner)))
 }
 
-/// A [relation](`Relation`)'s schema is a set of attributes and we store the
-/// index of each.
+/// A [`Relation`]'s schema is a set of attributes and we store the index of each.
 #[derive(Clone)]
 pub struct Schema {
     pub key_attributes: HashMap<String, usize>,

@@ -5,6 +5,7 @@ use std::{
     rc::Rc,
 };
 
+/// Convenience type alias for a reference to a [`Function`].
 pub type FunctionRef = Rc<RefCell<Function>>;
 
 /// A helper function to avoid writing the interior mutability boilerplate.

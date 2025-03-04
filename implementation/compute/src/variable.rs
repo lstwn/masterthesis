@@ -1,12 +1,12 @@
+use crate::{function::FunctionRef, relation::RelationRef, scalar::ScalarTypedValue};
 use std::{
     cell::{Ref, RefCell},
     fmt,
     rc::Rc,
 };
 
-use crate::{function::FunctionRef, relation::RelationRef, scalar::ScalarTypedValue};
-
-/// The value of a variable of the [`crate::interpreter::Interpreter`] at runtime.
+/// The value of a variable of the [`Interpreter`](crate::interpreter::Interpreter)
+/// at runtime.
 /// Compared to [`ScalarTypedValue`], this type allows
 /// [functions](`FunctionRef`) and [relations](`RelationRef`), too.
 #[derive(Clone, Debug)]

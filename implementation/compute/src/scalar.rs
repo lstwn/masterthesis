@@ -1,6 +1,5 @@
+use crate::variable::Value;
 use std::fmt::{self, Display, Formatter};
-
-use crate::env::Val;
 
 /// Stores a scalar value plus its type.
 #[derive(
@@ -36,16 +35,16 @@ impl Default for ScalarTypedValue {
     }
 }
 
-impl TryFrom<Val> for ScalarTypedValue {
+impl TryFrom<Value> for ScalarTypedValue {
     type Error = ();
 
-    fn try_from(value: Val) -> Result<Self, Self::Error> {
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Val::String(value) => Ok(ScalarTypedValue::String(value)),
-            Val::Uint(value) => Ok(ScalarTypedValue::Uint(value)),
-            Val::Iint(value) => Ok(ScalarTypedValue::Iint(value)),
-            Val::Bool(value) => Ok(ScalarTypedValue::Bool(value)),
-            Val::Null(()) => Ok(ScalarTypedValue::Null(())),
+            Value::String(value) => Ok(ScalarTypedValue::String(value)),
+            Value::Uint(value) => Ok(ScalarTypedValue::Uint(value)),
+            Value::Iint(value) => Ok(ScalarTypedValue::Iint(value)),
+            Value::Bool(value) => Ok(ScalarTypedValue::Bool(value)),
+            Value::Null(()) => Ok(ScalarTypedValue::Null(())),
             _ => Err(()),
         }
     }

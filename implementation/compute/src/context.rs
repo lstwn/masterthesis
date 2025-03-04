@@ -1,16 +1,14 @@
 use std::collections::HashMap;
 
 use crate::{
-    dbsp_playground::Schema,
-    env::{Environment, ScopeStack},
-    relation::Tuple,
+    relation::{Schema, Tuple},
+    resolver::ScopeStack,
     stmt::Program,
+    variable::Environment,
 };
 
 pub struct ProgramContext {
-    /// We have to keep the AST in memory because functions may be stored
-    /// for longer in the environment than the AST is available in a REPL
-    /// session.
+    /// Stores the program code executed so far by the interpreter.
     /// Read-only during resolution and interpretation.
     pub program: Program,
     /// The environment stores the variables and their values.

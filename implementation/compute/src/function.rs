@@ -1,4 +1,4 @@
-use crate::{env::Environment, expr::FunctionExpr};
+use crate::{expr::FunctionExpr, variable::Environment};
 use std::{
     cell::RefCell,
     fmt::{self, Debug, Display},

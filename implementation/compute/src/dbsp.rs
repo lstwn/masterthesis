@@ -1,11 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    fmt::{self, Debug, Display},
-    rc::Rc,
-};
-
-use crate::relation::{TupleKey, TupleValue};
+use crate::relation::{Relation, TupleKey, TupleValue};
 use dbsp::{ChildCircuit, OrdIndexedZSet, OrdZSet, Stream};
 
 type OrdStream = Stream<ChildCircuit<()>, OrdZSet<TupleValue>>;
@@ -41,53 +34,6 @@ impl OrderedTestStream {
 
 pub type OrdIndexedStream<Circuit = ChildCircuit<()>> =
     Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>;
-
-pub type RelationRef<Circuit = ChildCircuit<()>> = Rc<RefCell<Relation<Circuit>>>;
-
-pub fn new_relation(name: String, schema: Schema, inner: OrdIndexedStream) -> RelationRef {
-    Rc::new(RefCell::new(Relation::new(name, schema, inner)))
-}
-
-// A relation's schema is a set of attributes and we store the index of each.
-#[derive(Clone)]
-pub struct Schema {
-    pub key_attributes: HashMap<String, usize>,
-    pub all_attributes: HashMap<String, usize>,
-}
-
-#[derive(Clone)]
-pub struct Relation<Circuit = ChildCircuit<()>> {
-    pub name: String,
-    /// The schema of the relation. We need to track it on a per-relation basis
-    /// because it may change during execution.
-    pub schema: Schema,
-    pub inner: Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>,
-}
-
-impl Relation {
-    pub fn new(name: String, schema: Schema, inner: OrdIndexedStream) -> Self {
-        Self {
-            name,
-            schema,
-            inner,
-        }
-    }
-    pub fn to_string_helper(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<relation {}>", self.name)
-    }
-}
-
-impl Display for Relation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_string_helper(f)
-    }
-}
-
-impl Debug for Relation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_string_helper(f)
-    }
-}
 
 struct IndexedTestStream {
     a: Relation,

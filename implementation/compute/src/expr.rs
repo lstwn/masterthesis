@@ -1,8 +1,8 @@
 use super::{operator::Operator, scalar::ScalarTypedValue};
 use crate::{
-    env::VarIdent,
     stmt::BlockStmt,
     util::{MemAddr, Named, Resolvable},
+    variable::VariableSlot,
 };
 
 #[derive(Clone, Debug)]
@@ -49,7 +49,7 @@ pub struct GroupingExpr {
 #[derive(Clone, Debug)]
 pub struct VarExpr {
     pub name: String,
-    pub resolved: Option<VarIdent>,
+    pub resolved: Option<VariableSlot>,
 }
 
 impl VarExpr {
@@ -62,7 +62,7 @@ impl VarExpr {
 }
 
 impl Resolvable for VarExpr {
-    fn set_resolved(&mut self, info: VarIdent) -> () {
+    fn set_resolved(&mut self, info: VariableSlot) -> () {
         self.resolved = Some(info);
     }
 }
@@ -77,7 +77,7 @@ impl Named for VarExpr {
 pub struct AssignExpr {
     pub name: String,
     pub value: Expr,
-    pub resolved: Option<VarIdent>,
+    pub resolved: Option<VariableSlot>,
 }
 
 impl AssignExpr {
@@ -91,7 +91,7 @@ impl AssignExpr {
 }
 
 impl Resolvable for AssignExpr {
-    fn set_resolved(&mut self, info: VarIdent) -> () {
+    fn set_resolved(&mut self, info: VariableSlot) -> () {
         self.resolved = Some(info);
     }
 }

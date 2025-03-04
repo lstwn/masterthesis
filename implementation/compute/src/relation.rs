@@ -1,14 +1,15 @@
 use super::scalar::ScalarTypedValue;
-use std::fmt::Display;
+use crate::dbsp::OrdIndexedStream;
+use dbsp::{ChildCircuit, OrdIndexedZSet, Stream};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fmt::{self, Debug, Display},
+    rc::Rc,
+};
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone, PartialOrd, Ord)]
-struct Identifier {
-    name: String,
-}
-impl Display for Identifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.name)
-    }
+pub trait Tuple {
+    fn data(&self, index: usize) -> &ScalarTypedValue;
 }
 
 #[derive(
@@ -67,56 +68,62 @@ impl Tuple for TupleKey {
     }
 }
 
-pub trait Tuple {
-    fn data(&self, index: usize) -> &ScalarTypedValue;
+/// Currently unused.
+#[derive(Debug, Hash, Eq, PartialEq, Clone, PartialOrd, Ord)]
+struct Identifier {
+    name: String,
 }
 
-// /// An enum of all possible types a field of a relation can assume.
-// #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-// pub enum ScalarType {
-//     /// String.
-//     String,
-//     /// Unsigned integer value of 64 bits.
-//     Uint,
-//     /// Signed integer value of 64 bits.
-//     Iint,
-//     /// Boolean.
-//     Bool,
-// }
+impl Display for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.name)
+    }
+}
 
-// /// The type of a field of a relation. May be null.
-// pub struct RelationScalarType {
-//     scalar_type: ScalarType,
-//     nullable: bool,
-// }
+pub type RelationRef<Circuit = ChildCircuit<()>> = Rc<RefCell<Relation<Circuit>>>;
 
-// struct RelationType {
-//     name: String,
-//     // TODO: How to allow nullable fields?
-//     info: HashMap<Identifier, (ScalarType, Index)>,
-// }
+pub fn new_relation(name: String, schema: Schema, inner: OrdIndexedStream) -> RelationRef {
+    Rc::new(RefCell::new(Relation::new(name, schema, inner)))
+}
 
-// impl RelationType {
-//     pub fn new(name: String, mut fields: Vec<(Identifier, ScalarType)>) -> Self {
-//         // NOTE: If the same identifier is used multiple times, the first
-//         // occurrence will be used.
-//         fields.dedup_by_key(|(identifier, _)| identifier.clone());
-//         let info = fields
-//             .into_iter()
-//             .enumerate()
-//             .map(|(index, (identifier, scalar_type))| (identifier, (scalar_type, index)))
-//             .collect();
-//         Self { name, info }
-//     }
-//     pub fn name(&self) -> &str {
-//         &self.name
-//     }
-//     pub fn get(&self, identifier: &Identifier) -> Option<(ScalarType, Index)> {
-//         self.info.get(identifier).copied()
-//     }
-//     pub fn fields(&self) -> impl Iterator<Item = (&Identifier, ScalarType, Index)> {
-//         self.info
-//             .iter()
-//             .map(|(identifier, (scalar_type, index))| (identifier, *scalar_type, *index))
-//     }
-// }
+/// A [relation](`Relation`)'s schema is a set of attributes and we store the
+/// index of each.
+#[derive(Clone)]
+pub struct Schema {
+    pub key_attributes: HashMap<String, usize>,
+    pub all_attributes: HashMap<String, usize>,
+}
+
+#[derive(Clone)]
+pub struct Relation<Circuit = ChildCircuit<()>> {
+    pub name: String,
+    /// The schema of the relation. We need to track it on a per-relation basis
+    /// because it may change during execution.
+    pub schema: Schema,
+    pub inner: Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>,
+}
+
+impl Relation {
+    pub fn new(name: String, schema: Schema, inner: OrdIndexedStream) -> Self {
+        Self {
+            name,
+            schema,
+            inner,
+        }
+    }
+    pub fn to_string_helper(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<relation {}>", self.name)
+    }
+}
+
+impl Display for Relation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.to_string_helper(f)
+    }
+}
+
+impl Debug for Relation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.to_string_helper(f)
+    }
+}

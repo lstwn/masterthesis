@@ -1,23 +1,25 @@
 #![allow(dead_code, unused_variables)]
 
 mod context;
-mod dbsp_playground;
-mod env;
+mod dbsp;
 mod error;
 mod expr;
 mod function;
 mod interpreter;
 mod operator;
 mod relation;
+mod resolver;
 mod scalar;
 mod stmt;
 mod util;
+mod variable;
 
 use context::{InterpreterContext, ProgramContext, ResolverContext};
-use env::{Resolver, Val};
 use error::IncLogError;
 use interpreter::Interpreter;
+use resolver::Resolver;
 use stmt::{Code, Stmt};
+use variable::Value;
 
 // Var: Variable
 // Val: Value
@@ -46,7 +48,7 @@ impl IncLog {
             Err(err) => eprintln!("{}", err),
         }
     }
-    pub fn run(&mut self, source: String) -> Result<Option<Val>, IncLogError> {
+    pub fn run(&mut self, source: String) -> Result<Option<Value>, IncLogError> {
         self.parse(source).and_then(|stmts| self.execute(stmts))
     }
     pub fn parse(&mut self, source: String) -> Result<Code, IncLogError> {
@@ -61,7 +63,7 @@ impl IncLog {
     pub fn execute(
         &mut self,
         code: impl IntoIterator<Item = Stmt>,
-    ) -> Result<Option<Val>, IncLogError> {
+    ) -> Result<Option<Value>, IncLogError> {
         self.program_context
             .program
             .extend_program(code.into_iter());
@@ -121,9 +123,9 @@ mod test {
             ))),
         }))];
 
-        assert_eq!(inclog.execute(initialization)?.unwrap(), Val::Uint(1));
+        assert_eq!(inclog.execute(initialization)?.unwrap(), Value::Uint(1));
 
-        assert_eq!(inclog.execute(assignment)?.unwrap(), Val::Uint(2));
+        assert_eq!(inclog.execute(assignment)?.unwrap(), Value::Uint(2));
 
         Ok(())
     }
@@ -191,7 +193,7 @@ mod test {
         ];
 
         let result = inclog.execute(function_call)?.unwrap();
-        assert_eq!(Val::Uint(3), result);
+        assert_eq!(Value::Uint(3), result);
 
         Ok(())
     }

@@ -1,189 +1,23 @@
 use crate::{
     context::ResolverContext,
-    dbsp_playground::RelationRef,
     error::SyntaxError,
     expr::{
         AssignExpr, BinaryExpr, CallExpr, ExprVisitorMut, FunctionExpr, GroupingExpr, LitExpr,
         SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
     },
-    function::FunctionRef,
-    scalar::ScalarTypedValue,
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
-    util::{MemAddr, Named, Resolvable},
+    util::{Named, Resolvable},
+    variable::SCOPES_CAPACITY,
 };
-use std::{
-    cell::{Ref, RefCell},
-    collections::HashMap,
-    fmt,
-    rc::Rc,
-};
-
-/// An AST node identifier.
-/// Can be its address in memory if using a pointer-based AST
-/// or its index if using a flattened AST.
-#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
-pub struct NodeRef(usize);
-
-impl From<usize> for NodeRef {
-    fn from(index: usize) -> Self {
-        Self(index)
-    }
-}
-
-impl<T: MemAddr> From<&T> for NodeRef {
-    fn from(addr: &T) -> Self {
-        Self(addr.mem_addr())
-    }
-}
-
-/// The value of a variable.
-/// Idea: Turn into a closure in the future to avoid eagerly filling all
-/// attributes of a relation _regardless_ if they are used or not. Or solve via
-/// resolver?
-#[derive(Clone, Debug)]
-pub enum Val {
-    /// String.
-    // TODO: maybe make strings reference counted to avoid cloning costs?
-    String(String),
-    /// Unsigned integer value of 64 bits.
-    Uint(u64),
-    /// Signed integer value of 64 bits.
-    Iint(i64),
-    /// Boolean.
-    Bool(bool),
-    /// Null.
-    Null(()),
-    /// Function.
-    Function(FunctionRef),
-    /// Relation.
-    Relation(RelationRef),
-}
-
-impl Eq for Val {}
-
-impl PartialEq for Val {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Val::String(a), Val::String(b)) => a == b,
-            (Val::Uint(a), Val::Uint(b)) => a == b,
-            (Val::Iint(a), Val::Iint(b)) => a == b,
-            (Val::Bool(a), Val::Bool(b)) => a == b,
-            (Val::Null(()), Val::Null(())) => true,
-            (Val::Function(a), Val::Function(b)) => Rc::ptr_eq(a, b),
-            _ => false,
-        }
-    }
-}
-
-impl Default for Val {
-    fn default() -> Self {
-        Val::Null(())
-    }
-}
-
-impl From<ScalarTypedValue> for Val {
-    fn from(value: ScalarTypedValue) -> Self {
-        match value {
-            ScalarTypedValue::String(value) => Val::String(value),
-            ScalarTypedValue::Uint(value) => Val::Uint(value),
-            ScalarTypedValue::Iint(value) => Val::Iint(value),
-            ScalarTypedValue::Bool(value) => Val::Bool(value),
-            ScalarTypedValue::Null(()) => Val::Null(()),
-        }
-    }
-}
-
-impl fmt::Display for Val {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Val::String(value) => write!(f, "{}", value),
-            Val::Uint(value) => write!(f, "{}", value),
-            Val::Iint(value) => write!(f, "{}", value),
-            Val::Bool(value) => write!(f, "{}", value),
-            Val::Null(()) => write!(f, "null"),
-            Val::Function(function) => write!(f, "{}", function.borrow()),
-            Val::Relation(relation) => write!(f, "relation"),
-        }
-    }
-}
-
-/// First entry is the scope, second entry is the variable within that scope.
-pub type VarIdent = (usize, usize);
-
-#[derive(Clone, Debug)]
-struct Scope {
-    /// Variable slots of an environment.
-    inner: Rc<RefCell<Vec<Val>>>,
-}
-
-impl Scope {
-    fn new() -> Self {
-        Self {
-            inner: Rc::new(RefCell::new(Vec::new())),
-        }
-    }
-    fn define_var(&mut self, val: Val) -> () {
-        self.inner.borrow_mut().push(val);
-    }
-    fn assign_var(&mut self, slot_idx: usize, val: Val) -> () {
-        self.inner.borrow_mut()[slot_idx] = val;
-    }
-    fn lookup_var(&self, slot_idx: usize) -> Ref<Val> {
-        let vec = self.inner.borrow();
-        Ref::map(vec, |vec| &vec[slot_idx])
-    }
-}
-
-const SCOPES_CAPACITY: usize = 8;
-
-#[derive(Clone, Debug)]
-pub struct Environment {
-    /// The vector models a stack of scopes with the root environment at
-    /// the bottom and the innermost scope at the top.
-    scopes: Vec<Scope>,
-}
-
-impl Environment {
-    pub fn new() -> Self {
-        let mut environment = Self {
-            scopes: Vec::with_capacity(SCOPES_CAPACITY),
-        };
-        // Create the global scope.
-        environment.begin_scope();
-        environment
-    }
-    pub fn just_global(&self) -> bool {
-        self.scopes.len() == 1
-    }
-    pub fn begin_scope(&mut self) -> () {
-        self.scopes.push(Scope::new());
-    }
-    pub fn end_scope(&mut self) -> () {
-        self.scopes.pop();
-    }
-    pub fn define_var<T: Into<Val>>(&mut self, val: T) -> () {
-        self.scopes
-            .last_mut()
-            .expect("no root env")
-            .define_var(val.into());
-    }
-    pub fn assign_var(&mut self, at: &VarIdent, val: Val) -> () {
-        let (scope_idx, slot_idx) = *at;
-        self.scopes[scope_idx].assign_var(slot_idx, val);
-    }
-    pub fn lookup_var(&self, at: &VarIdent) -> Ref<Val> {
-        let (scope_idx, slot_idx) = *at;
-        self.scopes[scope_idx].lookup_var(slot_idx)
-    }
-}
+use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug)]
-pub struct Variable {
+struct VariableMeta {
     initialized: bool,
     slot: usize,
 }
 
-impl Variable {
+impl VariableMeta {
     fn new(slot: usize) -> Self {
         Self {
             initialized: false,
@@ -193,7 +27,7 @@ impl Variable {
 }
 
 pub struct ScopeStack {
-    inner: Vec<HashMap<String, Variable>>,
+    inner: Vec<HashMap<String, VariableMeta>>,
 }
 
 impl ScopeStack {
@@ -214,10 +48,10 @@ impl ScopeStack {
     fn end_scope(&mut self) -> () {
         self.inner.pop();
     }
-    fn innermost(&self) -> Option<&HashMap<String, Variable>> {
+    fn innermost(&self) -> Option<&HashMap<String, VariableMeta>> {
         self.inner.last()
     }
-    fn innermost_mut(&mut self) -> Option<&mut HashMap<String, Variable>> {
+    fn innermost_mut(&mut self) -> Option<&mut HashMap<String, VariableMeta>> {
         self.inner.last_mut()
     }
 }
@@ -247,7 +81,7 @@ impl Resolver {
     fn declare_var(&mut self, name: &String, ctx: VisitorCtx) -> Result<(), SyntaxError> {
         match ctx.scopes.innermost_mut() {
             Some(scope) => {
-                scope.insert(name.clone(), Variable::new(scope.len()));
+                scope.insert(name.clone(), VariableMeta::new(scope.len()));
                 Ok(())
             }
             None => Err(SyntaxError::new("No scope to declare variable in")),

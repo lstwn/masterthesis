@@ -1,7 +1,5 @@
 use crate::{
     context::InterpreterContext,
-    dbsp_playground::new_relation,
-    env::{Environment, Val},
     error::RuntimeError,
     expr::{
         AssignExpr, BinaryExpr, CallExpr, Expr, ExprVisitor, FunctionExpr, GroupingExpr, LitExpr,
@@ -9,11 +7,11 @@ use crate::{
     },
     function::new_function,
     operator::Operator,
+    relation::new_relation,
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
+    variable::{Environment, Value},
 };
 use std::rc::Rc;
-
-type ScalarTypedValue = Val;
 
 pub struct Interpreter {}
 
@@ -25,7 +23,7 @@ impl Interpreter {
         &mut self,
         stmts: impl IntoIterator<Item = &'a Stmt>,
         ctx: &mut InterpreterContext,
-    ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
+    ) -> Result<Option<Value>, RuntimeError> {
         // Ensure we have a global scope before interpreting.
         debug_assert!(ctx.environment.just_global());
         // We do not call `visit_block` here because the root scope is created
@@ -36,14 +34,14 @@ impl Interpreter {
         debug_assert!(ctx.environment.just_global());
         ret
     }
-    fn evaluate(&mut self, expr: &Expr, ctx: VisitorCtx) -> Result<ScalarTypedValue, RuntimeError> {
+    fn evaluate(&mut self, expr: &Expr, ctx: VisitorCtx) -> Result<Value, RuntimeError> {
         self.visit_expr(expr, ctx)
     }
     fn visit_stmts<'a>(
         &mut self,
         stmts: impl IntoIterator<Item = &'a Stmt>,
         ctx: VisitorCtx,
-    ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
+    ) -> Result<Option<Value>, RuntimeError> {
         // Functional programming can be so beautiful. Return the last value
         // if any.
         stmts
@@ -55,7 +53,7 @@ impl Interpreter {
         stmts: impl IntoIterator<Item = &'a Stmt>,
         ctx: VisitorCtx,
         environment: F,
-    ) -> Result<Option<ScalarTypedValue>, RuntimeError> {
+    ) -> Result<Option<Value>, RuntimeError> {
         ctx.environment.begin_scope();
         environment(&mut ctx.environment);
         let ret = self.visit_stmts(stmts, ctx);
@@ -68,7 +66,7 @@ macro_rules! comparison_helper {
     ($left:expr, $right:expr, $op:tt, $($variant:path),*) => {{
         match (&$left, &$right) {
             $(
-                ($variant(left), $variant(right)) => Ok(ScalarTypedValue::Bool(left $op right)),
+                ($variant(left), $variant(right)) => Ok(Value::Bool(left $op right)),
             )*
             _ => Err(RuntimeError::new(
                 format!("expected comparable type, got: {:?} and {:?}", $left, $right),
@@ -97,9 +95,9 @@ impl Interpreter {
         if let Operator::And | Operator::Or = expr.operator {
             if expr.operator == Operator::And && left || expr.operator == Operator::Or && !left {
                 let right = is_truthy(&self.visit_expr(&expr.right, ctx)?);
-                Ok(ScalarTypedValue::Bool(right))
+                Ok(Value::Bool(right))
             } else {
-                Ok(ScalarTypedValue::Bool(left))
+                Ok(Value::Bool(left))
             }
         } else {
             Err(RuntimeError::new(format!(
@@ -114,39 +112,37 @@ impl Interpreter {
 
         match expr.operator {
             Operator::Equal => {
-                comparison_helper!(left, right, ==, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String, ScalarTypedValue::Null)
+                comparison_helper!(left, right, ==, Value::Iint, Value::Uint, Value::Bool, Value::String, Value::Null)
             }
             Operator::NotEqual => {
-                comparison_helper!(left, right, !=, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String, ScalarTypedValue::Null)
+                comparison_helper!(left, right, !=, Value::Iint, Value::Uint, Value::Bool, Value::String, Value::Null)
             }
             Operator::Less => {
-                comparison_helper!(left, right, <, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String)
+                comparison_helper!(left, right, <, Value::Iint, Value::Uint, Value::Bool, Value::String)
             }
             Operator::LessThan => {
-                comparison_helper!(left, right, <=, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String)
+                comparison_helper!(left, right, <=, Value::Iint, Value::Uint, Value::Bool, Value::String)
             }
             Operator::Greater => {
-                comparison_helper!(left, right, >, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String)
+                comparison_helper!(left, right, >, Value::Iint, Value::Uint, Value::Bool, Value::String)
             }
             Operator::GreaterThan => {
-                comparison_helper!(left, right, >=, ScalarTypedValue::Iint, ScalarTypedValue::Uint, ScalarTypedValue::Bool, ScalarTypedValue::String)
+                comparison_helper!(left, right, >=, Value::Iint, Value::Uint, Value::Bool, Value::String)
             }
             Operator::Addition => {
-                if let (ScalarTypedValue::String(left), ScalarTypedValue::String(right)) =
-                    (&left, &right)
-                {
-                    return Ok(ScalarTypedValue::String(format!("{}{}", left, right)));
+                if let (Value::String(left), Value::String(right)) = (&left, &right) {
+                    return Ok(Value::String(format!("{}{}", left, right)));
                 }
-                arithmetic_helper!(left, right, +, ScalarTypedValue::Iint, ScalarTypedValue::Uint)
+                arithmetic_helper!(left, right, +, Value::Iint, Value::Uint)
             }
             Operator::Subtraction => {
-                arithmetic_helper!(left, right, -, ScalarTypedValue::Iint, ScalarTypedValue::Uint)
+                arithmetic_helper!(left, right, -, Value::Iint, Value::Uint)
             }
             Operator::Multiplication => {
-                arithmetic_helper!(left, right, *, ScalarTypedValue::Iint, ScalarTypedValue::Uint)
+                arithmetic_helper!(left, right, *, Value::Iint, Value::Uint)
             }
             Operator::Division => {
-                arithmetic_helper!(left, right, /, ScalarTypedValue::Iint, ScalarTypedValue::Uint)
+                arithmetic_helper!(left, right, /, Value::Iint, Value::Uint)
             }
             _ => Err(RuntimeError::new(format!(
                 "unsupported (eager) binary operator: {:?}",
@@ -158,7 +154,7 @@ impl Interpreter {
 
 type VisitorCtx<'a, 'b> = &'a mut InterpreterContext<'b>;
 
-type ExprVisitorResult = Result<ScalarTypedValue, RuntimeError>;
+type ExprVisitorResult = Result<Value, RuntimeError>;
 
 impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter {
     // TODO: Remove ternary expressions.
@@ -179,13 +175,13 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
 
         match expr.operator {
             Operator::Subtraction => match operand {
-                ScalarTypedValue::Iint(value) => Ok(ScalarTypedValue::Iint(-value)),
+                Value::Iint(value) => Ok(Value::Iint(-value)),
                 _ => Err(RuntimeError::new(format!(
                     "expected signed int, got: {:?}",
                     operand
                 ))),
             },
-            Operator::Not => Ok(ScalarTypedValue::Bool(!is_truthy(&operand))),
+            Operator::Not => Ok(Value::Bool(!is_truthy(&operand))),
             _ => Err(RuntimeError::new(format!(
                 "unsupported unary operator: {:?}",
                 expr.operator
@@ -210,7 +206,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                 // Maybe make values reference counted instead of cloning here?
                 Ok(ctx.environment.lookup_var(resolved).clone())
             },
-            |value| Ok(Val::from(value.clone())),
+            |value| Ok(Value::from(value.clone())),
         )
     }
 
@@ -231,11 +227,11 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
 
     fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         // Maybe make values reference counted instead of cloning here?
-        Ok(Val::from(expr.value.clone()))
+        Ok(Value::from(expr.value.clone()))
     }
 
     fn visit_function_expr(&mut self, expr: &FunctionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        Ok(Val::Function(new_function(
+        Ok(Value::Function(new_function(
             // For now, we assume that the function is anonymous, that is, nameless.
             None,
             // We clone here to let functions own their code and thus,
@@ -247,7 +243,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
 
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         let callee = match self.visit_expr(&expr.callee, ctx)? {
-            Val::Function(callee) => callee,
+            Value::Function(callee) => callee,
             _ => return Err(RuntimeError::new("Expected function".to_string())),
         };
         let mut callee = callee.borrow_mut();
@@ -285,7 +281,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
     }
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         let relation = match self.visit_expr(&expr.relation, ctx)? {
-            Val::Relation(relation) => relation,
+            Value::Relation(relation) => relation,
             _ => return Err(RuntimeError::new("Expected relation".to_string())),
         };
         let relation_ref = relation.borrow();
@@ -306,7 +302,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             )
         });
 
-        Ok(Val::Relation(new_relation(
+        Ok(Value::Relation(new_relation(
             relation_ref.name.clone(),
             // With selections, the schema stays the same.
             relation_ref.schema.clone(),
@@ -315,7 +311,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
     }
 }
 
-type StmtVisitorResult = Result<Option<ScalarTypedValue>, RuntimeError>;
+type StmtVisitorResult = Result<Option<Value>, RuntimeError>;
 
 impl<'a, 'b> StmtVisitor<StmtVisitorResult, VisitorCtx<'a, 'b>> for Interpreter {
     fn visit_var_stmt(&mut self, stmt: &VarStmt, ctx: VisitorCtx) -> StmtVisitorResult {
@@ -323,10 +319,10 @@ impl<'a, 'b> StmtVisitor<StmtVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             .as_ref()
             .map_or_else(
                 // We default to null if no initializer is provided.
-                || Ok(ScalarTypedValue::default()),
+                || Ok(Value::default()),
                 |expr| {
                     self.visit_expr(expr, ctx).map(|val| {
-                        if let Val::Function(function) = &val {
+                        if let Value::Function(function) = &val {
                             // Here, a function turns from anonymous to named.
                             // If the function is later aliased, that is, reassigned to another
                             // variable, we stick to this original name (NodeJS does it, too).
@@ -353,10 +349,10 @@ impl<'a, 'b> StmtVisitor<StmtVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
     }
 }
 
-fn is_truthy(value: &ScalarTypedValue) -> bool {
+fn is_truthy(value: &Value) -> bool {
     match value {
-        ScalarTypedValue::Null(()) => false,
-        ScalarTypedValue::Bool(value) => *value,
+        Value::Null(()) => false,
+        Value::Bool(value) => *value,
         _ => true,
     }
 }

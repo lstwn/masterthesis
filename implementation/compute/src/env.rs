@@ -1,28 +1,3 @@
-// IDEAS:
-// - [x] add Lox class
-// - [x] Make functions first class citizens:
-//   - [x] Add environment context to visitor functions.
-//   - [x] Add function expressions.
-//   - [x] Remove function statements.
-// - [ ] string wrapper struct for identifier
-// - [x] develop Environment (context)
-//   - [x] use mutable environment
-//   - [x] fix multiple instances of resolver in REPL
-// - [x] allow printing last expr (statment) without using print
-// - [ ] try out idea from blog post:
-//       https://www.cs.cornell.edu/~asampson/blog/flattening.html
-//   - [ ] Offer regular AST and flattened AST
-//   - [ ] From regular AST to flattened AST: Post-order traversal
-//   - [ ] From flattened AST to regular AST: ???
-// - [ ] integrate with dbsp
-// - [ ] POC:
-//   - [ ] implement relation struct/TupleValue
-//   - [ ] selection
-//   - [ ] projection
-//   - [ ] join
-//   - [ ] iteration until fix point
-// - [ ] add parser for string representation
-
 use crate::{
     context::ResolverContext,
     dbsp_playground::RelationRef,

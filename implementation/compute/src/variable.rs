@@ -1,4 +1,6 @@
-use crate::{function::FunctionRef, relation::RelationRef, scalar::ScalarTypedValue};
+use crate::{
+    expr::Literal, function::FunctionRef, relation::RelationRef, scalar::ScalarTypedValue,
+};
 use std::{
     cell::{Ref, RefCell},
     fmt,
@@ -59,6 +61,19 @@ impl From<ScalarTypedValue> for Value {
             ScalarTypedValue::Iint(value) => Value::Iint(value),
             ScalarTypedValue::Bool(value) => Value::Bool(value),
             ScalarTypedValue::Null(()) => Value::Null(()),
+        }
+    }
+}
+
+impl From<Literal> for Value {
+    fn from(literal: Literal) -> Self {
+        match literal {
+            Literal::String(value) => Value::String(value),
+            Literal::Uint(value) => Value::Uint(value),
+            Literal::Iint(value) => Value::Iint(value),
+            Literal::Bool(value) => Value::Bool(value),
+            Literal::Null(()) => Value::Null(()),
+            Literal::Relation(value) => Value::Relation(Rc::new(RefCell::new(value))),
         }
     }
 }

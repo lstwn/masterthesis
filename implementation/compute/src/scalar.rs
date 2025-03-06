@@ -1,7 +1,8 @@
 use crate::variable::Value;
 use std::fmt::{self, Display, Formatter};
 
-/// Stores a scalar value plus its type.
+/// Stores a scalar value plus its type. These are the kinds of values that
+/// can be assumed in a relation's field.
 #[derive(
     Debug,
     Clone,

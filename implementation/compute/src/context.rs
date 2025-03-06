@@ -46,12 +46,15 @@ impl InterpreterContext<'_> {
             tuple_vars: HashMap::new(),
         }
     }
-    pub fn set_tuple_ctx<T: Tuple>(&mut self, schema: &Schema, tuple: &T) {
+    pub fn begin_tuple_ctx<T: Tuple>(&mut self, schema: &Schema, tuple: &T) {
         self.tuple_vars = schema
             .all_attributes
             .iter()
             .map(|(name, index)| (name.clone(), tuple.data(*index).clone()))
             .collect();
+    }
+    pub fn end_tuple_ctx(&mut self) {
+        self.tuple_vars.clear();
     }
 }
 

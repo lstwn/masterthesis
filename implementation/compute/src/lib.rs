@@ -98,9 +98,8 @@ impl IncLog {
 #[cfg(test)]
 mod test {
     use super::*;
-    use expr::{AssignExpr, BinaryExpr, CallExpr, Expr, LitExpr, VarExpr};
+    use expr::{AssignExpr, BinaryExpr, CallExpr, Expr, Literal, LiteralExpr, VarExpr};
     use operator::Operator;
-    use scalar::ScalarTypedValue;
     use stmt::{ExprStmt, Stmt, VarStmt};
 
     #[test]
@@ -109,16 +108,16 @@ mod test {
 
         let initialization = vec![Stmt::Var(Box::new(VarStmt {
             name: "a".to_string(),
-            initializer: Some(Expr::Lit(Box::new(LitExpr {
-                value: ScalarTypedValue::Uint(1),
+            initializer: Some(Expr::Literal(Box::new(LiteralExpr {
+                value: Literal::Uint(1),
             }))),
         }))];
 
         let assignment = vec![Stmt::Expr(Box::new(ExprStmt {
             expr: Expr::Assign(Box::new(AssignExpr::new(
                 "a".to_string(),
-                Expr::Lit(Box::new(LitExpr {
-                    value: ScalarTypedValue::Uint(2),
+                Expr::Literal(Box::new(LiteralExpr {
+                    value: Literal::Uint(2),
                 })),
             ))),
         }))];
@@ -181,11 +180,11 @@ mod test {
                 expr: Expr::Call(Box::new(CallExpr {
                     callee: Expr::Var(Box::new(VarExpr::new("add".to_string()))),
                     arguments: vec![
-                        Expr::Lit(Box::new(LitExpr {
-                            value: ScalarTypedValue::Uint(1),
+                        Expr::Literal(Box::new(LiteralExpr {
+                            value: Literal::Uint(1),
                         })),
-                        Expr::Lit(Box::new(LitExpr {
-                            value: ScalarTypedValue::Uint(2),
+                        Expr::Literal(Box::new(LiteralExpr {
+                            value: Literal::Uint(2),
                         })),
                     ],
                 })),

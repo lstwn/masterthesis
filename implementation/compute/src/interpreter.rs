@@ -2,8 +2,8 @@ use crate::{
     context::InterpreterContext,
     error::RuntimeError,
     expr::{
-        AssignExpr, BinaryExpr, CallExpr, Expr, ExprVisitor, FunctionExpr, GroupingExpr, LitExpr,
-        SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
+        AssignExpr, BinaryExpr, CallExpr, Expr, ExprVisitor, FunctionExpr, GroupingExpr,
+        LiteralExpr, SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
@@ -225,7 +225,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         })
     }
 
-    fn visit_lit_expr(&mut self, expr: &LitExpr, ctx: VisitorCtx) -> ExprVisitorResult {
+    fn visit_literal_expr(&mut self, expr: &LiteralExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         // Maybe make values reference counted instead of cloning here?
         Ok(Value::from(expr.value.clone()))
     }
@@ -277,7 +277,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         })
         // We return the default value of `null` if the function does not return
         // anything.
-        .map(|val| val.unwrap_or_default())
+        .map(|value| value.unwrap_or_default())
     }
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         let relation = match self.visit_expr(&expr.relation, ctx)? {
@@ -294,7 +294,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             let schema = &relation_clone.borrow().schema;
             let mut environment = &mut environment.clone();
             let mut new_ctx = InterpreterContext::new(&mut environment);
-            new_ctx.set_tuple_ctx(schema, tuple);
+            new_ctx.begin_tuple_ctx(schema, tuple);
             is_truthy(
                 &Interpreter::new()
                     .evaluate(&condition, &mut new_ctx)

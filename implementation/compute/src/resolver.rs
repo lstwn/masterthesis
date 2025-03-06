@@ -2,7 +2,7 @@ use crate::{
     context::ResolverContext,
     error::SyntaxError,
     expr::{
-        AssignExpr, BinaryExpr, CallExpr, ExprVisitorMut, FunctionExpr, GroupingExpr, LitExpr,
+        AssignExpr, BinaryExpr, CallExpr, ExprVisitorMut, FunctionExpr, GroupingExpr, LiteralExpr,
         SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
     },
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
@@ -197,7 +197,7 @@ impl<'a, 'b> ExprVisitorMut<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
         self.resolve_var(expr, ctx)
     }
 
-    fn visit_lit_expr(&mut self, expr: &mut LitExpr, ctx: VisitorCtx) -> VisitorResult {
+    fn visit_literal_expr(&mut self, expr: &mut LiteralExpr, ctx: VisitorCtx) -> VisitorResult {
         Ok(())
     }
 

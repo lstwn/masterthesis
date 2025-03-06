@@ -8,11 +8,11 @@ pub enum Operator {
     /// Eagerly-evaluated binary operation.
     Less,
     /// Eagerly-evaluated binary operation.
-    LessThan,
+    LessEqual,
     /// Eagerly-evaluated binary operation.
     Greater,
     /// Eagerly-evaluated binary operation.
-    GreaterThan,
+    GreaterEqual,
 
     // Logical operations on booleans (and values coerced into booleans).
     /// Lazily-evaluated binary operation.

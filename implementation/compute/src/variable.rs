@@ -87,7 +87,7 @@ impl fmt::Display for Value {
             Value::Bool(value) => write!(f, "{}", value),
             Value::Null(()) => write!(f, "null"),
             Value::Function(function) => write!(f, "{}", function.borrow()),
-            Value::Relation(relation) => write!(f, "relation"),
+            Value::Relation(relation) => write!(f, "{}", relation.borrow()),
         }
     }
 }

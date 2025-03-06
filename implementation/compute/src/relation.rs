@@ -9,7 +9,16 @@ use std::{
 };
 
 pub trait Tuple {
-    fn data(&self, index: usize) -> &ScalarTypedValue;
+    fn data_at(&self, index: usize) -> &ScalarTypedValue;
+    fn data_iter(&self) -> impl Iterator<Item = &ScalarTypedValue>;
+    fn to_string_helper(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let fields = self
+            .data_iter()
+            .map(|field| field.to_string())
+            .collect::<Vec<_>>()
+            .join(" | ");
+        write!(f, "| {} |", fields)
+    }
 }
 
 #[derive(
@@ -38,8 +47,17 @@ pub struct TupleValue {
 }
 
 impl Tuple for TupleValue {
-    fn data(&self, index: usize) -> &ScalarTypedValue {
+    fn data_at(&self, index: usize) -> &ScalarTypedValue {
         &self.data[index]
+    }
+    fn data_iter(&self) -> impl Iterator<Item = &ScalarTypedValue> {
+        self.data.iter()
+    }
+}
+
+impl Display for TupleValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.to_string_helper(f)
     }
 }
 
@@ -59,12 +77,21 @@ impl Tuple for TupleValue {
 )]
 #[archive_attr(derive(Ord, Eq, PartialEq, PartialOrd))]
 pub struct TupleKey {
-    data: Vec<ScalarTypedValue>,
+    pub data: Vec<ScalarTypedValue>,
 }
 
 impl Tuple for TupleKey {
-    fn data(&self, index: usize) -> &ScalarTypedValue {
+    fn data_at(&self, index: usize) -> &ScalarTypedValue {
         &self.data[index]
+    }
+    fn data_iter(&self) -> impl Iterator<Item = &ScalarTypedValue> {
+        self.data.iter()
+    }
+}
+
+impl Display for TupleKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.to_string_helper(f)
     }
 }
 
@@ -75,7 +102,7 @@ struct Identifier {
 }
 
 impl Display for Identifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.name)
     }
 }
@@ -92,6 +119,16 @@ pub fn new_relation(name: String, schema: Schema, inner: OrdIndexedStream) -> Re
 pub struct Schema {
     pub key_attributes: HashMap<String, usize>,
     pub all_attributes: HashMap<String, usize>,
+}
+
+impl Schema {
+    // TODO: smarter schema creation.
+    pub fn new(key_attributes: Vec<(String, usize)>, all_attributes: Vec<(String, usize)>) -> Self {
+        Self {
+            key_attributes: key_attributes.into_iter().collect(),
+            all_attributes: all_attributes.into_iter().collect(),
+        }
+    }
 }
 
 #[derive(Clone)]

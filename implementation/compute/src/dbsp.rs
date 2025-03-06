@@ -1,5 +1,7 @@
 use crate::relation::{Relation, TupleKey, TupleValue};
-use dbsp::{ChildCircuit, OrdIndexedZSet, OrdZSet, Stream};
+use dbsp::{
+    ChildCircuit, IndexedZSetHandle, OrdIndexedZSet, OrdZSet, OutputHandle, RootCircuit, Stream,
+};
 
 type OrdStream = Stream<ChildCircuit<()>, OrdZSet<TupleValue>>;
 
@@ -31,6 +33,16 @@ impl OrderedTestStream {
         });
     }
 }
+
+pub fn new_ord_indexed_stream(
+    circuit: &mut RootCircuit,
+) -> (OrdIndexedStream, OrdIndexedStreamInputHandle) {
+    circuit.add_input_indexed_zset::<TupleKey, TupleValue>()
+}
+
+pub type OrdIndexedStreamInputHandle = IndexedZSetHandle<TupleKey, TupleValue>;
+
+pub type OrdIndexedStreamOutputHandle = OutputHandle<OrdIndexedZSet<TupleKey, TupleValue>>;
 
 pub type OrdIndexedStream<Circuit = ChildCircuit<()>> =
     Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>;

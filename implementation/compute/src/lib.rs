@@ -98,6 +98,13 @@ impl IncLog {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::{
+        dbsp::{OrdIndexedStreamInputHandle, OrdIndexedStreamOutputHandle, new_ord_indexed_stream},
+        expr::SelectionExpr,
+        relation::{Relation, Schema, TupleKey, TupleValue},
+        scalar::ScalarTypedValue,
+    };
+    use ::dbsp::RootCircuit;
     use expr::{AssignExpr, BinaryExpr, CallExpr, Expr, Literal, LiteralExpr, VarExpr};
     use operator::Operator;
     use stmt::{ExprStmt, Stmt, VarStmt};
@@ -193,6 +200,165 @@ mod test {
 
         let result = inclog.execute(function_call)?.unwrap();
         assert_eq!(Value::Uint(3), result);
+
+        Ok(())
+    }
+
+    fn new_selection_expr(
+        root_circuit: &mut RootCircuit,
+    ) -> Result<(OrdIndexedStreamInputHandle, OrdIndexedStreamOutputHandle), anyhow::Error> {
+        let (stream, input_handle) = new_ord_indexed_stream(root_circuit);
+
+        let code = [Stmt::Expr(Box::new(ExprStmt {
+            expr: Expr::Selection(Box::new(SelectionExpr {
+                condition: Expr::Binary(Box::new(BinaryExpr {
+                    operator: Operator::GreaterEqual,
+                    left: Expr::Var(Box::new(VarExpr::new("weight".to_string()))),
+                    // TODO: Refer constant from previous stmt
+                    // TODO: More complex logical expression
+                    right: Expr::Literal(Box::new(LiteralExpr {
+                        value: Literal::Uint(2),
+                    })),
+                })),
+                relation: Expr::Literal(Box::new(LiteralExpr {
+                    value: Literal::Relation(Relation::new(
+                        "edges".to_string(),
+                        Schema::new(
+                            vec![("from".to_string(), 0), ("to".to_string(), 1)],
+                            vec![
+                                ("from".to_string(), 0),
+                                ("to".to_string(), 1),
+                                ("weight".to_string(), 2),
+                            ],
+                        ),
+                        stream,
+                    )),
+                })),
+            })),
+        }))];
+
+        let mut inclog = IncLog::new();
+        let result = inclog.execute(code).expect("no errors").expect("value");
+
+        if let Value::Relation(relation) = result {
+            Ok((input_handle, relation.borrow().inner.output()))
+        } else {
+            panic!("Expected a relation, got {:?}", result);
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    struct Edge {
+        from: u64,
+        to: u64,
+        weight: u64,
+    }
+
+    impl From<Edge> for TupleKey {
+        fn from(edge: Edge) -> Self {
+            TupleKey {
+                data: vec![
+                    ScalarTypedValue::Uint(edge.from),
+                    ScalarTypedValue::Uint(edge.to),
+                ],
+            }
+        }
+    }
+
+    impl From<Edge> for TupleValue {
+        fn from(edge: Edge) -> Self {
+            TupleValue {
+                data: vec![
+                    ScalarTypedValue::Uint(edge.from),
+                    ScalarTypedValue::Uint(edge.to),
+                    ScalarTypedValue::Uint(edge.weight),
+                ],
+            }
+        }
+    }
+
+    #[test]
+    fn test_selection() -> Result<(), anyhow::Error> {
+        // TODO: test multithreaded runtime
+        let (circuit, (input_handle, output_relation)) = RootCircuit::build(new_selection_expr)?;
+
+        let data1 = vec![
+            Edge {
+                from: 0,
+                to: 1,
+                weight: 1,
+            },
+            Edge {
+                from: 1,
+                to: 2,
+                weight: 2,
+            },
+            Edge {
+                from: 2,
+                to: 3,
+                weight: 3,
+            },
+        ];
+
+        let data2 = vec![
+            Edge {
+                from: 3,
+                to: 4,
+                weight: 1,
+            },
+            Edge {
+                from: 4,
+                to: 5,
+                weight: 2,
+            },
+            Edge {
+                from: 5,
+                to: 6,
+                weight: 3,
+            },
+        ];
+
+        println!("Insert of data1:");
+
+        data1
+            .iter()
+            .map(|edge| (TupleKey::from(edge.clone()), TupleValue::from(edge.clone())))
+            .for_each(|(key, value)| input_handle.push(key, (value, 1)));
+
+        circuit.step()?;
+
+        output_relation
+            .consolidate()
+            .iter()
+            .for_each(|(key, value, weight)| println!("[{weight:2}] {value}"));
+
+        println!("Insert of data2:");
+
+        data2
+            .iter()
+            .map(|edge| (TupleKey::from(edge.clone()), TupleValue::from(edge.clone())))
+            .for_each(|(key, value)| input_handle.push(key, (value, 1)));
+
+        circuit.step()?;
+
+        output_relation
+            .consolidate()
+            .iter()
+            .for_each(|(key, value, weight)| println!("[{weight:2}] {value}"));
+
+        println!("Removal of data1:");
+
+        data1
+            .iter()
+            .map(|edge| (TupleKey::from(edge.clone()), TupleValue::from(edge.clone())))
+            .for_each(|(key, value)| input_handle.push(key, (value, -1)));
+
+        circuit.step()?;
+
+        output_relation
+            .consolidate()
+            .iter()
+            .for_each(|(key, value, weight)| println!("[{weight:2}] {value}"));
 
         Ok(())
     }

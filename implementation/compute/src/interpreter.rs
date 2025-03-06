@@ -120,13 +120,13 @@ impl Interpreter {
             Operator::Less => {
                 comparison_helper!(left, right, <, Value::Iint, Value::Uint, Value::Bool, Value::String)
             }
-            Operator::LessThan => {
+            Operator::LessEqual => {
                 comparison_helper!(left, right, <=, Value::Iint, Value::Uint, Value::Bool, Value::String)
             }
             Operator::Greater => {
                 comparison_helper!(left, right, >, Value::Iint, Value::Uint, Value::Bool, Value::String)
             }
-            Operator::GreaterThan => {
+            Operator::GreaterEqual => {
                 comparison_helper!(left, right, >=, Value::Iint, Value::Uint, Value::Bool, Value::String)
             }
             Operator::Addition => {
@@ -295,11 +295,10 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             let mut environment = &mut environment.clone();
             let mut new_ctx = InterpreterContext::new(&mut environment);
             new_ctx.begin_tuple_ctx(schema, tuple);
-            is_truthy(
-                &Interpreter::new()
-                    .evaluate(&condition, &mut new_ctx)
-                    .expect("Runtime error while interpreting selection condition"),
-            )
+            let value = Interpreter::new()
+                .evaluate(&condition, &mut new_ctx)
+                .expect("Runtime error while interpreting selection condition");
+            is_truthy(&value)
         });
 
         Ok(Value::Relation(new_relation(

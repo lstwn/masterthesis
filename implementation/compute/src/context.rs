@@ -50,7 +50,7 @@ impl InterpreterContext<'_> {
         self.tuple_vars = schema
             .all_attributes
             .iter()
-            .map(|(name, index)| (name.clone(), tuple.data(*index).clone()))
+            .map(|(name, index)| (name.clone(), tuple.data_at(*index).clone()))
             .collect();
     }
     pub fn end_tuple_ctx(&mut self) {

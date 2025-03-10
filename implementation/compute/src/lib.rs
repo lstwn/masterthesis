@@ -100,7 +100,7 @@ mod test {
     use super::*;
     use crate::{
         dbsp::{OrdIndexedStreamInputHandle, OrdIndexedStreamOutputHandle, new_ord_indexed_stream},
-        expr::SelectionExpr,
+        expr::{ProjectionExpr, SelectionExpr},
         relation::{Relation, Schema, TupleKey, TupleValue},
         scalar::ScalarTypedValue,
     };
@@ -206,42 +206,55 @@ mod test {
 
     fn new_selection_expr(
         root_circuit: &mut RootCircuit,
-    ) -> Result<(OrdIndexedStreamInputHandle, OrdIndexedStreamOutputHandle), anyhow::Error> {
+    ) -> Result<
+        (
+            OrdIndexedStreamInputHandle,
+            OrdIndexedStreamOutputHandle,
+            Schema,
+        ),
+        anyhow::Error,
+    > {
         let (stream, input_handle) = new_ord_indexed_stream(root_circuit);
 
-        let code = [Stmt::Expr(Box::new(ExprStmt {
-            expr: Expr::Selection(Box::new(SelectionExpr {
-                condition: Expr::Binary(Box::new(BinaryExpr {
-                    operator: Operator::GreaterEqual,
-                    left: Expr::Var(Box::new(VarExpr::new("weight".to_string()))),
-                    // TODO: Refer constant from previous stmt
-                    // TODO: More complex logical expression
-                    right: Expr::Literal(Box::new(LiteralExpr {
-                        value: Literal::Uint(2),
+        let code = [
+            Stmt::Var(Box::new(VarStmt {
+                name: "selected".to_string(),
+                initializer: Some(Expr::Selection(Box::new(SelectionExpr {
+                    condition: Expr::Binary(Box::new(BinaryExpr {
+                        operator: Operator::GreaterEqual,
+                        left: Expr::Var(Box::new(VarExpr::new("weight".to_string()))),
+                        // TODO: Refer constant from previous stmt
+                        // TODO: More complex logical expression
+                        right: Expr::Literal(Box::new(LiteralExpr {
+                            value: Literal::Uint(2),
+                        })),
                     })),
-                })),
-                relation: Expr::Literal(Box::new(LiteralExpr {
-                    value: Literal::Relation(Relation::new(
-                        "edges".to_string(),
-                        Schema::new(
-                            vec![("from".to_string(), 0), ("to".to_string(), 1)],
-                            vec![
-                                ("from".to_string(), 0),
-                                ("to".to_string(), 1),
-                                ("weight".to_string(), 2),
-                            ],
-                        ),
-                        stream,
-                    )),
-                })),
+                    relation: Expr::Literal(Box::new(LiteralExpr {
+                        value: Literal::Relation(Relation::new(
+                            "edges".to_string(),
+                            Schema::new(vec!["from", "to", "weight"], vec!["from", "to"])?,
+                            stream,
+                        )),
+                    })),
+                }))),
             })),
-        }))];
+            Stmt::Var(Box::new(VarStmt {
+                name: "projected".to_string(),
+                initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
+                    attributes: vec!["from".to_string(), "to".to_string(), "weight".to_string()],
+                    relation: Expr::Var(Box::new(VarExpr::new("selected".to_string()))),
+                }))),
+            })),
+        ];
 
         let mut inclog = IncLog::new();
         let result = inclog.execute(code).expect("no errors").expect("value");
 
         if let Value::Relation(relation) = result {
-            Ok((input_handle, relation.borrow().inner.output()))
+            let relation = relation.borrow();
+            let output_handle = relation.inner.output();
+            let output_schema = relation.schema.clone();
+            Ok((input_handle, output_handle, output_schema))
         } else {
             panic!("Expected a relation, got {:?}", result);
         }
@@ -252,6 +265,18 @@ mod test {
         from: u64,
         to: u64,
         weight: u64,
+        active: bool,
+    }
+
+    impl Edge {
+        fn new(from: u64, to: u64, weight: u64) -> Self {
+            Self {
+                from,
+                to,
+                weight,
+                active: true,
+            }
+        }
     }
 
     impl From<Edge> for TupleKey {
@@ -272,6 +297,7 @@ mod test {
                     ScalarTypedValue::Uint(edge.from),
                     ScalarTypedValue::Uint(edge.to),
                     ScalarTypedValue::Uint(edge.weight),
+                    ScalarTypedValue::Bool(edge.active),
                 ],
             }
         }
@@ -280,43 +306,12 @@ mod test {
     #[test]
     fn test_selection() -> Result<(), anyhow::Error> {
         // TODO: test multithreaded runtime
-        let (circuit, (input_handle, output_relation)) = RootCircuit::build(new_selection_expr)?;
+        let (circuit, (input_handle, output_handle, output_schema)) =
+            RootCircuit::build(new_selection_expr)?;
 
-        let data1 = vec![
-            Edge {
-                from: 0,
-                to: 1,
-                weight: 1,
-            },
-            Edge {
-                from: 1,
-                to: 2,
-                weight: 2,
-            },
-            Edge {
-                from: 2,
-                to: 3,
-                weight: 3,
-            },
-        ];
+        let data1 = vec![Edge::new(0, 1, 1), Edge::new(1, 2, 2), Edge::new(2, 3, 3)];
 
-        let data2 = vec![
-            Edge {
-                from: 3,
-                to: 4,
-                weight: 1,
-            },
-            Edge {
-                from: 4,
-                to: 5,
-                weight: 2,
-            },
-            Edge {
-                from: 5,
-                to: 6,
-                weight: 3,
-            },
-        ];
+        let data2 = vec![Edge::new(3, 4, 1), Edge::new(4, 5, 2), Edge::new(5, 6, 3)];
 
         println!("Insert of data1:");
 
@@ -327,10 +322,13 @@ mod test {
 
         circuit.step()?;
 
-        output_relation
+        println!("| zweight {}", output_schema.value_schema_to_string());
+        output_handle
             .consolidate()
             .iter()
-            .for_each(|(key, value, weight)| println!("[{weight:2}] {value}"));
+            .for_each(|(key, value, weight)| {
+                println!("| {weight} {}", output_schema.tuple_to_string(&value))
+            });
 
         println!("Insert of data2:");
 
@@ -341,10 +339,13 @@ mod test {
 
         circuit.step()?;
 
-        output_relation
+        println!("| zweight {}", output_schema.value_schema_to_string());
+        output_handle
             .consolidate()
             .iter()
-            .for_each(|(key, value, weight)| println!("[{weight:2}] {value}"));
+            .for_each(|(key, value, weight)| {
+                println!("| {weight} {}", output_schema.tuple_to_string(&value))
+            });
 
         println!("Removal of data1:");
 
@@ -355,10 +356,13 @@ mod test {
 
         circuit.step()?;
 
-        output_relation
+        println!("| zweight {}", output_schema.value_schema_to_string());
+        output_handle
             .consolidate()
             .iter()
-            .for_each(|(key, value, weight)| println!("[{weight:2}] {value}"));
+            .for_each(|(key, value, weight)| {
+                println!("| {weight} {}", output_schema.tuple_to_string(&value))
+            });
 
         Ok(())
     }

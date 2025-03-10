@@ -3,7 +3,7 @@ use crate::{
     error::RuntimeError,
     expr::{
         AssignExpr, BinaryExpr, CallExpr, Expr, ExprVisitor, FunctionExpr, GroupingExpr,
-        LiteralExpr, SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
+        LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
@@ -306,6 +306,24 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             // With selections, the schema stays the same.
             relation_ref.schema.clone(),
             selected,
+        )))
+    }
+    fn visit_projection_expr(
+        &mut self,
+        expr: &ProjectionExpr,
+        ctx: VisitorCtx,
+    ) -> ExprVisitorResult {
+        let relation = match self.visit_expr(&expr.relation, ctx)? {
+            Value::Relation(relation) => relation,
+            _ => return Err(RuntimeError::new("Expected relation".to_string())),
+        };
+        let relation = relation.borrow();
+        let mut schema = relation.schema.clone();
+        schema.project(&expr.attributes);
+        Ok(Value::Relation(new_relation(
+            relation.name.clone(),
+            schema,
+            relation.inner.clone(),
         )))
     }
 }

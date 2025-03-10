@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::{
     relation::{Schema, Tuple},
     resolver::ScopeStack,
+    scalar::ScalarTypedValue,
     stmt::Program,
     variable::Environment,
 };
@@ -36,7 +37,7 @@ pub struct InterpreterContext<'a> {
     /// processing tuple here for making each of its fields accessible
     /// as a variable.
     // No need to wrap it in an Option because HashMap::new() does not allocate!
-    pub tuple_vars: HashMap<String, crate::scalar::ScalarTypedValue>,
+    pub tuple_vars: HashMap<String, ScalarTypedValue>,
 }
 
 impl InterpreterContext<'_> {
@@ -48,9 +49,8 @@ impl InterpreterContext<'_> {
     }
     pub fn begin_tuple_ctx<T: Tuple>(&mut self, schema: &Schema, tuple: &T) {
         self.tuple_vars = schema
-            .all_attributes
-            .iter()
-            .map(|(name, index)| (name.clone(), tuple.data_at(*index).clone()))
+            .active_value_fields()
+            .map(|(index, info)| (info.name().to_owned(), tuple.data_at(index).clone()))
             .collect();
     }
     pub fn end_tuple_ctx(&mut self) {

@@ -20,6 +20,7 @@ pub enum Expr {
     Call(Box<CallExpr>),
     Function(Box<FunctionExpr>),
     Selection(Box<SelectionExpr>),
+    Projection(Box<ProjectionExpr>),
 }
 
 #[derive(Clone, Debug)]
@@ -128,6 +129,12 @@ pub struct SelectionExpr {
 }
 
 #[derive(Clone, Debug)]
+pub struct ProjectionExpr {
+    pub relation: Expr,
+    pub attributes: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
 pub enum Literal {
     /// String.
     String(String),
@@ -171,6 +178,7 @@ pub trait ExprVisitor<T, C> {
             Expr::Function(expr) => self.visit_function_expr(expr, ctx),
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
+            Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
         }
     }
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: C) -> T;
@@ -183,6 +191,7 @@ pub trait ExprVisitor<T, C> {
     fn visit_function_expr(&mut self, expr: &FunctionExpr, ctx: C) -> T;
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: C) -> T;
+    fn visit_projection_expr(&mut self, expr: &ProjectionExpr, ctx: C) -> T;
 }
 
 pub trait ExprVisitorMut<T, C> {
@@ -198,6 +207,7 @@ pub trait ExprVisitorMut<T, C> {
             Expr::Function(expr) => self.visit_function_expr(expr, ctx),
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
+            Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
         }
     }
     fn visit_ternary_expr(&mut self, expr: &mut TernaryExpr, ctx: C) -> T;
@@ -210,6 +220,7 @@ pub trait ExprVisitorMut<T, C> {
     fn visit_function_expr(&mut self, expr: &mut FunctionExpr, ctx: C) -> T;
     fn visit_call_expr(&mut self, expr: &mut CallExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &mut SelectionExpr, ctx: C) -> T;
+    fn visit_projection_expr(&mut self, expr: &mut ProjectionExpr, ctx: C) -> T;
 }
 
 pub trait ExprVisitorOwn<T, C> {
@@ -225,6 +236,7 @@ pub trait ExprVisitorOwn<T, C> {
             Expr::Function(expr) => self.visit_function_expr(*expr, ctx),
             Expr::Call(expr) => self.visit_call_expr(*expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(*expr, ctx),
+            Expr::Projection(expr) => self.visit_projection_expr(*expr, ctx),
         }
     }
     fn visit_ternary_expr(&mut self, expr: TernaryExpr, ctx: C) -> T;
@@ -237,6 +249,7 @@ pub trait ExprVisitorOwn<T, C> {
     fn visit_function_expr(&mut self, expr: FunctionExpr, ctx: C) -> T;
     fn visit_call_expr(&mut self, expr: CallExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: SelectionExpr, ctx: C) -> T;
+    fn visit_projection_expr(&mut self, expr: ProjectionExpr, ctx: C) -> T;
 }
 
 impl MemAddr for Expr {}
@@ -250,3 +263,4 @@ impl MemAddr for LiteralExpr {}
 impl MemAddr for FunctionExpr {}
 impl MemAddr for CallExpr {}
 impl MemAddr for SelectionExpr {}
+impl MemAddr for ProjectionExpr {}

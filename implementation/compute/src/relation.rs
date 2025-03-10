@@ -1,9 +1,8 @@
 use super::scalar::ScalarTypedValue;
-use crate::dbsp::OrdIndexedStream;
+use crate::{dbsp::OrdIndexedStream, error::SyntaxError};
 use dbsp::{ChildCircuit, OrdIndexedZSet, Stream};
 use std::{
     cell::RefCell,
-    collections::HashMap,
     fmt::{self, Debug, Display},
     rc::Rc,
 };
@@ -114,20 +113,108 @@ pub fn new_relation(name: String, schema: Schema, inner: OrdIndexedStream) -> Re
     Rc::new(RefCell::new(Relation::new(name, schema, inner)))
 }
 
+#[derive(Clone, Debug)]
+pub struct AttributeInfo {
+    /// The attribute's name.
+    name: String,
+    /// Whether the attribute is active, that is, not eliminated by, e.g., a projection.
+    active: bool,
+    // Maybe add type information here, too.
+}
+
+impl AttributeInfo {
+    fn new(name: String) -> Self {
+        Self { name, active: true }
+    }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+impl PartialEq for AttributeInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+type Index = usize;
+
 /// A [`Relation`]'s schema is a set of attributes and we store the index of each.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Schema {
-    pub key_attributes: HashMap<String, usize>,
-    pub all_attributes: HashMap<String, usize>,
+    pub key_attributes: Vec<AttributeInfo>,
+    pub all_attributes: Vec<AttributeInfo>,
 }
 
 impl Schema {
-    // TODO: smarter schema creation.
-    pub fn new(key_attributes: Vec<(String, usize)>, all_attributes: Vec<(String, usize)>) -> Self {
-        Self {
-            key_attributes: key_attributes.into_iter().collect(),
-            all_attributes: all_attributes.into_iter().collect(),
+    pub fn new<T: Into<String>>(
+        all_attributes: Vec<T>,
+        key_attributes: Vec<T>,
+    ) -> Result<Self, SyntaxError> {
+        let all_attributes = all_attributes
+            .into_iter()
+            .map(|name| AttributeInfo::new(name.into()))
+            .collect::<Vec<AttributeInfo>>();
+        let key_attributes = key_attributes
+            .into_iter()
+            .map(|name| {
+                let name = AttributeInfo::new(name.into());
+                if all_attributes.contains(&name) {
+                    Ok(name)
+                } else {
+                    Err(SyntaxError::new(format!(
+                        "Key attribute {} not found in all attributes.",
+                        name.name
+                    )))
+                }
+            })
+            .collect::<Result<Vec<AttributeInfo>, SyntaxError>>()?;
+        Ok(Self {
+            key_attributes,
+            all_attributes,
+        })
+    }
+    pub fn project(&mut self, attributes: &Vec<String>) -> () {
+        for info in self
+            .all_attributes
+            .iter_mut()
+            .chain(self.key_attributes.iter_mut())
+        {
+            if !attributes.contains(&info.name) {
+                info.active = false;
+            }
         }
+    }
+    pub fn active_key_fields(&self) -> impl Iterator<Item = (Index, &AttributeInfo)> {
+        self.key_attributes
+            .iter()
+            .enumerate()
+            .filter(|(_index, info)| info.active)
+    }
+    fn all_key_fields(&self) -> impl Iterator<Item = (Index, &AttributeInfo)> {
+        self.key_attributes.iter().enumerate()
+    }
+    pub fn active_value_fields(&self) -> impl Iterator<Item = (Index, &AttributeInfo)> {
+        self.all_attributes
+            .iter()
+            .enumerate()
+            .filter(|(_index, info)| info.active)
+    }
+    pub fn value_schema_to_string(&self) -> String {
+        let fields = self
+            .active_value_fields()
+            .map(|(_, info)| info.name.clone())
+            .collect::<Vec<_>>()
+            .join(" | ");
+        format!("| {} |", fields)
+    }
+    pub fn tuple_to_string(&self, tuple: &TupleValue) -> String {
+        let fields = self
+            .active_value_fields()
+            .map(|(index, info)| tuple.data_at(index).to_string())
+            .collect::<Vec<_>>()
+            .join(" | ");
+        format!("| {} |", fields)
     }
 }
 
@@ -148,7 +235,7 @@ impl Relation {
             inner,
         }
     }
-    pub fn to_string_helper(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn to_string_helper(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "<relation {}>", self.name)
     }
 }

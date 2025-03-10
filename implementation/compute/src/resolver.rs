@@ -3,7 +3,7 @@ use crate::{
     error::SyntaxError,
     expr::{
         AssignExpr, BinaryExpr, CallExpr, ExprVisitorMut, FunctionExpr, GroupingExpr, LiteralExpr,
-        SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
+        ProjectionExpr, SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
     },
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
     util::{Named, Resolvable},
@@ -226,6 +226,15 @@ impl<'a, 'b> ExprVisitorMut<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
             ctx.end_tuple_context();
             ret
         })
+    }
+    fn visit_projection_expr(
+        &mut self,
+        expr: &mut ProjectionExpr,
+        ctx: VisitorCtx,
+    ) -> VisitorResult {
+        // TODO: statically check that the listed attributes are valid.
+        // Implement through returning type information through `VisitorResult`.
+        self.visit_expr(&mut expr.relation, ctx)
     }
 }
 

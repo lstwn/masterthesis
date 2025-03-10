@@ -148,8 +148,8 @@ pub struct Schema {
 
 impl Schema {
     pub fn new<T: Into<String>>(
-        all_attributes: Vec<T>,
-        key_attributes: Vec<T>,
+        all_attributes: impl IntoIterator<Item = T>,
+        key_attributes: impl IntoIterator<Item = T>,
     ) -> Result<Self, SyntaxError> {
         let all_attributes = all_attributes
             .into_iter()
@@ -174,15 +174,34 @@ impl Schema {
             all_attributes,
         })
     }
-    pub fn project(&mut self, attributes: &Vec<String>) -> () {
-        for info in self
-            .all_attributes
-            .iter_mut()
-            .chain(self.key_attributes.iter_mut())
-        {
+    pub fn project(&self, attributes: &Vec<String>) -> Self {
+        let mapper = |info: &AttributeInfo| {
+            let mut info = info.clone();
             if !attributes.contains(&info.name) {
                 info.active = false;
             }
+            info
+        };
+        Self {
+            all_attributes: self.all_attributes.iter().map(mapper).collect(),
+            key_attributes: self.key_attributes.iter().map(mapper).collect(),
+        }
+    }
+    pub fn join(&self, other: &Self) -> Self {
+        // TODO: how to handle name clashes?
+        Self {
+            all_attributes: self
+                .all_attributes
+                .iter()
+                .chain(other.all_attributes.iter())
+                .cloned()
+                .collect(),
+            key_attributes: self
+                .key_attributes
+                .iter()
+                .chain(other.key_attributes.iter())
+                .cloned()
+                .collect(),
         }
     }
     pub fn active_key_fields(&self) -> impl Iterator<Item = (Index, &AttributeInfo)> {

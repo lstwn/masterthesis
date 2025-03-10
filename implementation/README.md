@@ -14,9 +14,11 @@
 
 For proof-of-concept:
 
-- [ ] selection
-- [ ] projection
+- [x] selection
+- [x] projection
 - [ ] join
+- [ ] [nice cli table output](https://crates.io/crates/cli-table)
+      for results through introduction of input/output schema?
 - [ ] iteration until fix point
 - [ ] add Datalog parser for string representation
 

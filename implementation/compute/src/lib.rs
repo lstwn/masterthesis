@@ -54,10 +54,6 @@ impl IncLog {
     pub fn parse(&mut self, source: String) -> Result<Code, IncLogError> {
         // Should actually parse the input string and create an expression
         // or a list of statements.
-        // let expr = expr::Expr::Lit(Box::new(expr::LitExpr {
-        //     value: scalar::ScalarTypedValue::Uint(2),
-        // }));
-        // Ok(expr)
         todo!()
     }
     pub fn execute(
@@ -232,7 +228,7 @@ mod test {
                     relation: Expr::Literal(Box::new(LiteralExpr {
                         value: Literal::Relation(Relation::new(
                             "edges".to_string(),
-                            Schema::new(vec!["from", "to", "weight"], vec!["from", "to"])?,
+                            Schema::new(["from", "to", "weight"], ["from", "to"])?,
                             stream,
                         )),
                     })),

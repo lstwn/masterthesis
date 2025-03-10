@@ -130,8 +130,43 @@ pub struct SelectionExpr {
 
 #[derive(Clone, Debug)]
 pub struct ProjectionExpr {
+    /// Must evaluate to a relation.
     pub relation: Expr,
     pub attributes: Vec<String>,
+}
+
+/// An equi join is a join that exclusively uses equality of attribute(s).
+/// [More information on join classifications](https://stackoverflow.com/a/7870216).
+// TODO
+#[derive(Clone, Debug)]
+pub struct EquiJoinExpr {
+    /// Must evaluate to a relation.
+    pub left: Expr,
+    /// Must evaluate to a relation.
+    pub right: Expr,
+    pub attributes: Vec<String>,
+}
+
+/// A theta join is a join that uses an arbitrary condition which may be more
+/// complicated than just equality of attribute(s).
+/// [More information on join classifications](https://stackoverflow.com/a/7870216).
+// TODO
+#[derive(Clone, Debug)]
+pub struct ThetaJoinExpr {
+    /// Must evaluate to a relation.
+    pub left: Expr,
+    /// Must evaluate to a relation.
+    pub right: Expr,
+    pub condition: Expr,
+}
+
+/// Iteration until the condition is met. Should include fixed-point computations.
+// TODO
+#[derive(Clone, Debug)]
+pub struct Iteration {
+    pub condition: Expr,
+    /// Must evaluate to a relation.
+    pub body: Expr,
 }
 
 #[derive(Clone, Debug)]

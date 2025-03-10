@@ -318,8 +318,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             _ => return Err(RuntimeError::new("Expected relation".to_string())),
         };
         let relation = relation.borrow();
-        let mut schema = relation.schema.clone();
-        schema.project(&expr.attributes);
+        let schema = relation.schema.project(&expr.attributes);
         Ok(Value::Relation(new_relation(
             relation.name.clone(),
             schema,

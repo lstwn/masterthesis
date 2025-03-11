@@ -95,9 +95,9 @@ impl IncLog {
 mod test {
     use super::*;
     use crate::{
-        dbsp::{OrdIndexedStreamInputHandle, OrdIndexedStreamOutputHandle, new_ord_indexed_stream},
+        dbsp::{DbspInput, DbspInputs, DbspOutput},
         expr::{ProjectionExpr, SelectionExpr},
-        relation::{Relation, Schema, TupleKey, TupleValue},
+        relation::{Schema, TupleKey, TupleValue},
         scalar::ScalarTypedValue,
     };
     use ::dbsp::RootCircuit;
@@ -202,15 +202,8 @@ mod test {
 
     fn new_selection_expr(
         root_circuit: &mut RootCircuit,
-    ) -> Result<
-        (
-            OrdIndexedStreamInputHandle,
-            OrdIndexedStreamOutputHandle,
-            Schema,
-        ),
-        anyhow::Error,
-    > {
-        let (stream, input_handle) = new_ord_indexed_stream(root_circuit);
+    ) -> Result<(DbspInputs, DbspOutput), anyhow::Error> {
+        let mut dbsp_inputs = DbspInputs::new();
 
         let code = [
             Stmt::Var(Box::new(VarStmt {
@@ -225,13 +218,12 @@ mod test {
                             value: Literal::Uint(2),
                         })),
                     })),
-                    relation: Expr::Literal(Box::new(LiteralExpr {
-                        value: Literal::Relation(Relation::new(
-                            "edges".to_string(),
-                            Schema::new(["from", "to", "weight"], ["from", "to"])?,
-                            stream,
-                        )),
-                    })),
+                    relation: Expr::Literal(Box::new(DbspInput::new(
+                        "edges",
+                        Schema::new(["from", "to", "weight", "active"], ["from", "to"])?,
+                        root_circuit,
+                        &mut dbsp_inputs,
+                    ))),
                 }))),
             })),
             Stmt::Var(Box::new(VarStmt {
@@ -243,16 +235,14 @@ mod test {
             })),
         ];
 
-        let mut inclog = IncLog::new();
-        let result = inclog.execute(code).expect("no errors").expect("value");
-
-        if let Value::Relation(relation) = result {
-            let relation = relation.borrow();
-            let output_handle = relation.inner.output();
-            let output_schema = relation.schema.clone();
-            Ok((input_handle, output_handle, output_schema))
-        } else {
-            panic!("Expected a relation, got {:?}", result);
+        match IncLog::new().execute(code) {
+            Ok(Some(Value::Relation(relation))) => {
+                let relation = relation.borrow();
+                let output_handle = relation.inner.output();
+                let output_schema = relation.schema.clone();
+                Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
+            }
+            result => panic!("Expected a relation, got {:?}", result),
         }
     }
 
@@ -302,8 +292,8 @@ mod test {
     #[test]
     fn test_selection() -> Result<(), anyhow::Error> {
         // TODO: test multithreaded runtime
-        let (circuit, (input_handle, output_handle, output_schema)) =
-            RootCircuit::build(new_selection_expr)?;
+        let (circuit, (inputs, output)) = RootCircuit::build(new_selection_expr)?;
+        let input_handle = inputs.get("edges").unwrap().handle();
 
         let data1 = vec![Edge::new(0, 1, 1), Edge::new(1, 2, 2), Edge::new(2, 3, 3)];
 
@@ -318,13 +308,7 @@ mod test {
 
         circuit.step()?;
 
-        println!("| zweight {}", output_schema.value_schema_to_string());
-        output_handle
-            .consolidate()
-            .iter()
-            .for_each(|(key, value, weight)| {
-                println!("| {weight} {}", output_schema.tuple_to_string(&value))
-            });
+        println!("{}", output.to_table());
 
         println!("Insert of data2:");
 
@@ -335,13 +319,7 @@ mod test {
 
         circuit.step()?;
 
-        println!("| zweight {}", output_schema.value_schema_to_string());
-        output_handle
-            .consolidate()
-            .iter()
-            .for_each(|(key, value, weight)| {
-                println!("| {weight} {}", output_schema.tuple_to_string(&value))
-            });
+        println!("{}", output.to_table());
 
         println!("Removal of data1:");
 
@@ -352,13 +330,7 @@ mod test {
 
         circuit.step()?;
 
-        println!("| zweight {}", output_schema.value_schema_to_string());
-        output_handle
-            .consolidate()
-            .iter()
-            .for_each(|(key, value, weight)| {
-                println!("| {weight} {}", output_schema.tuple_to_string(&value))
-            });
+        println!("{}", output.to_table());
 
         Ok(())
     }

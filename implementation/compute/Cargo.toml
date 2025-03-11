@@ -21,5 +21,6 @@ size-of = { version = "0.1.5", package = "feldera-size-of", features = [
     "chrono",
     "ordered-float",
 ] }
+cli-table = "0.4.9"
 # by_address = "1.2.1"
 # rpds = "1.1.0"

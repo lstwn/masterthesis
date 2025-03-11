@@ -227,10 +227,17 @@ impl Schema {
             .join(" | ");
         format!("| {} |", fields)
     }
+    pub fn tuple_attributes<'tuple>(
+        &self,
+        tuple: &'tuple TupleValue,
+    ) -> impl Iterator<Item = &'tuple ScalarTypedValue> {
+        self.active_value_fields()
+            .map(|(index, info)| tuple.data_at(index))
+    }
     pub fn tuple_to_string(&self, tuple: &TupleValue) -> String {
         let fields = self
-            .active_value_fields()
-            .map(|(index, info)| tuple.data_at(index).to_string())
+            .tuple_attributes(tuple)
+            .map(|attribute| attribute.to_string())
             .collect::<Vec<_>>()
             .join(" | ");
         format!("| {} |", fields)

@@ -1,7 +1,12 @@
-use crate::relation::{Relation, TupleKey, TupleValue};
+use crate::{
+    expr::{Literal, LiteralExpr},
+    relation::{Relation, Schema, TupleKey, TupleValue},
+};
+use cli_table::{Cell, Style, Table, format::Justify};
 use dbsp::{
     ChildCircuit, IndexedZSetHandle, OrdIndexedZSet, OrdZSet, OutputHandle, RootCircuit, Stream,
 };
+use std::{collections::HashMap, fmt::Display, iter};
 
 type OrdStream = Stream<ChildCircuit<()>, OrdZSet<TupleValue>>;
 
@@ -33,19 +38,6 @@ impl OrderedTestStream {
         });
     }
 }
-
-pub fn new_ord_indexed_stream(
-    circuit: &mut RootCircuit,
-) -> (OrdIndexedStream, OrdIndexedStreamInputHandle) {
-    circuit.add_input_indexed_zset::<TupleKey, TupleValue>()
-}
-
-pub type OrdIndexedStreamInputHandle = IndexedZSetHandle<TupleKey, TupleValue>;
-
-pub type OrdIndexedStreamOutputHandle = OutputHandle<OrdIndexedZSet<TupleKey, TupleValue>>;
-
-pub type OrdIndexedStream<Circuit = ChildCircuit<()>> =
-    Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>;
 
 struct IndexedTestStream {
     a: Relation,
@@ -84,5 +76,103 @@ impl IndexedTestStream {
             // project tuple
             (k.clone(), tuple.clone())
         });
+    }
+}
+
+pub fn new_ord_indexed_stream(
+    circuit: &mut RootCircuit,
+) -> (OrdIndexedStream, OrdIndexedStreamInputHandle) {
+    circuit.add_input_indexed_zset::<TupleKey, TupleValue>()
+}
+
+pub type OrdIndexedStreamInputHandle = IndexedZSetHandle<TupleKey, TupleValue>;
+
+pub type OrdIndexedStreamOutputHandle = OutputHandle<OrdIndexedZSet<TupleKey, TupleValue>>;
+
+pub type OrdIndexedStream<Circuit = ChildCircuit<()>> =
+    Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>;
+
+pub struct DbspInputs {
+    inputs: HashMap<String, DbspInput>,
+}
+
+impl DbspInputs {
+    pub fn new() -> Self {
+        Self {
+            inputs: HashMap::new(),
+        }
+    }
+    fn insert(&mut self, name: String, input: DbspInput) {
+        self.inputs.insert(name, input);
+    }
+    pub fn get(&self, name: &str) -> Option<&DbspInput> {
+        self.inputs.get(name)
+    }
+    pub fn iter(&self) -> impl Iterator<Item = &DbspInput> {
+        self.inputs.values()
+    }
+}
+
+pub struct DbspInput {
+    schema: Schema,
+    handle: OrdIndexedStreamInputHandle,
+}
+
+impl DbspInput {
+    pub fn new<T: Into<String>>(
+        name: T,
+        schema: Schema,
+        circuit: &mut RootCircuit,
+        inputs: &mut DbspInputs,
+    ) -> LiteralExpr {
+        let (stream, handle) = new_ord_indexed_stream(circuit);
+        let name = name.into();
+        let input = Self {
+            schema: schema.clone(),
+            handle,
+        };
+        inputs.insert(name.clone(), input);
+        LiteralExpr {
+            value: Literal::Relation(Relation::new(name, schema, stream)),
+        }
+    }
+    pub fn handle(&self) -> &OrdIndexedStreamInputHandle {
+        &self.handle
+    }
+    // TODO: Add method to insert a tuple into the stream.
+}
+
+pub struct DbspOutput {
+    handle: OrdIndexedStreamOutputHandle,
+    schema: Schema,
+}
+
+impl DbspOutput {
+    pub fn new(schema: Schema, handle: OrdIndexedStreamOutputHandle) -> Self {
+        Self { schema, handle }
+    }
+    pub fn to_table(&self) -> impl Display {
+        let table = self
+            .handle
+            .consolidate()
+            .iter()
+            .map(|(key, value, weight)| {
+                iter::once(weight.to_string().cell().justify(Justify::Right)).chain(
+                    self.schema
+                        .tuple_attributes(&value)
+                        .map(|attribute| attribute.to_string().cell().justify(Justify::Right))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .table()
+            .title(
+                iter::once("z-weight".cell()).chain(
+                    self.schema
+                        .active_value_fields()
+                        .map(|(_, info)| info.name().cell()),
+                ),
+            )
+            .bold(true);
+        table.display().expect("table error")
     }
 }

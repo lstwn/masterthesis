@@ -207,15 +207,30 @@ mod test {
 
         let code = [
             Stmt::Var(Box::new(VarStmt {
+                name: "add".to_string(),
+                initializer: Some(new_add_function_expr()),
+            })),
+            Stmt::Var(Box::new(VarStmt {
+                name: "constant".to_string(),
+                initializer: Some(Expr::Literal(Box::new(LiteralExpr {
+                    value: Literal::Uint(1),
+                }))),
+            })),
+            Stmt::Var(Box::new(VarStmt {
                 name: "selected".to_string(),
                 initializer: Some(Expr::Selection(Box::new(SelectionExpr {
                     condition: Expr::Binary(Box::new(BinaryExpr {
                         operator: Operator::GreaterEqual,
+                        // TODO: Try more complex logical expression with and/or.
                         left: Expr::Var(Box::new(VarExpr::new("weight".to_string()))),
-                        // TODO: Refer constant from previous stmt
-                        // TODO: More complex logical expression
-                        right: Expr::Literal(Box::new(LiteralExpr {
-                            value: Literal::Uint(2),
+                        right: Expr::Call(Box::new(CallExpr {
+                            callee: Expr::Var(Box::new(VarExpr::new("add".to_string()))),
+                            arguments: vec![
+                                Expr::Var(Box::new(VarExpr::new("constant".to_string()))),
+                                Expr::Literal(Box::new(LiteralExpr {
+                                    value: Literal::Uint(1),
+                                })),
+                            ],
                         })),
                     })),
                     relation: Expr::Literal(Box::new(DbspInput::new(

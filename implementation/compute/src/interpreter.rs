@@ -7,7 +7,8 @@ use crate::{
     },
     function::new_function,
     operator::Operator,
-    relation::new_relation,
+    relation::{Schema, TupleValue, new_relation},
+    scalar::ScalarTypedValue,
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
     variable::{Environment, Value},
 };
@@ -317,12 +318,75 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             Value::Relation(relation) => relation,
             _ => return Err(RuntimeError::new("Expected relation".to_string())),
         };
-        let relation = relation.borrow();
-        let schema = relation.schema.project(&expr.attributes);
+        let relation_ref = relation.borrow();
+
+        let requires_dbsp = expr
+            .attributes
+            .iter()
+            .any(|attribute| attribute.1.is_some());
+
+        let (schema, projected) = if requires_dbsp {
+            let (attributes, map_fns): (Vec<String>, Vec<Expr>) = expr
+                .attributes
+                .iter()
+                .map(|(name, map_fn)| {
+                    let map_fn_or_identity = map_fn.clone().unwrap_or_else(|| {
+                        Expr::Var(Box::new(VarExpr {
+                            name: name.clone(),
+                            resolved: None,
+                        }))
+                    });
+                    (name.clone(), map_fn_or_identity)
+                })
+                .unzip();
+            let relation_clone = Rc::clone(&relation);
+            let environment = ctx.environment.clone();
+            let projected = relation_ref.inner.map_index(move |(key, tuple)| {
+                let schema = &relation_clone.borrow().schema;
+                let mut environment = &mut environment.clone();
+                let mut new_ctx = InterpreterContext::new(&mut environment);
+                new_ctx.begin_tuple_ctx(schema, tuple);
+                let mapped_tuple: TupleValue = map_fns
+                    .iter()
+                    .map(|map_fn| {
+                        ScalarTypedValue::try_from(
+                            Interpreter::new()
+                                .evaluate(&map_fn, &mut new_ctx)
+                                .expect("Runtime error while interpreting projection function"),
+                        )
+                        .expect("Type error while interpreting projection function")
+                    })
+                    .collect();
+                // For now we leave the key as is.
+                (key.clone(), mapped_tuple)
+            });
+            let schema = Schema::new(
+                attributes,
+                relation_ref
+                    .schema
+                    .key_attributes
+                    .iter()
+                    .map(|info| info.name().to_owned()),
+            )
+            // TODO: This fails if we omit a key attribute in the projection.
+            .expect("schema creation after projection");
+            (schema, projected)
+        } else {
+            let schema = relation_ref.schema.project(
+                &expr
+                    .attributes
+                    .iter()
+                    .map(|attribute| &attribute.0)
+                    .collect(),
+            );
+            let unchanged = relation_ref.inner.clone();
+            (schema, unchanged)
+        };
+
         Ok(Value::Relation(new_relation(
-            relation.name.clone(),
+            relation_ref.name.clone(),
             schema,
-            relation.inner.clone(),
+            projected,
         )))
     }
 }

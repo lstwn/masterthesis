@@ -45,6 +45,14 @@ pub struct TupleValue {
     pub data: Vec<ScalarTypedValue>,
 }
 
+impl FromIterator<ScalarTypedValue> for TupleValue {
+    fn from_iter<I: IntoIterator<Item = ScalarTypedValue>>(iter: I) -> Self {
+        Self {
+            data: iter.into_iter().collect(),
+        }
+    }
+}
+
 impl Tuple for TupleValue {
     fn data_at(&self, index: usize) -> &ScalarTypedValue {
         &self.data[index]
@@ -163,7 +171,7 @@ impl Schema {
                     Ok(name)
                 } else {
                     Err(SyntaxError::new(format!(
-                        "Key attribute {} not found in all attributes.",
+                        "Key attribute '{}' not present in all attributes.",
                         name.name
                     )))
                 }
@@ -174,10 +182,10 @@ impl Schema {
             all_attributes,
         })
     }
-    pub fn project(&self, attributes: &Vec<String>) -> Self {
+    pub fn project(&self, attributes: &Vec<&String>) -> Self {
         let mapper = |info: &AttributeInfo| {
             let mut info = info.clone();
-            if !attributes.contains(&info.name) {
+            if !attributes.contains(&&info.name) {
                 info.active = false;
             }
             info

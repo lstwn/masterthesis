@@ -132,7 +132,10 @@ pub struct SelectionExpr {
 pub struct ProjectionExpr {
     /// Must evaluate to a relation.
     pub relation: Expr,
-    pub attributes: Vec<String>,
+    /// The attributes to map over. The second element is the expression which
+    /// produces the new value of the attribute. If the second element is
+    /// `None`, the attribute is left unchanged.
+    pub attributes: Vec<(String, Option<Expr>)>,
 }
 
 /// An equi join is a join that exclusively uses equality of attribute(s).

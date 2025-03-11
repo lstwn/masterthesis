@@ -244,7 +244,18 @@ mod test {
             Stmt::Var(Box::new(VarStmt {
                 name: "projected".to_string(),
                 initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
-                    attributes: vec!["from".to_string(), "to".to_string(), "weight".to_string()],
+                    attributes: vec![
+                        ("from".to_string(), None),
+                        ("to".to_string(), None),
+                        (
+                            "weight".to_string(),
+                            Some(Expr::Binary(Box::new(BinaryExpr {
+                                operator: Operator::Multiplication,
+                                left: Expr::Var(Box::new(VarExpr::new("weight".to_string()))),
+                                right: Expr::Var(Box::new(VarExpr::new("to".to_string()))),
+                            }))),
+                        ),
+                    ],
                     relation: Expr::Var(Box::new(VarExpr::new("selected".to_string()))),
                 }))),
             })),

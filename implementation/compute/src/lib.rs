@@ -319,7 +319,7 @@ mod test {
     fn test_selection() -> Result<(), anyhow::Error> {
         // TODO: test multithreaded runtime
         let (circuit, (inputs, output)) = RootCircuit::build(new_selection_expr)?;
-        let input_handle = inputs.get("edges").unwrap().handle();
+        let edges_input = inputs.get("edges").unwrap();
 
         let data1 = vec![Edge::new(0, 1, 1), Edge::new(1, 2, 2), Edge::new(2, 3, 3)];
 
@@ -327,10 +327,7 @@ mod test {
 
         println!("Insert of data1:");
 
-        data1
-            .iter()
-            .map(|edge| (TupleKey::from(edge.clone()), TupleValue::from(edge.clone())))
-            .for_each(|(key, value)| input_handle.push(key, (value, 1)));
+        edges_input.insert_with_same_weight(data1.iter(), 1);
 
         circuit.step()?;
 
@@ -338,10 +335,7 @@ mod test {
 
         println!("Insert of data2:");
 
-        data2
-            .iter()
-            .map(|edge| (TupleKey::from(edge.clone()), TupleValue::from(edge.clone())))
-            .for_each(|(key, value)| input_handle.push(key, (value, 1)));
+        edges_input.insert_with_same_weight(data2.iter(), 1);
 
         circuit.step()?;
 
@@ -349,10 +343,7 @@ mod test {
 
         println!("Removal of data1:");
 
-        data1
-            .iter()
-            .map(|edge| (TupleKey::from(edge.clone()), TupleValue::from(edge.clone())))
-            .for_each(|(key, value)| input_handle.push(key, (value, -1)));
+        edges_input.insert_with_same_weight(data1.iter(), -1);
 
         circuit.step()?;
 

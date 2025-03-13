@@ -5,6 +5,7 @@ use crate::{
 use cli_table::{Cell, Style, Table, format::Justify};
 use dbsp::{
     ChildCircuit, IndexedZSetHandle, OrdIndexedZSet, OrdZSet, OutputHandle, RootCircuit, Stream,
+    ZWeight,
 };
 use std::{collections::HashMap, fmt::Display, iter};
 
@@ -139,7 +140,22 @@ impl DbspInput {
     pub fn handle(&self) -> &OrdIndexedStreamInputHandle {
         &self.handle
     }
-    // TODO: Add method to insert a tuple into the stream.
+    pub fn insert<'a, T: Into<TupleKey> + Into<TupleValue> + Clone + 'a>(
+        &self,
+        tuples: impl IntoIterator<Item = (&'a T, ZWeight)>,
+    ) -> () {
+        tuples.into_iter().for_each(|(tuple, z_weight)| {
+            self.handle
+                .push(tuple.clone().into(), (tuple.clone().into(), z_weight))
+        })
+    }
+    pub fn insert_with_same_weight<'a, T: Into<TupleKey> + Into<TupleValue> + Clone + 'a>(
+        &self,
+        tuples: impl IntoIterator<Item = &'a T>,
+        z_weight: ZWeight,
+    ) -> () {
+        self.insert(tuples.into_iter().map(|tuple| (tuple, z_weight)));
+    }
 }
 
 pub struct DbspOutput {

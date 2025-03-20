@@ -247,11 +247,13 @@ mod test {
                     attributes: vec![
                         ("from".to_string(), None),
                         ("to".to_string(), None),
+                        ("weight".to_string(), None),
                         (
-                            "weight".to_string(),
+                            // Here we create an entirely new column.
+                            "mapped_weight".to_string(),
                             Some(Expr::Binary(Box::new(BinaryExpr {
                                 operator: Operator::Multiplication,
-                                left: Expr::Var(Box::new(VarExpr::new("weight".to_string()))),
+                                left: Expr::Var(Box::new(VarExpr::new("from".to_string()))),
                                 right: Expr::Var(Box::new(VarExpr::new("to".to_string()))),
                             }))),
                         ),

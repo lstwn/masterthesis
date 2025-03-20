@@ -368,7 +368,6 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                     .iter()
                     .map(|info| info.name().to_owned()),
             )
-            // TODO: This fails if we omit a key attribute in the projection.
             .expect("schema creation after projection");
             (schema, projected)
         } else {

@@ -165,18 +165,8 @@ impl Schema {
             .collect::<Vec<AttributeInfo>>();
         let key_attributes = key_attributes
             .into_iter()
-            .map(|name| {
-                let name = AttributeInfo::new(name.into());
-                if all_attributes.contains(&name) {
-                    Ok(name)
-                } else {
-                    Err(SyntaxError::new(format!(
-                        "Key attribute '{}' not present in all attributes.",
-                        name.name
-                    )))
-                }
-            })
-            .collect::<Result<Vec<AttributeInfo>, SyntaxError>>()?;
+            .map(|name| AttributeInfo::new(name.into()))
+            .collect::<Vec<AttributeInfo>>();
         Ok(Self {
             key_attributes,
             all_attributes,

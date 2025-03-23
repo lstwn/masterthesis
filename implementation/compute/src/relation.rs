@@ -7,16 +7,47 @@ use std::{
     rc::Rc,
 };
 
-pub trait Tuple {
+pub trait Tuple: FromIterator<ScalarTypedValue> {
     fn data_at(&self, index: usize) -> &ScalarTypedValue;
-    fn data_iter(&self) -> impl Iterator<Item = &ScalarTypedValue>;
-    fn to_string_helper(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    /// Iterates over _all_ stored fields of the tuple,
+    /// regardless if they are part of the current schema.
+    fn data(&self) -> impl Iterator<Item = &ScalarTypedValue>;
+    /// Assumes that the passed indexes are valid for the tuple.
+    fn data_to_string(&self) -> String {
         let fields = self
-            .data_iter()
+            .data()
             .map(|field| field.to_string())
             .collect::<Vec<_>>()
             .join(" | ");
-        write!(f, "| {} |", fields)
+        format!("| {} |", fields)
+    }
+}
+
+pub struct SchemaTuple<'a, T> {
+    schema: &'a TupleSchema,
+    tuple: &'a T,
+}
+
+impl<'a, T: Tuple> SchemaTuple<'a, T> {
+    pub fn new(schema: &'a TupleSchema, tuple: &'a T) -> Self {
+        Self { schema, tuple }
+    }
+    pub fn fields(&self) -> impl Iterator<Item = &'a ScalarTypedValue> {
+        self.schema
+            .active_fields()
+            .map(|(index, info)| self.tuple.data_at(index))
+    }
+    pub fn pick(&self, fields: &Vec<String>) -> impl Iterator<Item = ScalarTypedValue> {
+        self.schema.active_fields().filter_map(|(index, info)| {
+            if fields.contains(&info.name) {
+                Some(self.tuple.data_at(index).clone())
+            } else {
+                None
+            }
+        })
+    }
+    pub fn join(&self, other: &Self) -> impl Iterator<Item = ScalarTypedValue> {
+        self.fields().chain(other.fields()).cloned()
     }
 }
 
@@ -57,14 +88,14 @@ impl Tuple for TupleValue {
     fn data_at(&self, index: usize) -> &ScalarTypedValue {
         &self.data[index]
     }
-    fn data_iter(&self) -> impl Iterator<Item = &ScalarTypedValue> {
+    fn data(&self) -> impl Iterator<Item = &ScalarTypedValue> {
         self.data.iter()
     }
 }
 
 impl Display for TupleValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_string_helper(f)
+        write!(f, "{}", self.data_to_string())
     }
 }
 
@@ -87,18 +118,26 @@ pub struct TupleKey {
     pub data: Vec<ScalarTypedValue>,
 }
 
+impl FromIterator<ScalarTypedValue> for TupleKey {
+    fn from_iter<I: IntoIterator<Item = ScalarTypedValue>>(iter: I) -> Self {
+        Self {
+            data: iter.into_iter().collect(),
+        }
+    }
+}
+
 impl Tuple for TupleKey {
     fn data_at(&self, index: usize) -> &ScalarTypedValue {
         &self.data[index]
     }
-    fn data_iter(&self) -> impl Iterator<Item = &ScalarTypedValue> {
+    fn data(&self) -> impl Iterator<Item = &ScalarTypedValue> {
         self.data.iter()
     }
 }
 
 impl Display for TupleKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_string_helper(f)
+        write!(f, "{}", self.data_to_string())
     }
 }
 
@@ -117,20 +156,20 @@ impl Display for Identifier {
 /// Convenience type alias for a reference to a [`Relation`].
 pub type RelationRef<Circuit = ChildCircuit<()>> = Rc<RefCell<Relation<Circuit>>>;
 
-pub fn new_relation(name: String, schema: Schema, inner: OrdIndexedStream) -> RelationRef {
+pub fn new_relation(name: String, schema: RelationSchema, inner: OrdIndexedStream) -> RelationRef {
     Rc::new(RefCell::new(Relation::new(name, schema, inner)))
 }
 
 #[derive(Clone, Debug)]
-pub struct AttributeInfo {
-    /// The attribute's name.
+pub struct FieldInfo {
+    /// The field's name.
     name: String,
-    /// Whether the attribute is active, that is, not eliminated by, e.g., a projection.
+    /// Whether the field is active, that is, not eliminated by, e.g., a projection.
     active: bool,
     // Maybe add type information here, too.
 }
 
-impl AttributeInfo {
+impl FieldInfo {
     fn new(name: String) -> Self {
         Self { name, active: true }
     }
@@ -139,7 +178,7 @@ impl AttributeInfo {
     }
 }
 
-impl PartialEq for AttributeInfo {
+impl PartialEq for FieldInfo {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
     }
@@ -147,98 +186,153 @@ impl PartialEq for AttributeInfo {
 
 type Index = usize;
 
-/// A [`Relation`]'s schema is a set of attributes and we store the index of each.
-#[derive(Clone, Debug)]
-pub struct Schema {
-    pub key_attributes: Vec<AttributeInfo>,
-    pub all_attributes: Vec<AttributeInfo>,
+#[derive(Clone)]
+pub struct TupleSchema {
+    fields: Vec<FieldInfo>,
 }
 
-impl Schema {
-    pub fn new<T: Into<String>>(
-        all_attributes: impl IntoIterator<Item = T>,
-        key_attributes: impl IntoIterator<Item = T>,
-    ) -> Result<Self, SyntaxError> {
-        let all_attributes = all_attributes
-            .into_iter()
-            .map(|name| AttributeInfo::new(name.into()))
-            .collect::<Vec<AttributeInfo>>();
-        let key_attributes = key_attributes
-            .into_iter()
-            .map(|name| AttributeInfo::new(name.into()))
-            .collect::<Vec<AttributeInfo>>();
-        Ok(Self {
-            key_attributes,
-            all_attributes,
-        })
-    }
-    pub fn project(&self, attributes: &Vec<&String>) -> Self {
-        let mapper = |info: &AttributeInfo| {
-            let mut info = info.clone();
-            if !attributes.contains(&&info.name) {
-                info.active = false;
-            }
-            info
-        };
+impl TupleSchema {
+    pub fn new<T: Into<String>>(fields: impl IntoIterator<Item = T>) -> Self {
         Self {
-            all_attributes: self.all_attributes.iter().map(mapper).collect(),
-            key_attributes: self.key_attributes.iter().map(mapper).collect(),
+            fields: fields
+                .into_iter()
+                .map(|name| FieldInfo::new(name.into()))
+                .collect(),
         }
+    }
+    pub fn active_fields(&self) -> impl Iterator<Item = (Index, &FieldInfo)> {
+        self.fields
+            .iter()
+            .enumerate()
+            .filter(|(_index, info)| info.active)
+    }
+    fn all_fields(&self) -> impl Iterator<Item = (Index, &FieldInfo)> {
+        self.fields.iter().enumerate()
+    }
+    pub fn select(&self) -> Self {
+        self.clone()
+    }
+    /// In contrast to the `project` method, this method does not remove fields
+    /// from the schema but marks them as inactive, thereby not coalescing the
+    /// schema and the order of fields.
+    pub fn pick(&self, fields: &Vec<String>) -> Self {
+        self.all_fields()
+            .map(|(_index, info)| {
+                let mut info = info.clone();
+                if info.active {
+                    if fields.contains(&info.name) {
+                        info.active = true;
+                    } else {
+                        info.active = false;
+                    }
+                }
+                info
+            })
+            .collect()
+    }
+    /// In case of a full projection, we coalesce the schema and remove inactive
+    /// fields. The order is also redefined according to the projection.
+    pub fn project(&self, fields: Vec<String>) -> Self {
+        fields.into_iter().collect()
     }
     pub fn join(&self, other: &Self) -> Self {
-        // TODO: how to handle name clashes?
+        self.active_fields()
+            .chain(other.active_fields())
+            .map(|(_index, info)| info)
+            .cloned()
+            .collect()
+    }
+    fn fields_to_string<'a>(
+        &self,
+        fields: impl Iterator<Item = (Index, &'a FieldInfo)>,
+        with_extra: bool,
+    ) -> String {
+        let fields = fields
+            .map(|(_, info)| {
+                if with_extra {
+                    if info.active {
+                        info.name.clone()
+                    } else {
+                        format!("[{}]", info.name)
+                    }
+                } else {
+                    info.name.clone()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" | ");
+        format!("| {} |", fields)
+    }
+}
+
+impl FromIterator<FieldInfo> for TupleSchema {
+    fn from_iter<I: IntoIterator<Item = FieldInfo>>(iter: I) -> Self {
         Self {
-            all_attributes: self
-                .all_attributes
-                .iter()
-                .chain(other.all_attributes.iter())
-                .cloned()
-                .collect(),
-            key_attributes: self
-                .key_attributes
-                .iter()
-                .chain(other.key_attributes.iter())
-                .cloned()
-                .collect(),
+            fields: iter.into_iter().collect(),
         }
     }
-    pub fn active_key_fields(&self) -> impl Iterator<Item = (Index, &AttributeInfo)> {
-        self.key_attributes
-            .iter()
-            .enumerate()
-            .filter(|(_index, info)| info.active)
+}
+
+impl FromIterator<String> for TupleSchema {
+    fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
+        Self {
+            fields: iter.into_iter().map(|name| FieldInfo::new(name)).collect(),
+        }
     }
-    fn all_key_fields(&self) -> impl Iterator<Item = (Index, &AttributeInfo)> {
-        self.key_attributes.iter().enumerate()
+}
+
+impl Debug for TupleSchema {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.fields_to_string(self.all_fields(), true))
     }
-    pub fn active_value_fields(&self) -> impl Iterator<Item = (Index, &AttributeInfo)> {
-        self.all_attributes
-            .iter()
-            .enumerate()
-            .filter(|(_index, info)| info.active)
+}
+
+impl Display for TupleSchema {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.fields_to_string(self.active_fields(), false))
     }
-    pub fn value_schema_to_string(&self) -> String {
-        let fields = self
-            .active_value_fields()
-            .map(|(_, info)| info.name.clone())
-            .collect::<Vec<_>>()
-            .join(" | ");
-        format!("| {} |", fields)
+}
+
+/// A [`Relation`]'s schema is a set of fields and we store the index of each.
+#[derive(Clone, Debug)]
+pub struct RelationSchema {
+    pub key: TupleSchema,
+    pub tuple: TupleSchema,
+}
+
+impl RelationSchema {
+    pub fn new<T: Into<String>>(
+        tuple_fields: impl IntoIterator<Item = T>,
+        key_fields: impl IntoIterator<Item = T>,
+    ) -> Result<Self, SyntaxError> {
+        Ok(Self {
+            key: TupleSchema::new(key_fields),
+            tuple: TupleSchema::new(tuple_fields),
+        })
     }
-    pub fn tuple_attributes<'tuple>(
-        &self,
-        tuple: &'tuple TupleValue,
-    ) -> impl Iterator<Item = &'tuple ScalarTypedValue> {
-        self.active_value_fields()
-            .map(|(index, info)| tuple.data_at(index))
+    /// Just clones the current schema, as selections do not alter the schema.
+    pub fn select(&self) -> Self {
+        self.clone()
     }
-    pub fn tuple_to_string(&self, tuple: &TupleValue) -> String {
-        let fields = self
-            .tuple_attributes(tuple)
-            .map(|attribute| attribute.to_string())
-            .collect::<Vec<_>>()
-            .join(" | ");
-        format!("| {} |", fields)
+    pub fn pick(&self, fields: &Vec<String>) -> Self {
+        Self {
+            // We leave the keys as they are.
+            key: self.key.clone(),
+            tuple: self.tuple.pick(fields),
+        }
+    }
+    pub fn project(&self, fields: Vec<String>) -> Self {
+        Self {
+            // We leave the keys as they are.
+            key: self.key.clone(),
+            tuple: self.tuple.project(fields),
+        }
+    }
+    pub fn join(&self, other: &Self, key_fields: impl IntoIterator<Item = String>) -> Self {
+        Self {
+            key: key_fields.into_iter().collect(),
+            tuple: self.tuple.join(&other.tuple),
+        }
     }
 }
 
@@ -247,12 +341,12 @@ pub struct Relation<Circuit = ChildCircuit<()>> {
     pub name: String,
     /// The schema of the relation. We need to track it on a per-relation basis
     /// because it may change during execution.
-    pub schema: Schema,
+    pub schema: RelationSchema,
     pub inner: Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>,
 }
 
 impl Relation {
-    pub fn new(name: String, schema: Schema, inner: OrdIndexedStream) -> Self {
+    pub fn new(name: String, schema: RelationSchema, inner: OrdIndexedStream) -> Self {
         Self {
             name,
             schema,

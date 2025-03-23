@@ -96,8 +96,8 @@ mod test {
     use super::*;
     use crate::{
         dbsp::{DbspInput, DbspInputs, DbspOutput},
-        expr::{ProjectionExpr, SelectionExpr},
-        relation::{Schema, TupleKey, TupleValue},
+        expr::{EquiJoinExpr, ProjectionExpr, SelectionExpr},
+        relation::{RelationSchema, TupleKey, TupleValue},
         scalar::ScalarTypedValue,
     };
     use ::dbsp::RootCircuit;
@@ -235,7 +235,7 @@ mod test {
                     })),
                     relation: Expr::Literal(Box::new(DbspInput::new(
                         "edges",
-                        Schema::new(["from", "to", "weight", "active"], ["from", "to"])?,
+                        RelationSchema::new(["from", "to", "weight", "active"], ["from", "to"])?,
                         root_circuit,
                         &mut dbsp_inputs,
                     ))),
@@ -318,7 +318,7 @@ mod test {
     }
 
     #[test]
-    fn test_selection() -> Result<(), anyhow::Error> {
+    fn test_selection_and_projection() -> Result<(), anyhow::Error> {
         // TODO: test multithreaded runtime
         let (circuit, (inputs, output)) = RootCircuit::build(new_selection_expr)?;
         let edges_input = inputs.get("edges").unwrap();
@@ -346,6 +346,216 @@ mod test {
         println!("Removal of data1:");
 
         edges_input.insert_with_same_weight(data1.iter(), -1);
+
+        circuit.step()?;
+
+        println!("{}", output.to_table());
+
+        Ok(())
+    }
+
+    #[derive(Clone, Debug)]
+    struct Person {
+        person_id: u64,
+        name: String,
+        age: u64,
+        profession_id: u64,
+    }
+
+    impl From<Person> for TupleKey {
+        fn from(person: Person) -> Self {
+            TupleKey {
+                data: vec![ScalarTypedValue::Uint(person.person_id)],
+            }
+        }
+    }
+
+    impl From<Person> for TupleValue {
+        fn from(person: Person) -> Self {
+            TupleValue {
+                data: vec![
+                    ScalarTypedValue::Uint(person.person_id),
+                    ScalarTypedValue::String(person.name),
+                    ScalarTypedValue::Uint(person.age),
+                    ScalarTypedValue::Uint(person.profession_id),
+                ],
+            }
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct Profession {
+        profession_id: u64,
+        name: String,
+    }
+
+    impl From<Profession> for TupleKey {
+        fn from(profession: Profession) -> Self {
+            TupleKey {
+                data: vec![ScalarTypedValue::Uint(profession.profession_id)],
+            }
+        }
+    }
+
+    impl From<Profession> for TupleValue {
+        fn from(profession: Profession) -> Self {
+            TupleValue {
+                data: vec![
+                    ScalarTypedValue::Uint(profession.profession_id),
+                    ScalarTypedValue::String(profession.name),
+                ],
+            }
+        }
+    }
+
+    #[test]
+    fn test_standard_join() -> Result<(), anyhow::Error> {
+        let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
+            let mut dbsp_inputs = DbspInputs::new();
+
+            let code = [
+                Stmt::Var(Box::new(VarStmt {
+                    name: "person".to_string(),
+                    initializer: Some(Expr::Literal(Box::new(DbspInput::new(
+                        "person",
+                        RelationSchema::new(
+                            ["person_id", "name", "age", "profession_id"],
+                            ["person_id"],
+                        )?,
+                        root_circuit,
+                        &mut dbsp_inputs,
+                    )))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "profession".to_string(),
+                    initializer: Some(Expr::Literal(Box::new(DbspInput::new(
+                        "profession",
+                        RelationSchema::new(["profession_id", "name"], ["profession_id"])?,
+                        root_circuit,
+                        &mut dbsp_inputs,
+                    )))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "joined".to_string(),
+                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
+                        left: Expr::Var(Box::new(VarExpr::new("person".to_string()))),
+                        right: Expr::Var(Box::new(VarExpr::new("profession".to_string()))),
+                        attributes: vec!["profession_id".to_string()],
+                    }))),
+                })),
+            ];
+
+            match IncLog::new().execute(code) {
+                Ok(Some(Value::Relation(relation))) => {
+                    let relation = relation.borrow();
+                    let output_handle = relation.inner.output();
+                    let output_schema = relation.schema.clone();
+                    Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
+                }
+                result => panic!("Expected a relation, got {:?}", result),
+            }
+        })?;
+        let person_input = inputs.get("person").unwrap();
+        let profession_input = inputs.get("profession").unwrap();
+
+        let persons: Vec<Person> = vec![
+            Person {
+                person_id: 0,
+                name: "Alice".to_string(),
+                age: 20,
+                profession_id: 0,
+            },
+            Person {
+                person_id: 1,
+                name: "Bob".to_string(),
+                age: 30,
+                profession_id: 1,
+            },
+            Person {
+                person_id: 2,
+                name: "Charlie".to_string(),
+                age: 40,
+                profession_id: 0,
+            },
+        ];
+
+        let professions: Vec<Profession> = vec![
+            Profession {
+                profession_id: 0,
+                name: "Engineer".to_string(),
+            },
+            Profession {
+                profession_id: 1,
+                name: "Doctor".to_string(),
+            },
+        ];
+
+        person_input.insert_with_same_weight(persons.iter(), 1);
+        profession_input.insert_with_same_weight(professions.iter(), 1);
+
+        circuit.step()?;
+
+        println!("{}", output.to_table());
+
+        Ok(())
+    }
+
+    #[test]
+    #[ignore]
+    fn test_self_join() -> Result<(), anyhow::Error> {
+        let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
+            let mut dbsp_inputs = DbspInputs::new();
+
+            let code = [
+                Stmt::Var(Box::new(VarStmt {
+                    name: "edges".to_string(),
+                    initializer: Some(Expr::Literal(Box::new(DbspInput::new(
+                        "edges",
+                        RelationSchema::new(["from", "to", "weight", "active"], ["from", "to"])?,
+                        root_circuit,
+                        &mut dbsp_inputs,
+                    )))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "len_1".to_string(),
+                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
+                        left: Expr::Var(Box::new(VarExpr::new("edges".to_string()))),
+                        right: Expr::Var(Box::new(VarExpr::new("edges".to_string()))),
+                        attributes: vec!["from".to_string()],
+                    }))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "len_2".to_string(),
+                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
+                        left: Expr::Var(Box::new(VarExpr::new("len_1".to_string()))),
+                        right: Expr::Var(Box::new(VarExpr::new("edges".to_string()))),
+                        attributes: vec!["from".to_string()],
+                    }))),
+                })),
+            ];
+
+            match IncLog::new().execute(code) {
+                Ok(Some(Value::Relation(relation))) => {
+                    let relation = relation.borrow();
+                    let output_handle = relation.inner.output();
+                    let output_schema = relation.schema.clone();
+                    Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
+                }
+                result => panic!("Expected a relation, got {:?}", result),
+            }
+        })?;
+        let edges_input = inputs.get("edges").unwrap();
+
+        let data1 = vec![
+            Edge::new(0, 1, 1),
+            Edge::new(1, 2, 1),
+            Edge::new(2, 3, 2),
+            Edge::new(3, 4, 2),
+        ];
+
+        println!("Insert of data1:");
+
+        edges_input.insert_with_same_weight(data1.iter(), 1);
 
         circuit.step()?;
 

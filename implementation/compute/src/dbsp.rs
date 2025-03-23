@@ -1,6 +1,6 @@
 use crate::{
     expr::{Literal, LiteralExpr},
-    relation::{Relation, Schema, TupleKey, TupleValue},
+    relation::{Relation, RelationSchema, SchemaTuple, TupleKey, TupleValue},
 };
 use cli_table::{Cell, Style, Table, format::Justify};
 use dbsp::{
@@ -115,14 +115,14 @@ impl DbspInputs {
 }
 
 pub struct DbspInput {
-    schema: Schema,
+    schema: RelationSchema,
     handle: OrdIndexedStreamInputHandle,
 }
 
 impl DbspInput {
     pub fn new<T: Into<String>>(
         name: T,
-        schema: Schema,
+        schema: RelationSchema,
         circuit: &mut RootCircuit,
         inputs: &mut DbspInputs,
     ) -> LiteralExpr {
@@ -160,23 +160,24 @@ impl DbspInput {
 
 pub struct DbspOutput {
     handle: OrdIndexedStreamOutputHandle,
-    schema: Schema,
+    schema: RelationSchema,
 }
 
 impl DbspOutput {
-    pub fn new(schema: Schema, handle: OrdIndexedStreamOutputHandle) -> Self {
+    pub fn new(schema: RelationSchema, handle: OrdIndexedStreamOutputHandle) -> Self {
         Self { schema, handle }
     }
     pub fn to_table(&self) -> impl Display {
+        const JUSTIFICATION: Justify = Justify::Right;
         let table = self
             .handle
             .consolidate()
             .iter()
-            .map(|(key, value, weight)| {
-                iter::once(weight.to_string().cell().justify(Justify::Right)).chain(
-                    self.schema
-                        .tuple_attributes(&value)
-                        .map(|attribute| attribute.to_string().cell().justify(Justify::Right))
+            .map(|(key, tuple, weight)| {
+                iter::once(weight.to_string().cell().justify(JUSTIFICATION)).chain(
+                    SchemaTuple::new(&self.schema.tuple, &tuple)
+                        .fields()
+                        .map(|attribute| attribute.to_string().cell().justify(JUSTIFICATION))
                         .collect::<Vec<_>>(),
                 )
             })
@@ -184,7 +185,8 @@ impl DbspOutput {
             .title(
                 iter::once("z-weight".cell()).chain(
                     self.schema
-                        .active_value_fields()
+                        .tuple
+                        .active_fields()
                         .map(|(_, info)| info.name().cell()),
                 ),
             )

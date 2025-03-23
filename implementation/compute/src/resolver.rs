@@ -2,8 +2,8 @@ use crate::{
     context::ResolverContext,
     error::SyntaxError,
     expr::{
-        AssignExpr, BinaryExpr, CallExpr, ExprVisitorMut, FunctionExpr, GroupingExpr, LiteralExpr,
-        ProjectionExpr, SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
+        AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, ExprVisitorMut, FunctionExpr, GroupingExpr,
+        LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr, UnaryExpr, VarExpr,
     },
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
     util::{Named, Resolvable},
@@ -235,6 +235,23 @@ impl<'a, 'b> ExprVisitorMut<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
         // TODO: statically check that the listed attributes are valid.
         // Implement through returning type information through `VisitorResult`.
         self.visit_expr(&mut expr.relation, ctx)
+    }
+
+    fn visit_equi_join_expr(&mut self, expr: &mut EquiJoinExpr, ctx: VisitorCtx) -> VisitorResult {
+        // TODO: statically check that the listed attributes are valid.
+        // Implement through returning type information through `VisitorResult`.
+        self.visit_expr(&mut expr.left, ctx)
+            .and_then(|()| self.visit_expr(&mut expr.right, ctx))
+    }
+
+    fn visit_theta_join_expr(
+        &mut self,
+        expr: &mut ThetaJoinExpr,
+        ctx: VisitorCtx,
+    ) -> VisitorResult {
+        self.visit_expr(&mut expr.left, ctx)
+            .and_then(|()| self.visit_expr(&mut expr.right, ctx))
+            .and_then(|()| self.visit_expr(&mut expr.condition, ctx))
     }
 }
 

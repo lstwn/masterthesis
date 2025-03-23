@@ -21,6 +21,8 @@ pub enum Expr {
     Function(Box<FunctionExpr>),
     Selection(Box<SelectionExpr>),
     Projection(Box<ProjectionExpr>),
+    EquiJoin(Box<EquiJoinExpr>),
+    ThetaJoin(Box<ThetaJoinExpr>),
 }
 
 #[derive(Clone, Debug)]
@@ -148,6 +150,8 @@ pub struct EquiJoinExpr {
     /// Must evaluate to a relation.
     pub right: Expr,
     pub attributes: Vec<String>,
+    // We could allow a projection here as an optimization, as DBSP offers to
+    // do something with the joined tuples within its callback.
 }
 
 /// A theta join is a join that uses an arbitrary condition which may be more
@@ -217,6 +221,8 @@ pub trait ExprVisitor<T, C> {
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
+            Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
+            Expr::ThetaJoin(expr) => self.visit_theta_join_expr(expr, ctx),
         }
     }
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: C) -> T;
@@ -230,6 +236,8 @@ pub trait ExprVisitor<T, C> {
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: &ProjectionExpr, ctx: C) -> T;
+    fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: C) -> T;
+    fn visit_theta_join_expr(&mut self, expr: &ThetaJoinExpr, ctx: C) -> T;
 }
 
 pub trait ExprVisitorMut<T, C> {
@@ -246,6 +254,8 @@ pub trait ExprVisitorMut<T, C> {
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
+            Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
+            Expr::ThetaJoin(expr) => self.visit_theta_join_expr(expr, ctx),
         }
     }
     fn visit_ternary_expr(&mut self, expr: &mut TernaryExpr, ctx: C) -> T;
@@ -259,6 +269,8 @@ pub trait ExprVisitorMut<T, C> {
     fn visit_call_expr(&mut self, expr: &mut CallExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &mut SelectionExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: &mut ProjectionExpr, ctx: C) -> T;
+    fn visit_equi_join_expr(&mut self, expr: &mut EquiJoinExpr, ctx: C) -> T;
+    fn visit_theta_join_expr(&mut self, expr: &mut ThetaJoinExpr, ctx: C) -> T;
 }
 
 pub trait ExprVisitorOwn<T, C> {
@@ -275,6 +287,8 @@ pub trait ExprVisitorOwn<T, C> {
             Expr::Call(expr) => self.visit_call_expr(*expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(*expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(*expr, ctx),
+            Expr::EquiJoin(expr) => self.visit_equi_join_expr(*expr, ctx),
+            Expr::ThetaJoin(expr) => self.visit_theta_join_expr(*expr, ctx),
         }
     }
     fn visit_ternary_expr(&mut self, expr: TernaryExpr, ctx: C) -> T;
@@ -288,6 +302,8 @@ pub trait ExprVisitorOwn<T, C> {
     fn visit_call_expr(&mut self, expr: CallExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: SelectionExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: ProjectionExpr, ctx: C) -> T;
+    fn visit_equi_join_expr(&mut self, expr: EquiJoinExpr, ctx: C) -> T;
+    fn visit_theta_join_expr(&mut self, expr: ThetaJoinExpr, ctx: C) -> T;
 }
 
 impl MemAddr for Expr {}
@@ -302,3 +318,5 @@ impl MemAddr for FunctionExpr {}
 impl MemAddr for CallExpr {}
 impl MemAddr for SelectionExpr {}
 impl MemAddr for ProjectionExpr {}
+impl MemAddr for EquiJoinExpr {}
+impl MemAddr for ThetaJoinExpr {}

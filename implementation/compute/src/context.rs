@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    relation::{Schema, Tuple},
+    relation::{RelationSchema, Tuple},
     resolver::ScopeStack,
     scalar::ScalarTypedValue,
     stmt::Program,
@@ -47,9 +47,10 @@ impl InterpreterContext<'_> {
             tuple_vars: HashMap::new(),
         }
     }
-    pub fn begin_tuple_ctx<T: Tuple>(&mut self, schema: &Schema, tuple: &T) {
+    pub fn begin_tuple_ctx<T: Tuple>(&mut self, schema: &RelationSchema, tuple: &T) {
         self.tuple_vars = schema
-            .active_value_fields()
+            .tuple
+            .active_fields()
             .map(|(index, info)| (info.name().to_owned(), tuple.data_at(index).clone()))
             .collect();
     }

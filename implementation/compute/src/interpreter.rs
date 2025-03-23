@@ -2,12 +2,13 @@ use crate::{
     context::InterpreterContext,
     error::RuntimeError,
     expr::{
-        AssignExpr, BinaryExpr, CallExpr, Expr, ExprVisitor, FunctionExpr, GroupingExpr,
-        LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, UnaryExpr, VarExpr,
+        AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, Expr, ExprVisitor, FunctionExpr,
+        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr,
+        UnaryExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
-    relation::{Schema, TupleValue, new_relation},
+    relation::{SchemaTuple, TupleKey, TupleValue, new_relation},
     scalar::ScalarTypedValue,
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
     variable::{Environment, Value},
@@ -87,6 +88,20 @@ macro_rules! arithmetic_helper {
             )),
         }
     }}
+}
+
+macro_rules! assert_type {
+    ($value:expr, $variant:path, $kind:expr) => {
+        match $value {
+            $variant(relation) => relation,
+            _ => {
+                return Err(RuntimeError::new(format!(
+                    "Expected {} type, got: {:?}",
+                    $kind, $value
+                )));
+            }
+        }
+    };
 }
 
 impl Interpreter {
@@ -243,10 +258,11 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
     }
 
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        let callee = match self.visit_expr(&expr.callee, ctx)? {
-            Value::Function(callee) => callee,
-            _ => return Err(RuntimeError::new("Expected function".to_string())),
-        };
+        let callee = assert_type!(
+            self.visit_expr(&expr.callee, ctx)?,
+            Value::Function,
+            "function"
+        );
         let mut callee = callee.borrow_mut();
 
         // TODO: Optimize by checking arity in resolver just _once_ statically.
@@ -281,10 +297,11 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         .map(|value| value.unwrap_or_default())
     }
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        let relation = match self.visit_expr(&expr.relation, ctx)? {
-            Value::Relation(relation) => relation,
-            _ => return Err(RuntimeError::new("Expected relation".to_string())),
-        };
+        let relation = assert_type!(
+            self.visit_expr(&expr.relation, ctx)?,
+            Value::Relation,
+            "relation"
+        );
         let relation_ref = relation.borrow();
         let relation_clone = Rc::clone(&relation);
 
@@ -303,9 +320,8 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         });
 
         Ok(Value::Relation(new_relation(
-            relation_ref.name.clone(),
-            // With selections, the schema stays the same.
-            relation_ref.schema.clone(),
+            format!("{}-selected", relation_ref.name),
+            relation_ref.schema.select(),
             selected,
         )))
     }
@@ -314,79 +330,143 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         expr: &ProjectionExpr,
         ctx: VisitorCtx,
     ) -> ExprVisitorResult {
-        let relation = match self.visit_expr(&expr.relation, ctx)? {
-            Value::Relation(relation) => relation,
-            _ => return Err(RuntimeError::new("Expected relation".to_string())),
-        };
+        let relation = assert_type!(
+            self.visit_expr(&expr.relation, ctx)?,
+            Value::Relation,
+            "relation"
+        );
         let relation_ref = relation.borrow();
 
-        let requires_dbsp = expr
-            .attributes
-            .iter()
-            .any(|attribute| attribute.1.is_some());
+        let (attributes, requires_dbsp) = expr.attributes.iter().fold(
+            (Vec::with_capacity(expr.attributes.len()), false),
+            |(mut attributes, mut requires_dbsp), (name, map_fn)| {
+                if map_fn.is_some() {
+                    requires_dbsp = true;
+                }
+                attributes.push(name.clone());
+                (attributes, requires_dbsp)
+            },
+        );
 
         let (schema, projected) = if requires_dbsp {
-            let (attributes, map_fns): (Vec<String>, Vec<Expr>) = expr
-                .attributes
-                .iter()
-                .map(|(name, map_fn)| {
-                    let map_fn_or_identity = map_fn.clone().unwrap_or_else(|| {
-                        Expr::Var(Box::new(VarExpr {
-                            name: name.clone(),
-                            resolved: None,
-                        }))
-                    });
-                    (name.clone(), map_fn_or_identity)
-                })
-                .unzip();
-            let relation_clone = Rc::clone(&relation);
-            let environment = ctx.environment.clone();
-            let projected = relation_ref.inner.map_index(move |(key, tuple)| {
-                let schema = &relation_clone.borrow().schema;
-                let mut environment = &mut environment.clone();
-                let mut new_ctx = InterpreterContext::new(&mut environment);
-                new_ctx.begin_tuple_ctx(schema, tuple);
-                let mapped_tuple: TupleValue = map_fns
-                    .iter()
-                    .map(|map_fn| {
-                        ScalarTypedValue::try_from(
-                            Interpreter::new()
-                                .evaluate(&map_fn, &mut new_ctx)
-                                .expect("Runtime error while interpreting projection function"),
-                        )
-                        .expect("Type error while interpreting projection function")
-                    })
-                    .collect();
-                // For now we leave the key as is.
-                (key.clone(), mapped_tuple)
-            });
-            let schema = Schema::new(
-                attributes,
-                relation_ref
-                    .schema
-                    .key_attributes
-                    .iter()
-                    .map(|info| info.name().to_owned()),
-            )
-            .expect("schema creation after projection");
-            (schema, projected)
-        } else {
-            let schema = relation_ref.schema.project(
-                &expr
+            let projected = relation_ref.inner.map_index({
+                let relation_clone = Rc::clone(&relation);
+                let environment = ctx.environment.clone();
+                let map_fns: Vec<Expr> = expr
                     .attributes
                     .iter()
-                    .map(|attribute| &attribute.0)
-                    .collect(),
-            );
-            let unchanged = relation_ref.inner.clone();
-            (schema, unchanged)
+                    .map(|(name, map_fn)| {
+                        let map_fn_or_identity = map_fn.clone().unwrap_or_else(|| {
+                            Expr::Var(Box::new(VarExpr {
+                                name: name.clone(),
+                                resolved: None,
+                            }))
+                        });
+                        map_fn_or_identity
+                    })
+                    .collect();
+                move |(key, tuple)| {
+                    let schema = &relation_clone.borrow().schema;
+                    let mut environment = &mut environment.clone();
+                    let mut new_ctx = InterpreterContext::new(&mut environment);
+                    new_ctx.begin_tuple_ctx(schema, tuple);
+                    let mapped_tuple: TupleValue = map_fns
+                        .iter()
+                        .map(|map_fn| {
+                            ScalarTypedValue::try_from(
+                                Interpreter::new()
+                                    .evaluate(&map_fn, &mut new_ctx)
+                                    .expect("Runtime error while interpreting projection function"),
+                            )
+                            .expect("Type error while interpreting projection function")
+                        })
+                        .collect();
+                    // For now we leave the key as is.
+                    (key.clone(), mapped_tuple)
+                }
+            });
+            let schema = relation_ref.schema.project(attributes);
+            (schema, projected)
+        } else {
+            let picked = relation_ref.inner.clone();
+            let schema = relation_ref.schema.pick(&attributes);
+            (schema, picked)
         };
 
         Ok(Value::Relation(new_relation(
-            relation_ref.name.clone(),
+            format!("{}-projected", relation_ref.name),
             schema,
             projected,
         )))
+    }
+
+    fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: VisitorCtx) -> ExprVisitorResult {
+        let left = assert_type!(
+            self.visit_expr(&expr.left, ctx)?,
+            Value::Relation,
+            "relation"
+        );
+        let left_ref = left.borrow();
+
+        let right = assert_type!(
+            self.visit_expr(&expr.right, ctx)?,
+            Value::Relation,
+            "relation"
+        );
+        let right_ref = right.borrow();
+
+        let left_indexed = left_ref.inner.map_index({
+            let left = Rc::clone(&left);
+            let key_fields = expr.attributes.clone();
+            move |(key, tuple)| {
+                let key: TupleKey = SchemaTuple::new(&left.borrow().schema.tuple, tuple)
+                    .pick(&key_fields)
+                    .collect();
+                (key, tuple.clone())
+            }
+        });
+        let right_indexed = right_ref.inner.map_index({
+            let right = Rc::clone(&right);
+            let key_fields = expr.attributes.clone();
+            move |(key, tuple)| {
+                let key: TupleKey = SchemaTuple::new(&right.borrow().schema.tuple, tuple)
+                    .pick(&key_fields)
+                    .collect();
+                (key, tuple.clone())
+            }
+        });
+        let joined = left_indexed.join_index(&right_indexed, {
+            let left_rel = Rc::clone(&left);
+            let right_rel = Rc::clone(&right);
+            move |key, left, right| {
+                let tuple = SchemaTuple::new(&left_rel.borrow().schema.tuple, left)
+                    .join(&SchemaTuple::new(&right_rel.borrow().schema.tuple, right))
+                    .collect();
+                Some((key.clone(), tuple))
+            }
+        });
+
+        let schema = left_ref
+            .schema
+            .join(&right_ref.schema, expr.attributes.clone());
+
+        Ok(Value::Relation(new_relation(
+            format!("{}-{}-joined", left_ref.name, right_ref.name),
+            schema,
+            joined,
+        )))
+    }
+
+    fn visit_theta_join_expr(
+        &mut self,
+        expr: &ThetaJoinExpr,
+        ctx: VisitorCtx,
+    ) -> ExprVisitorResult {
+        // Unfortunately, this will be a cartesian product followed by a selection,
+        // as done by most DB systems out there.
+        // Yet, there are smarter but more involved approaches:
+        // https://hpi.de/oldsite/fileadmin/user_upload/fachgebiete/naumann/publications/PDFs/2021_weise_optimized.pdf
+        todo!()
     }
 }
 

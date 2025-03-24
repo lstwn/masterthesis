@@ -149,9 +149,9 @@ pub struct EquiJoinExpr {
     pub left: Expr,
     /// Must evaluate to a relation.
     pub right: Expr,
-    pub attributes: Vec<String>,
-    // We could allow a projection here as an optimization, as DBSP offers to
-    // do something with the joined tuples within its callback.
+    pub on: Vec<String>,
+    /// An optional projection step.
+    pub attributes: Option<Vec<(String, Expr)>>,
 }
 
 /// A theta join is a join that uses an arbitrary condition which may be more

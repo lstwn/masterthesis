@@ -440,7 +440,19 @@ mod test {
                     initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
                         left: Expr::Var(Box::new(VarExpr::new("person".to_string()))),
                         right: Expr::Var(Box::new(VarExpr::new("profession".to_string()))),
-                        attributes: vec!["profession_id".to_string()],
+                        on: vec!["profession_id".to_string()],
+                        // To filter out the duplicated join column. How to handle the name clash?
+                        attributes: Some(
+                            vec!["person_id", "name", "age", "profession_id", "name"]
+                                .into_iter()
+                                .map(|name| {
+                                    (
+                                        name.to_string(),
+                                        Expr::Var(Box::new(VarExpr::new(name.to_string()))),
+                                    )
+                                })
+                                .collect(),
+                        ),
                     }))),
                 })),
             ];
@@ -521,7 +533,8 @@ mod test {
                     initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
                         left: Expr::Var(Box::new(VarExpr::new("edges".to_string()))),
                         right: Expr::Var(Box::new(VarExpr::new("edges".to_string()))),
-                        attributes: vec!["from".to_string()],
+                        on: vec!["from".to_string()],
+                        attributes: None,
                     }))),
                 })),
                 Stmt::Var(Box::new(VarStmt {
@@ -529,7 +542,8 @@ mod test {
                     initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
                         left: Expr::Var(Box::new(VarExpr::new("len_1".to_string()))),
                         right: Expr::Var(Box::new(VarExpr::new("edges".to_string()))),
-                        attributes: vec!["from".to_string()],
+                        on: vec!["from".to_string()],
+                        attributes: None,
                     }))),
                 })),
             ];

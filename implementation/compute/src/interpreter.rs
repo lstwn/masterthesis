@@ -417,7 +417,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
 
         let left_indexed = left_ref.inner.map_index({
             let left = Rc::clone(&left);
-            let key_fields = expr.attributes.clone();
+            let key_fields = expr.on.clone();
             move |(key, tuple)| {
                 let key: TupleKey = SchemaTuple::new(&left.borrow().schema.tuple, tuple)
                     .pick(&key_fields)
@@ -427,7 +427,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         });
         let right_indexed = right_ref.inner.map_index({
             let right = Rc::clone(&right);
-            let key_fields = expr.attributes.clone();
+            let key_fields = expr.on.clone();
             move |(key, tuple)| {
                 let key: TupleKey = SchemaTuple::new(&right.borrow().schema.tuple, tuple)
                     .pick(&key_fields)
@@ -435,24 +435,50 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                 (key, tuple.clone())
             }
         });
+
+        let joined_schema = left_ref.schema.join(&right_ref.schema, expr.on.clone());
+        let (final_schema, map_fns) = if let Some(info) = &expr.attributes {
+            let (names, map_fns): (Vec<String>, Vec<Expr>) = info.iter().cloned().unzip();
+            (joined_schema.project(names), Some(map_fns))
+        } else {
+            (joined_schema.clone(), None)
+        };
+
         let joined = left_indexed.join_index(&right_indexed, {
             let left_rel = Rc::clone(&left);
             let right_rel = Rc::clone(&right);
+            let environment = ctx.environment.clone();
             move |key, left, right| {
-                let tuple = SchemaTuple::new(&left_rel.borrow().schema.tuple, left)
-                    .join(&SchemaTuple::new(&right_rel.borrow().schema.tuple, right))
-                    .collect();
-                Some((key.clone(), tuple))
+                let joined_tuple: TupleValue =
+                    SchemaTuple::new(&left_rel.borrow().schema.tuple, left)
+                        .join(&SchemaTuple::new(&right_rel.borrow().schema.tuple, right))
+                        .collect();
+                let final_tuple = if let Some(map_fns) = map_fns.as_ref() {
+                    let mut environment = &mut environment.clone();
+                    let mut new_ctx = InterpreterContext::new(&mut environment);
+                    new_ctx.begin_tuple_ctx(&joined_schema, &joined_tuple);
+                    let mapped_tuple: TupleValue = map_fns
+                        .iter()
+                        .map(|map_fn| {
+                            ScalarTypedValue::try_from(
+                                Interpreter::new()
+                                    .evaluate(&map_fn, &mut new_ctx)
+                                    .expect("Runtime error while interpreting projection function"),
+                            )
+                            .expect("Type error while interpreting projection function")
+                        })
+                        .collect();
+                    mapped_tuple
+                } else {
+                    joined_tuple
+                };
+                Some((key.clone(), final_tuple))
             }
         });
 
-        let schema = left_ref
-            .schema
-            .join(&right_ref.schema, expr.attributes.clone());
-
         Ok(Value::Relation(new_relation(
             format!("{}-{}-joined", left_ref.name, right_ref.name),
-            schema,
+            final_schema,
             joined,
         )))
     }

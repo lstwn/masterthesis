@@ -19,7 +19,8 @@ For proof-of-concept:
 - [x] [nice cli table output](https://crates.io/crates/cli-table)
       for results through introduction of input/output schema?
 - [ ] join
-  - [ ] plain case
+  - [x] plain case
+  - [x] add support for projection within join
   - [ ] with same table (requires aliasing)
   - [ ] try out adding missing "link edge" incrementally
 - [ ] test multithreaded environment

@@ -96,7 +96,7 @@ mod test {
     use super::*;
     use crate::{
         dbsp::{DbspInput, DbspInputs, DbspOutput},
-        expr::{EquiJoinExpr, ProjectionExpr, SelectionExpr},
+        expr::{AliasExpr, EquiJoinExpr, ProjectionExpr, SelectionExpr},
         relation::{RelationSchema, TupleKey, TupleValue},
         scalar::ScalarTypedValue,
     };
@@ -118,7 +118,7 @@ mod test {
 
         let assignment = vec![Stmt::Expr(Box::new(ExprStmt {
             expr: Expr::Assign(Box::new(AssignExpr::new(
-                "a".to_string(),
+                "a",
                 Expr::Literal(Box::new(LiteralExpr {
                     value: Literal::Uint(2),
                 })),
@@ -140,8 +140,8 @@ mod test {
                 stmts: vec![Stmt::Expr(Box::new(ExprStmt {
                     expr: Expr::Binary(Box::new(BinaryExpr {
                         operator: Operator::Addition,
-                        left: Expr::Var(Box::new(VarExpr::new("a".to_string()))),
-                        right: Expr::Var(Box::new(VarExpr::new("b".to_string()))),
+                        left: Expr::Var(Box::new(VarExpr::new("a"))),
+                        right: Expr::Var(Box::new(VarExpr::new("b"))),
                     })),
                 }))],
             },
@@ -181,7 +181,7 @@ mod test {
             })),
             Stmt::Expr(Box::new(ExprStmt {
                 expr: Expr::Call(Box::new(CallExpr {
-                    callee: Expr::Var(Box::new(VarExpr::new("add".to_string()))),
+                    callee: Expr::Var(Box::new(VarExpr::new("add"))),
                     arguments: vec![
                         Expr::Literal(Box::new(LiteralExpr {
                             value: Literal::Uint(1),
@@ -222,11 +222,11 @@ mod test {
                     condition: Expr::Binary(Box::new(BinaryExpr {
                         operator: Operator::GreaterEqual,
                         // TODO: Try more complex logical expression with and/or.
-                        left: Expr::Var(Box::new(VarExpr::new("weight".to_string()))),
+                        left: Expr::Var(Box::new(VarExpr::new("weight"))),
                         right: Expr::Call(Box::new(CallExpr {
-                            callee: Expr::Var(Box::new(VarExpr::new("add".to_string()))),
+                            callee: Expr::Var(Box::new(VarExpr::new("add"))),
                             arguments: vec![
-                                Expr::Var(Box::new(VarExpr::new("constant".to_string()))),
+                                Expr::Var(Box::new(VarExpr::new("constant"))),
                                 Expr::Literal(Box::new(LiteralExpr {
                                     value: Literal::Uint(1),
                                 })),
@@ -234,8 +234,11 @@ mod test {
                         })),
                     })),
                     relation: Expr::Literal(Box::new(DbspInput::new(
-                        "edges",
-                        RelationSchema::new(["from", "to", "weight", "active"], ["from", "to"])?,
+                        RelationSchema::new(
+                            "edges",
+                            ["from", "to", "weight", "active"],
+                            ["from", "to"],
+                        )?,
                         root_circuit,
                         &mut dbsp_inputs,
                     ))),
@@ -253,12 +256,12 @@ mod test {
                             "mapped_weight".to_string(),
                             Some(Expr::Binary(Box::new(BinaryExpr {
                                 operator: Operator::Multiplication,
-                                left: Expr::Var(Box::new(VarExpr::new("from".to_string()))),
-                                right: Expr::Var(Box::new(VarExpr::new("to".to_string()))),
+                                left: Expr::Var(Box::new(VarExpr::new("from"))),
+                                right: Expr::Var(Box::new(VarExpr::new("to"))),
                             }))),
                         ),
                     ],
-                    relation: Expr::Var(Box::new(VarExpr::new("selected".to_string()))),
+                    relation: Expr::Var(Box::new(VarExpr::new("selected"))),
                 }))),
             })),
         ];
@@ -417,8 +420,8 @@ mod test {
                 Stmt::Var(Box::new(VarStmt {
                     name: "person".to_string(),
                     initializer: Some(Expr::Literal(Box::new(DbspInput::new(
-                        "person",
                         RelationSchema::new(
+                            "person",
                             ["person_id", "name", "age", "profession_id"],
                             ["person_id"],
                         )?,
@@ -429,8 +432,11 @@ mod test {
                 Stmt::Var(Box::new(VarStmt {
                     name: "profession".to_string(),
                     initializer: Some(Expr::Literal(Box::new(DbspInput::new(
-                        "profession",
-                        RelationSchema::new(["profession_id", "name"], ["profession_id"])?,
+                        RelationSchema::new(
+                            "profession",
+                            ["profession_id", "name"],
+                            ["profession_id"],
+                        )?,
                         root_circuit,
                         &mut dbsp_inputs,
                     )))),
@@ -438,20 +444,36 @@ mod test {
                 Stmt::Var(Box::new(VarStmt {
                     name: "joined".to_string(),
                     initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
-                        left: Expr::Var(Box::new(VarExpr::new("person".to_string()))),
-                        right: Expr::Var(Box::new(VarExpr::new("profession".to_string()))),
-                        on: vec!["profession_id".to_string()],
-                        // To filter out the duplicated join column. How to handle the name clash?
+                        left: Expr::Alias(Box::new(AliasExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("person"))),
+                            alias: "pers".to_string(),
+                        })),
+                        right: Expr::Alias(Box::new(AliasExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("profession"))),
+                            alias: "prof".to_string(),
+                        })),
+                        // TODO: Shall we force aliasing here? Technically, it isn't
+                        // required because the left attribute only operates on the left relation
+                        // and the right attribute only operates on the right relation.
+                        // Also, shall expressions be allowed here?
+                        on: vec![("profession_id".to_string(), "profession_id".to_string())],
                         attributes: Some(
-                            vec!["person_id", "name", "age", "profession_id", "name"]
-                                .into_iter()
-                                .map(|name| {
-                                    (
-                                        name.to_string(),
-                                        Expr::Var(Box::new(VarExpr::new(name.to_string()))),
-                                    )
-                                })
-                                .collect(),
+                            // Here, we filter out the duplicated profession_id column.
+                            [
+                                ("person_id", "pers.person_id"),
+                                ("person_name", "pers.name"),
+                                ("age", "pers.age"),
+                                ("profession_id", "prof.profession_id"),
+                                ("profession_name", "prof.name"),
+                            ]
+                            .into_iter()
+                            .map(|(name, identifier)| {
+                                (
+                                    name.to_string(),
+                                    Expr::Var(Box::new(VarExpr::new(identifier))),
+                                )
+                            })
+                            .collect(),
                         ),
                     }))),
                 })),
@@ -513,7 +535,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_self_join() -> Result<(), anyhow::Error> {
         let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
             let mut dbsp_inputs = DbspInputs::new();
@@ -522,28 +543,168 @@ mod test {
                 Stmt::Var(Box::new(VarStmt {
                     name: "edges".to_string(),
                     initializer: Some(Expr::Literal(Box::new(DbspInput::new(
-                        "edges",
-                        RelationSchema::new(["from", "to", "weight", "active"], ["from", "to"])?,
+                        RelationSchema::new(
+                            "edges",
+                            ["from", "to", "weight", "active"],
+                            ["from", "to"],
+                        )?,
                         root_circuit,
                         &mut dbsp_inputs,
                     )))),
                 })),
                 Stmt::Var(Box::new(VarStmt {
                     name: "len_1".to_string(),
-                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
-                        left: Expr::Var(Box::new(VarExpr::new("edges".to_string()))),
-                        right: Expr::Var(Box::new(VarExpr::new("edges".to_string()))),
-                        on: vec!["from".to_string()],
-                        attributes: None,
+                    initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
+                        relation: Expr::Alias(Box::new(AliasExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                            alias: "cur".to_string(),
+                        })),
+                        attributes: [
+                            ("from", None),
+                            ("to", None),
+                            (
+                                "cumulated_weight",
+                                Some(Expr::Var(Box::new(VarExpr::new("weight")))),
+                            ),
+                            (
+                                "hops",
+                                Some(Expr::Literal(Box::new(LiteralExpr {
+                                    value: Literal::Uint(1),
+                                }))),
+                            ),
+                        ]
+                        .into_iter()
+                        .map(|(name, expr)| (name.to_string(), expr))
+                        .collect(),
                     }))),
                 })),
                 Stmt::Var(Box::new(VarStmt {
                     name: "len_2".to_string(),
                     initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
-                        left: Expr::Var(Box::new(VarExpr::new("len_1".to_string()))),
-                        right: Expr::Var(Box::new(VarExpr::new("edges".to_string()))),
-                        on: vec!["from".to_string()],
-                        attributes: None,
+                        left: Expr::Alias(Box::new(AliasExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("len_1"))),
+                            alias: "cur".to_string(),
+                        })),
+                        right: Expr::Alias(Box::new(AliasExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                            alias: "next".to_string(),
+                        })),
+                        on: vec![("to".to_string(), "from".to_string())],
+                        attributes: Some(
+                            [
+                                ("start", Expr::Var(Box::new(VarExpr::new("cur.from")))),
+                                ("end", Expr::Var(Box::new(VarExpr::new("next.to")))),
+                                (
+                                    "cumulated_weight",
+                                    Expr::Binary(Box::new(BinaryExpr {
+                                        operator: Operator::Addition,
+                                        left: Expr::Var(Box::new(VarExpr::new(
+                                            "cur.cumulated_weight",
+                                        ))),
+                                        right: Expr::Var(Box::new(VarExpr::new("next.weight"))),
+                                    })),
+                                ),
+                                (
+                                    "hops",
+                                    Expr::Binary(Box::new(BinaryExpr {
+                                        operator: Operator::Addition,
+                                        left: Expr::Var(Box::new(VarExpr::new("cur.hops"))),
+                                        right: Expr::Literal(Box::new(LiteralExpr {
+                                            value: Literal::Uint(1),
+                                        })),
+                                    })),
+                                ),
+                            ]
+                            .into_iter()
+                            .map(|(name, expr)| (name.to_string(), expr))
+                            .collect(),
+                        ),
+                    }))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "len_3".to_string(),
+                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
+                        left: Expr::Alias(Box::new(AliasExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("len_2"))),
+                            alias: "cur".to_string(),
+                        })),
+                        right: Expr::Alias(Box::new(AliasExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                            alias: "next".to_string(),
+                        })),
+                        on: vec![("end".to_string(), "from".to_string())],
+                        attributes: Some(
+                            [
+                                ("start", Expr::Var(Box::new(VarExpr::new("cur.start")))),
+                                ("end", Expr::Var(Box::new(VarExpr::new("next.to")))),
+                                (
+                                    "cumulated_weight",
+                                    Expr::Binary(Box::new(BinaryExpr {
+                                        operator: Operator::Addition,
+                                        left: Expr::Var(Box::new(VarExpr::new(
+                                            "cur.cumulated_weight",
+                                        ))),
+                                        right: Expr::Var(Box::new(VarExpr::new("next.weight"))),
+                                    })),
+                                ),
+                                (
+                                    "hops",
+                                    Expr::Binary(Box::new(BinaryExpr {
+                                        operator: Operator::Addition,
+                                        left: Expr::Var(Box::new(VarExpr::new("cur.hops"))),
+                                        right: Expr::Literal(Box::new(LiteralExpr {
+                                            value: Literal::Uint(1),
+                                        })),
+                                    })),
+                                ),
+                            ]
+                            .into_iter()
+                            .map(|(name, expr)| (name.to_string(), expr))
+                            .collect(),
+                        ),
+                    }))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "len_4".to_string(),
+                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
+                        left: Expr::Alias(Box::new(AliasExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("len_3"))),
+                            alias: "cur".to_string(),
+                        })),
+                        right: Expr::Alias(Box::new(AliasExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                            alias: "next".to_string(),
+                        })),
+                        on: vec![("end".to_string(), "from".to_string())],
+                        attributes: Some(
+                            [
+                                ("start", Expr::Var(Box::new(VarExpr::new("cur.start")))),
+                                ("end", Expr::Var(Box::new(VarExpr::new("next.to")))),
+                                (
+                                    "cumulated_weight",
+                                    Expr::Binary(Box::new(BinaryExpr {
+                                        operator: Operator::Addition,
+                                        left: Expr::Var(Box::new(VarExpr::new(
+                                            "cur.cumulated_weight",
+                                        ))),
+                                        right: Expr::Var(Box::new(VarExpr::new("next.weight"))),
+                                    })),
+                                ),
+                                (
+                                    "hops",
+                                    Expr::Binary(Box::new(BinaryExpr {
+                                        operator: Operator::Addition,
+                                        left: Expr::Var(Box::new(VarExpr::new("cur.hops"))),
+                                        right: Expr::Literal(Box::new(LiteralExpr {
+                                            value: Literal::Uint(1),
+                                        })),
+                                    })),
+                                ),
+                            ]
+                            .into_iter()
+                            .map(|(name, expr)| (name.to_string(), expr))
+                            .collect(),
+                        ),
                     }))),
                 })),
             ];
@@ -560,16 +721,26 @@ mod test {
         })?;
         let edges_input = inputs.get("edges").unwrap();
 
-        let data1 = vec![
+        let init_data = vec![
             Edge::new(0, 1, 1),
-            Edge::new(1, 2, 1),
+            // Edge::new(1, 2, 1),
             Edge::new(2, 3, 2),
             Edge::new(3, 4, 2),
         ];
 
-        println!("Insert of data1:");
+        println!("Insert of init_data:");
 
-        edges_input.insert_with_same_weight(data1.iter(), 1);
+        edges_input.insert_with_same_weight(init_data.iter(), 1);
+
+        circuit.step()?;
+
+        println!("{}", output.to_table());
+
+        let extra_data = vec![Edge::new(1, 2, 1)];
+
+        println!("Insert of extra_data:");
+
+        edges_input.insert_with_same_weight(extra_data.iter(), 1);
 
         circuit.step()?;
 

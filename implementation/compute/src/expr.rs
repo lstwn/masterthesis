@@ -19,6 +19,7 @@ pub enum Expr {
     Literal(Box<LiteralExpr>),
     Call(Box<CallExpr>),
     Function(Box<FunctionExpr>),
+    Alias(Box<AliasExpr>),
     Selection(Box<SelectionExpr>),
     Projection(Box<ProjectionExpr>),
     EquiJoin(Box<EquiJoinExpr>),
@@ -58,9 +59,9 @@ pub struct VarExpr {
 }
 
 impl VarExpr {
-    pub fn new(name: String) -> Self {
+    pub fn new<T: Into<String>>(name: T) -> Self {
         Self {
-            name,
+            name: name.into(),
             resolved: None,
         }
     }
@@ -86,9 +87,9 @@ pub struct AssignExpr {
 }
 
 impl AssignExpr {
-    pub fn new(name: String, value: Expr) -> Self {
+    pub fn new<T: Into<String>>(name: T, value: Expr) -> Self {
         Self {
-            name,
+            name: name.into(),
             value,
             resolved: None,
         }
@@ -125,6 +126,12 @@ pub struct CallExpr {
 }
 
 #[derive(Clone, Debug)]
+pub struct AliasExpr {
+    pub relation: Expr,
+    pub alias: String,
+}
+
+#[derive(Clone, Debug)]
 pub struct SelectionExpr {
     pub relation: Expr,
     pub condition: Expr,
@@ -149,7 +156,12 @@ pub struct EquiJoinExpr {
     pub left: Expr,
     /// Must evaluate to a relation.
     pub right: Expr,
-    pub on: Vec<String>,
+    /// The attributes to join on. The first element is the attribute of the
+    /// left relation, and the second element is the attribute of the right
+    /// relation.
+    /// Each attribute pair should produce the same type.
+    /// Why not use a `Vec<(Expr, Expr, String)>`?
+    pub on: Vec<(String, String)>,
     /// An optional projection step.
     pub attributes: Option<Vec<(String, Expr)>>,
 }
@@ -157,7 +169,6 @@ pub struct EquiJoinExpr {
 /// A theta join is a join that uses an arbitrary condition which may be more
 /// complicated than just equality of attribute(s).
 /// [More information on join classifications](https://stackoverflow.com/a/7870216).
-// TODO
 #[derive(Clone, Debug)]
 pub struct ThetaJoinExpr {
     /// Must evaluate to a relation.
@@ -165,6 +176,8 @@ pub struct ThetaJoinExpr {
     /// Must evaluate to a relation.
     pub right: Expr,
     pub condition: Expr,
+    /// An optional projection step.
+    pub attributes: Option<Vec<(String, Expr)>>,
 }
 
 /// Iteration until the condition is met. Should include fixed-point computations.
@@ -202,7 +215,7 @@ impl Display for Literal {
             Literal::Iint(value) => write!(f, "{}", value),
             Literal::Bool(value) => write!(f, "{}", value),
             Literal::Null(()) => write!(f, "null"),
-            Literal::Relation(value) => write!(f, "relation {}", value.name),
+            Literal::Relation(value) => write!(f, "relation {}", value.schema.name),
         }
     }
 }
@@ -219,6 +232,7 @@ pub trait ExprVisitor<T, C> {
             Expr::Literal(expr) => self.visit_literal_expr(expr, ctx),
             Expr::Function(expr) => self.visit_function_expr(expr, ctx),
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
+            Expr::Alias(expr) => self.visit_alias_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
@@ -234,6 +248,7 @@ pub trait ExprVisitor<T, C> {
     fn visit_literal_expr(&mut self, expr: &LiteralExpr, ctx: C) -> T;
     fn visit_function_expr(&mut self, expr: &FunctionExpr, ctx: C) -> T;
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: C) -> T;
+    fn visit_alias_expr(&mut self, expr: &AliasExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: &ProjectionExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: C) -> T;
@@ -252,6 +267,7 @@ pub trait ExprVisitorMut<T, C> {
             Expr::Literal(expr) => self.visit_literal_expr(expr, ctx),
             Expr::Function(expr) => self.visit_function_expr(expr, ctx),
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
+            Expr::Alias(expr) => self.visit_alias_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
@@ -267,6 +283,7 @@ pub trait ExprVisitorMut<T, C> {
     fn visit_literal_expr(&mut self, expr: &mut LiteralExpr, ctx: C) -> T;
     fn visit_function_expr(&mut self, expr: &mut FunctionExpr, ctx: C) -> T;
     fn visit_call_expr(&mut self, expr: &mut CallExpr, ctx: C) -> T;
+    fn visit_alias_expr(&mut self, expr: &mut AliasExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &mut SelectionExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: &mut ProjectionExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &mut EquiJoinExpr, ctx: C) -> T;
@@ -285,6 +302,7 @@ pub trait ExprVisitorOwn<T, C> {
             Expr::Literal(expr) => self.visit_literal_expr(*expr, ctx),
             Expr::Function(expr) => self.visit_function_expr(*expr, ctx),
             Expr::Call(expr) => self.visit_call_expr(*expr, ctx),
+            Expr::Alias(expr) => self.visit_alias_expr(*expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(*expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(*expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(*expr, ctx),
@@ -301,6 +319,7 @@ pub trait ExprVisitorOwn<T, C> {
     fn visit_function_expr(&mut self, expr: FunctionExpr, ctx: C) -> T;
     fn visit_call_expr(&mut self, expr: CallExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: SelectionExpr, ctx: C) -> T;
+    fn visit_alias_expr(&mut self, expr: AliasExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: ProjectionExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: EquiJoinExpr, ctx: C) -> T;
     fn visit_theta_join_expr(&mut self, expr: ThetaJoinExpr, ctx: C) -> T;
@@ -316,7 +335,9 @@ impl MemAddr for AssignExpr {}
 impl MemAddr for LiteralExpr {}
 impl MemAddr for FunctionExpr {}
 impl MemAddr for CallExpr {}
+impl MemAddr for AliasExpr {}
 impl MemAddr for SelectionExpr {}
 impl MemAddr for ProjectionExpr {}
 impl MemAddr for EquiJoinExpr {}
 impl MemAddr for ThetaJoinExpr {}
+impl MemAddr for Iteration {}

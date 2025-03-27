@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    relation::{RelationSchema, Tuple},
+    relation::{SchemaTuple, Tuple, TupleSchema},
     resolver::ScopeStack,
     scalar::ScalarTypedValue,
     stmt::Program,
@@ -38,6 +38,8 @@ pub struct InterpreterContext<'a> {
     /// as a variable.
     // No need to wrap it in an Option because HashMap::new() does not allocate!
     pub tuple_vars: HashMap<String, ScalarTypedValue>,
+    /// Stores the most recent alias for a relation.
+    alias: Option<String>,
 }
 
 impl InterpreterContext<'_> {
@@ -45,16 +47,25 @@ impl InterpreterContext<'_> {
         InterpreterContext {
             environment,
             tuple_vars: HashMap::new(),
+            alias: None,
         }
     }
-    pub fn begin_tuple_ctx<T: Tuple>(&mut self, schema: &RelationSchema, tuple: &T) {
-        self.tuple_vars = schema
-            .tuple
-            .active_fields()
-            .map(|(index, info)| (info.name().to_owned(), tuple.data_at(index).clone()))
-            .collect();
+    pub fn set_alias(&mut self, alias: String) {
+        self.alias = Some(alias);
     }
-    pub fn end_tuple_ctx(&mut self) {
+    pub fn consume_alias(&mut self) -> Option<String> {
+        self.alias.take()
+    }
+    pub fn extend_tuple_ctx<T: Tuple>(
+        &mut self,
+        alias: &Option<String>,
+        schema: &TupleSchema,
+        tuple: &T,
+    ) {
+        self.tuple_vars
+            .extend(SchemaTuple::new(&schema, tuple).named_fields(alias));
+    }
+    pub fn clear_tuple_ctx(&mut self) {
         self.tuple_vars.clear();
     }
 }

@@ -2,8 +2,9 @@ use crate::{
     context::ResolverContext,
     error::SyntaxError,
     expr::{
-        AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, ExprVisitorMut, FunctionExpr, GroupingExpr,
-        LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr, UnaryExpr, VarExpr,
+        AliasExpr, AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, ExprVisitorMut, FunctionExpr,
+        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr,
+        UnaryExpr, VarExpr,
     },
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
     util::{Named, Resolvable},
@@ -219,6 +220,11 @@ impl<'a, 'b> ExprVisitorMut<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
         }
         Ok(())
     }
+
+    fn visit_alias_expr(&mut self, expr: &mut AliasExpr, ctx: VisitorCtx) -> VisitorResult {
+        self.visit_expr(&mut expr.relation, ctx)
+    }
+
     fn visit_selection_expr(&mut self, expr: &mut SelectionExpr, ctx: VisitorCtx) -> VisitorResult {
         self.visit_expr(&mut expr.relation, ctx).and_then(|()| {
             ctx.begin_tuple_context();
@@ -227,6 +233,7 @@ impl<'a, 'b> ExprVisitorMut<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
             ret
         })
     }
+
     fn visit_projection_expr(
         &mut self,
         expr: &mut ProjectionExpr,

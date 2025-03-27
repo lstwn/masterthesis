@@ -120,21 +120,19 @@ pub struct DbspInput {
 }
 
 impl DbspInput {
-    pub fn new<T: Into<String>>(
-        name: T,
+    pub fn new(
         schema: RelationSchema,
         circuit: &mut RootCircuit,
         inputs: &mut DbspInputs,
     ) -> LiteralExpr {
         let (stream, handle) = new_ord_indexed_stream(circuit);
-        let name = name.into();
         let input = Self {
             schema: schema.clone(),
             handle,
         };
-        inputs.insert(name.clone(), input);
+        inputs.insert(schema.name.clone(), input);
         LiteralExpr {
-            value: Literal::Relation(Relation::new(name, schema, stream)),
+            value: Literal::Relation(Relation::new(schema, stream)),
         }
     }
     pub fn handle(&self) -> &OrdIndexedStreamInputHandle {
@@ -183,12 +181,8 @@ impl DbspOutput {
             })
             .table()
             .title(
-                iter::once("z-weight".cell()).chain(
-                    self.schema
-                        .tuple
-                        .active_fields()
-                        .map(|(_, info)| info.name().cell()),
-                ),
+                iter::once("z-weight".cell())
+                    .chain(self.schema.tuple.field_names(&None).map(|name| name.cell())),
             )
             .bold(true);
         table.display().expect("table error")

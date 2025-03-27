@@ -2,7 +2,7 @@ use crate::{
     context::InterpreterContext,
     error::RuntimeError,
     expr::{
-        AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, Expr, ExprVisitor, FunctionExpr,
+        AliasExpr, AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, Expr, ExprVisitor, FunctionExpr,
         GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr,
         UnaryExpr, VarExpr,
     },
@@ -93,7 +93,7 @@ macro_rules! arithmetic_helper {
 macro_rules! assert_type {
     ($value:expr, $variant:path, $kind:expr) => {
         match $value {
-            $variant(relation) => relation,
+            $variant(inner) => inner,
             _ => {
                 return Err(RuntimeError::new(format!(
                     "Expected {} type, got: {:?}",
@@ -219,7 +219,6 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                     // This should never happen because the resolver should have resolved
                     // all non-tuple variables before the interpreter starts.
                     .expect(&format!("Unresolved variable '{name}'."));
-                // Maybe make values reference counted instead of cloning here?
                 Ok(ctx.environment.lookup_var(resolved).clone())
             },
             |value| Ok(Value::from(value.clone())),
@@ -296,6 +295,12 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         // anything.
         .map(|value| value.unwrap_or_default())
     }
+
+    fn visit_alias_expr(&mut self, expr: &AliasExpr, ctx: VisitorCtx) -> ExprVisitorResult {
+        ctx.set_alias(expr.alias.clone());
+        self.visit_expr(&expr.relation, ctx)
+    }
+
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         let relation = assert_type!(
             self.visit_expr(&expr.relation, ctx)?,
@@ -307,12 +312,12 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
 
         let condition = expr.condition.clone();
         let environment = ctx.environment.clone();
-        let selected = relation_ref.inner.filter(move |(key, tuple)| {
+        let selected = relation_ref.inner.filter(move |(_key, tuple)| {
             // No need to run resolver here, already resolved!
             let schema = &relation_clone.borrow().schema;
             let mut environment = &mut environment.clone();
             let mut new_ctx = InterpreterContext::new(&mut environment);
-            new_ctx.begin_tuple_ctx(schema, tuple);
+            new_ctx.extend_tuple_ctx(&None, &schema.tuple, tuple);
             let value = Interpreter::new()
                 .evaluate(&condition, &mut new_ctx)
                 .expect("Runtime error while interpreting selection condition");
@@ -320,11 +325,11 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         });
 
         Ok(Value::Relation(new_relation(
-            format!("{}-selected", relation_ref.name),
             relation_ref.schema.select(),
             selected,
         )))
     }
+
     fn visit_projection_expr(
         &mut self,
         expr: &ProjectionExpr,
@@ -369,7 +374,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                     let schema = &relation_clone.borrow().schema;
                     let mut environment = &mut environment.clone();
                     let mut new_ctx = InterpreterContext::new(&mut environment);
-                    new_ctx.begin_tuple_ctx(schema, tuple);
+                    new_ctx.extend_tuple_ctx(&None, &schema.tuple, tuple);
                     let mapped_tuple: TupleValue = map_fns
                         .iter()
                         .map(|map_fn| {
@@ -393,11 +398,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             (schema, picked)
         };
 
-        Ok(Value::Relation(new_relation(
-            format!("{}-projected", relation_ref.name),
-            schema,
-            projected,
-        )))
+        Ok(Value::Relation(new_relation(schema, projected)))
     }
 
     fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: VisitorCtx) -> ExprVisitorResult {
@@ -406,21 +407,30 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             Value::Relation,
             "relation"
         );
-        let left_ref = left.borrow();
+        // Observe the order here. Before we evaluate the right expression,
+        // we have to consume the alias of the left relation because it is
+        // replaced by the right relation's alias otherwise.
+        let left_alias = ctx.consume_alias();
 
         let right = assert_type!(
             self.visit_expr(&expr.right, ctx)?,
             Value::Relation,
             "relation"
         );
+        let right_alias = ctx.consume_alias();
+
+        let left_ref = left.borrow();
         let right_ref = right.borrow();
+
+        let (left_key_fields, right_key_fields): (Vec<String>, Vec<String>) =
+            expr.on.iter().cloned().unzip();
 
         let left_indexed = left_ref.inner.map_index({
             let left = Rc::clone(&left);
-            let key_fields = expr.on.clone();
-            move |(key, tuple)| {
+            let left_key_fields = left_key_fields.clone();
+            move |(_key, tuple)| {
                 let key: TupleKey = SchemaTuple::new(&left.borrow().schema.tuple, tuple)
-                    .pick(&key_fields)
+                    .pick(&left_key_fields)
                     .collect();
                 (key, tuple.clone())
             }
@@ -428,20 +438,20 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         let right_indexed = right_ref.inner.map_index({
             let right = Rc::clone(&right);
             let key_fields = expr.on.clone();
-            move |(key, tuple)| {
+            move |(_key, tuple)| {
                 let key: TupleKey = SchemaTuple::new(&right.borrow().schema.tuple, tuple)
-                    .pick(&key_fields)
+                    .pick(&right_key_fields)
                     .collect();
                 (key, tuple.clone())
             }
         });
 
-        let joined_schema = left_ref.schema.join(&right_ref.schema, expr.on.clone());
+        let joined_schema = left_ref.schema.join(&right_ref.schema, left_key_fields);
         let (final_schema, map_fns) = if let Some(info) = &expr.attributes {
             let (names, map_fns): (Vec<String>, Vec<Expr>) = info.iter().cloned().unzip();
             (joined_schema.project(names), Some(map_fns))
         } else {
-            (joined_schema.clone(), None)
+            (joined_schema, None)
         };
 
         let joined = left_indexed.join_index(&right_indexed, {
@@ -453,10 +463,11 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                     SchemaTuple::new(&left_rel.borrow().schema.tuple, left)
                         .join(&SchemaTuple::new(&right_rel.borrow().schema.tuple, right))
                         .collect();
-                let final_tuple = if let Some(map_fns) = map_fns.as_ref() {
+                let final_tuple: TupleValue = if let Some(map_fns) = map_fns.as_ref() {
                     let mut environment = &mut environment.clone();
                     let mut new_ctx = InterpreterContext::new(&mut environment);
-                    new_ctx.begin_tuple_ctx(&joined_schema, &joined_tuple);
+                    new_ctx.extend_tuple_ctx(&left_alias, &left_rel.borrow().schema.tuple, left);
+                    new_ctx.extend_tuple_ctx(&right_alias, &right_rel.borrow().schema.tuple, right);
                     let mapped_tuple: TupleValue = map_fns
                         .iter()
                         .map(|map_fn| {
@@ -476,11 +487,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             }
         });
 
-        Ok(Value::Relation(new_relation(
-            format!("{}-{}-joined", left_ref.name, right_ref.name),
-            final_schema,
-            joined,
-        )))
+        Ok(Value::Relation(new_relation(final_schema, joined)))
     }
 
     fn visit_theta_join_expr(
@@ -492,7 +499,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         // as done by most DB systems out there.
         // Yet, there are smarter but more involved approaches:
         // https://hpi.de/oldsite/fileadmin/user_upload/fachgebiete/naumann/publications/PDFs/2021_weise_optimized.pdf
-        todo!()
+        unimplemented!("Theta joins are not yet implemented. Are they actually required?")
     }
 }
 

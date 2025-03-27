@@ -37,6 +37,14 @@ impl<'a, T: Tuple> SchemaTuple<'a, T> {
             .active_fields()
             .map(|(index, info)| self.tuple.data_at(index))
     }
+    pub fn named_fields(
+        &self,
+        alias: &Option<String>,
+    ) -> impl Iterator<Item = (String, ScalarTypedValue)> {
+        self.schema
+            .active_fields()
+            .map(|(index, info)| (info.name(alias), self.tuple.data_at(index).clone()))
+    }
     pub fn pick(&self, fields: &Vec<String>) -> impl Iterator<Item = ScalarTypedValue> {
         self.schema.active_fields().filter_map(|(index, info)| {
             if fields.contains(&info.name) {
@@ -156,8 +164,8 @@ impl Display for Identifier {
 /// Convenience type alias for a reference to a [`Relation`].
 pub type RelationRef<Circuit = ChildCircuit<()>> = Rc<RefCell<Relation<Circuit>>>;
 
-pub fn new_relation(name: String, schema: RelationSchema, inner: OrdIndexedStream) -> RelationRef {
-    Rc::new(RefCell::new(Relation::new(name, schema, inner)))
+pub fn new_relation(schema: RelationSchema, inner: OrdIndexedStream) -> RelationRef {
+    Rc::new(RefCell::new(Relation::new(schema, inner)))
 }
 
 #[derive(Clone, Debug)]
@@ -173,8 +181,11 @@ impl FieldInfo {
     fn new(name: String) -> Self {
         Self { name, active: true }
     }
-    pub fn name(&self) -> &str {
-        &self.name
+    fn name(&self, alias: &Option<String>) -> String {
+        alias
+            .as_ref()
+            .map(|alias| format!("{}.{}", alias, self.name))
+            .unwrap_or_else(|| self.name.clone())
     }
 }
 
@@ -200,7 +211,7 @@ impl TupleSchema {
                 .collect(),
         }
     }
-    pub fn active_fields(&self) -> impl Iterator<Item = (Index, &FieldInfo)> {
+    fn active_fields(&self) -> impl Iterator<Item = (Index, &FieldInfo)> {
         self.fields
             .iter()
             .enumerate()
@@ -208,6 +219,9 @@ impl TupleSchema {
     }
     fn all_fields(&self) -> impl Iterator<Item = (Index, &FieldInfo)> {
         self.fields.iter().enumerate()
+    }
+    pub fn field_names(&self, alias: &Option<String>) -> impl Iterator<Item = String> {
+        self.active_fields().map(|(_index, info)| info.name(alias))
     }
     pub fn select(&self) -> Self {
         self.clone()
@@ -296,26 +310,36 @@ impl Display for TupleSchema {
 /// A [`Relation`]'s schema is a set of fields and we store the index of each.
 #[derive(Clone, Debug)]
 pub struct RelationSchema {
+    /// Not a real name to reference the relation but more like a transformation trace.
+    /// Real names are handled by variable names.
+    pub name: String,
     pub key: TupleSchema,
     pub tuple: TupleSchema,
 }
 
 impl RelationSchema {
     pub fn new<T: Into<String>>(
+        name: T,
         tuple_fields: impl IntoIterator<Item = T>,
         key_fields: impl IntoIterator<Item = T>,
     ) -> Result<Self, SyntaxError> {
         Ok(Self {
+            name: name.into(),
             key: TupleSchema::new(key_fields),
             tuple: TupleSchema::new(tuple_fields),
         })
     }
     /// Just clones the current schema, as selections do not alter the schema.
     pub fn select(&self) -> Self {
-        self.clone()
+        Self {
+            name: format!("{}-selected", self.name),
+            key: self.key.clone(),
+            tuple: self.tuple.clone(),
+        }
     }
     pub fn pick(&self, fields: &Vec<String>) -> Self {
         Self {
+            name: format!("{}-picked", self.name),
             // We leave the keys as they are.
             key: self.key.clone(),
             tuple: self.tuple.pick(fields),
@@ -323,6 +347,7 @@ impl RelationSchema {
     }
     pub fn project(&self, fields: Vec<String>) -> Self {
         Self {
+            name: format!("{}-projected", self.name),
             // We leave the keys as they are.
             key: self.key.clone(),
             tuple: self.tuple.project(fields),
@@ -330,15 +355,21 @@ impl RelationSchema {
     }
     pub fn join(&self, other: &Self, key_fields: impl IntoIterator<Item = String>) -> Self {
         Self {
+            name: format!("{}-{}-joined", self.name, other.name),
             key: key_fields.into_iter().collect(),
             tuple: self.tuple.join(&other.tuple),
         }
     }
 }
 
+impl Display for RelationSchema {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<relation {}>", self.name)
+    }
+}
+
 #[derive(Clone)]
 pub struct Relation<Circuit = ChildCircuit<()>> {
-    pub name: String,
     /// The schema of the relation. We need to track it on a per-relation basis
     /// because it may change during execution.
     pub schema: RelationSchema,
@@ -346,26 +377,19 @@ pub struct Relation<Circuit = ChildCircuit<()>> {
 }
 
 impl Relation {
-    pub fn new(name: String, schema: RelationSchema, inner: OrdIndexedStream) -> Self {
-        Self {
-            name,
-            schema,
-            inner,
-        }
-    }
-    fn to_string_helper(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<relation {}>", self.name)
+    pub fn new(schema: RelationSchema, inner: OrdIndexedStream) -> Self {
+        Self { schema, inner }
     }
 }
 
 impl Display for Relation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_string_helper(f)
+        write!(f, "{}", self.schema)
     }
 }
 
 impl Debug for Relation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_string_helper(f)
+        write!(f, "{}", self.schema)
     }
 }

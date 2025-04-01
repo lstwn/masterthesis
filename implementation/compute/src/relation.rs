@@ -168,7 +168,7 @@ pub fn new_relation(schema: RelationSchema, inner: OrdIndexedStream) -> Relation
     Rc::new(RefCell::new(Relation::new(schema, inner)))
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldInfo {
     /// The field's name.
     name: String,
@@ -189,15 +189,9 @@ impl FieldInfo {
     }
 }
 
-impl PartialEq for FieldInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
 type Index = usize;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct TupleSchema {
     fields: Vec<FieldInfo>,
 }
@@ -367,6 +361,14 @@ impl Display for RelationSchema {
         write!(f, "<relation {}>", self.name)
     }
 }
+
+impl PartialEq for RelationSchema {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key && self.tuple == other.tuple
+    }
+}
+
+impl Eq for RelationSchema {}
 
 #[derive(Clone)]
 pub struct Relation<Circuit = ChildCircuit<()>> {

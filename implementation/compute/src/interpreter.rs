@@ -4,16 +4,16 @@ use crate::{
     expr::{
         AliasExpr, AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, Expr, ExprVisitor, FunctionExpr,
         GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr,
-        UnaryExpr, VarExpr,
+        UnaryExpr, UnionExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
-    relation::{SchemaTuple, TupleKey, TupleValue, new_relation},
+    relation::{Relation, RelationRef, SchemaTuple, TupleKey, TupleValue, new_relation},
     scalar::ScalarTypedValue,
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
     variable::{Environment, Value},
 };
-use std::rc::Rc;
+use std::{cell::Ref, rc::Rc};
 
 pub struct Interpreter {}
 
@@ -96,7 +96,7 @@ macro_rules! assert_type {
             $variant(inner) => inner,
             _ => {
                 return Err(RuntimeError::new(format!(
-                    "Expected {} type, got: {:?}",
+                    "expected {} type, got: {:?}",
                     $kind, $value
                 )));
             }
@@ -267,7 +267,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         // TODO: Optimize by checking arity in resolver just _once_ statically.
         if expr.arguments.len() != callee.arity() {
             return Err(RuntimeError::new(format!(
-                "Expected exactly {} arguments, but got {}",
+                "expected exactly {} arguments, but got {}",
                 callee.arity(),
                 expr.arguments.len()
             )));
@@ -299,6 +299,33 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
     fn visit_alias_expr(&mut self, expr: &AliasExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         ctx.set_alias(expr.alias.clone());
         self.visit_expr(&expr.relation, ctx)
+    }
+
+    fn visit_union_expr(&mut self, expr: &UnionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
+        let relations: Vec<RelationRef> = expr
+            .relations
+            .iter()
+            .map(|relation| match self.visit_expr(relation, ctx)? {
+                Value::Relation(relation) => Ok(relation),
+                value => Err(RuntimeError::new(format!(
+                    "expected relation type, got: {:?}",
+                    value
+                ))),
+            })
+            .collect::<Result<Vec<RelationRef>, RuntimeError>>()?;
+
+        let relations: Vec<Ref<'_, Relation>> =
+            relations.iter().map(|relation| relation.borrow()).collect();
+
+        let (first, others) = relations
+            .split_first()
+            .expect("Resolver has *not* done its job and ensured that there are at least two operands to a union!");
+
+        let unioned = first
+            .inner
+            .sum(others.iter().map(|relation| &relation.inner));
+
+        Ok(Value::Relation(new_relation(first.schema.clone(), unioned)))
     }
 
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: VisitorCtx) -> ExprVisitorResult {

@@ -4,7 +4,7 @@ use crate::{
     expr::{
         AliasExpr, AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, ExprVisitorMut, FunctionExpr,
         GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr,
-        UnaryExpr, VarExpr,
+        UnaryExpr, UnionExpr, VarExpr,
     },
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
     util::{Named, Resolvable},
@@ -223,6 +223,17 @@ impl<'a, 'b> ExprVisitorMut<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
 
     fn visit_alias_expr(&mut self, expr: &mut AliasExpr, ctx: VisitorCtx) -> VisitorResult {
         self.visit_expr(&mut expr.relation, ctx)
+    }
+
+    fn visit_union_expr(&mut self, expr: &mut UnionExpr, ctx: VisitorCtx) -> VisitorResult {
+        // TODO: Typecheck: A union is valid if the column types match and
+        // the amount of columns is the same.
+        if expr.relations.len() < 2 {
+            return Err(SyntaxError::new("Union requires at least two relations"));
+        }
+        expr.relations
+            .iter_mut()
+            .try_for_each(|relation| self.visit_expr(relation, ctx))
     }
 
     fn visit_selection_expr(&mut self, expr: &mut SelectionExpr, ctx: VisitorCtx) -> VisitorResult {

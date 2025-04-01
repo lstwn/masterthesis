@@ -96,7 +96,7 @@ mod test {
     use super::*;
     use crate::{
         dbsp::{DbspInput, DbspInputs, DbspOutput},
-        expr::{AliasExpr, EquiJoinExpr, ProjectionExpr, SelectionExpr},
+        expr::{AliasExpr, EquiJoinExpr, ProjectionExpr, SelectionExpr, UnionExpr},
         relation::{RelationSchema, TupleKey, TupleValue},
         scalar::ScalarTypedValue,
     };
@@ -707,6 +707,15 @@ mod test {
                         ),
                     }))),
                 })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "len_3_4".to_string(),
+                    initializer: Some(Expr::Union(Box::new(UnionExpr {
+                        relations: ["len_1", "len_2", "len_3", "len_4"]
+                            .into_iter()
+                            .map(|name| Expr::Var(Box::new(VarExpr::new(name))))
+                            .collect(),
+                    }))),
+                })),
             ];
 
             match IncLog::new().execute(code) {
@@ -723,7 +732,7 @@ mod test {
 
         let init_data = vec![
             Edge::new(0, 1, 1),
-            // Edge::new(1, 2, 1),
+            Edge::new(1, 2, 1),
             Edge::new(2, 3, 2),
             Edge::new(3, 4, 2),
         ];
@@ -736,15 +745,15 @@ mod test {
 
         println!("{}", output.to_table());
 
-        let extra_data = vec![Edge::new(1, 2, 1)];
+        // let extra_data = vec![Edge::new(1, 2, 1)];
 
-        println!("Insert of extra_data:");
+        // println!("Insert of extra_data:");
 
-        edges_input.insert_with_same_weight(extra_data.iter(), 1);
+        // edges_input.insert_with_same_weight(extra_data.iter(), 1);
 
-        circuit.step()?;
+        // circuit.step()?;
 
-        println!("{}", output.to_table());
+        // println!("{}", output.to_table());
 
         Ok(())
     }

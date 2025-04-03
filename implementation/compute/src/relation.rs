@@ -217,33 +217,43 @@ impl TupleSchema {
     pub fn field_names(&self, alias: &Option<String>) -> impl Iterator<Item = String> {
         self.active_fields().map(|(_index, info)| info.name(alias))
     }
-    pub fn select(&self) -> Self {
+    fn select(&self) -> Self {
         self.clone()
     }
     /// In contrast to the `project` method, this method does not remove fields
     /// from the schema but marks them as inactive, thereby not coalescing the
-    /// schema and the order of fields.
-    pub fn pick(&self, fields: &Vec<String>) -> Self {
+    /// schema and the order of fields. Optionally, you can rename a field by
+    /// providing an alias/new name/target name as a second element.
+    fn pick(&self, fields: &Vec<(&String, Option<&String>)>) -> Self {
+        // Don't use active_fields() here because the tuple is not coalesced
+        // although we can only pick from the set of active fields though.
         self.all_fields()
             .map(|(_index, info)| {
-                let mut info = info.clone();
-                if info.active {
-                    if fields.contains(&info.name) {
-                        info.active = true;
-                    } else {
-                        info.active = false;
+                if !info.active {
+                    return info.clone();
+                }
+                if let Some((source_name, target_name)) =
+                    fields.iter().find(|field| *field.0 == info.name)
+                {
+                    let name = target_name
+                        .map(|name| name.clone())
+                        .unwrap_or_else(|| info.name.clone());
+                    FieldInfo::new(name) // Field is active by constructor.
+                } else {
+                    FieldInfo {
+                        name: info.name.clone(),
+                        active: false,
                     }
                 }
-                info
             })
             .collect()
     }
     /// In case of a full projection, we coalesce the schema and remove inactive
     /// fields. The order is also redefined according to the projection.
-    pub fn project(&self, fields: Vec<String>) -> Self {
+    fn project(&self, fields: Vec<String>) -> Self {
         fields.into_iter().collect()
     }
-    pub fn join(&self, other: &Self) -> Self {
+    fn join(&self, other: &Self) -> Self {
         self.active_fields()
             .chain(other.active_fields())
             .map(|(_index, info)| info)
@@ -331,7 +341,7 @@ impl RelationSchema {
             tuple: self.tuple.clone(),
         }
     }
-    pub fn pick(&self, fields: &Vec<String>) -> Self {
+    pub fn pick(&self, fields: &Vec<(&String, Option<&String>)>) -> Self {
         Self {
             name: format!("{}-picked", self.name),
             // We leave the keys as they are.

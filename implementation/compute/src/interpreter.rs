@@ -8,8 +8,8 @@ use crate::{
     },
     function::new_function,
     operator::Operator,
+    operators::projection::{ProjectionStrategy, projection_helper},
     relation::{Relation, RelationRef, SchemaTuple, TupleKey, TupleValue, new_relation},
-    scalar::ScalarTypedValue,
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
     variable::{Environment, Value},
 };
@@ -36,7 +36,7 @@ impl Interpreter {
         debug_assert!(ctx.environment.just_global());
         ret
     }
-    fn evaluate(&mut self, expr: &Expr, ctx: VisitorCtx) -> Result<Value, RuntimeError> {
+    pub fn evaluate(&mut self, expr: &Expr, ctx: VisitorCtx) -> Result<Value, RuntimeError> {
         self.visit_expr(expr, ctx)
     }
     fn visit_stmts<'a>(
@@ -369,60 +369,29 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         );
         let relation_ref = relation.borrow();
 
-        let (attributes, requires_dbsp) = expr.attributes.iter().fold(
-            (Vec::with_capacity(expr.attributes.len()), false),
-            |(mut attributes, mut requires_dbsp), (name, map_fn)| {
-                if map_fn.is_some() {
-                    requires_dbsp = true;
-                }
-                attributes.push(name.clone());
-                (attributes, requires_dbsp)
-            },
-        );
-
-        let (schema, projected) = if requires_dbsp {
-            let projected = relation_ref.inner.map_index({
-                let relation_clone = Rc::clone(&relation);
-                let environment = ctx.environment.clone();
-                let map_fns: Vec<Expr> = expr
-                    .attributes
-                    .iter()
-                    .map(|(name, map_fn)| {
-                        let map_fn_or_identity = map_fn.clone().unwrap_or_else(|| {
-                            Expr::Var(Box::new(VarExpr {
-                                name: name.clone(),
-                                resolved: None,
-                            }))
-                        });
-                        map_fn_or_identity
-                    })
-                    .collect();
-                move |(key, tuple)| {
-                    let schema = &relation_clone.borrow().schema;
-                    let mut environment = &mut environment.clone();
-                    let mut new_ctx = InterpreterContext::new(&mut environment);
-                    new_ctx.extend_tuple_ctx(&None, &schema.tuple, tuple);
-                    let mapped_tuple: TupleValue = map_fns
-                        .iter()
-                        .map(|map_fn| {
-                            ScalarTypedValue::try_from(
-                                Interpreter::new()
-                                    .evaluate(&map_fn, &mut new_ctx)
-                                    .expect("Runtime error while interpreting projection function"),
-                            )
-                            .expect("Type error while interpreting projection function")
-                        })
-                        .collect();
-                    // For now we leave the key as is.
-                    (key.clone(), mapped_tuple)
-                }
-            });
-            let schema = relation_ref.schema.project(attributes);
-            (schema, projected)
-        } else {
-            let picked = relation_ref.inner.clone();
-            let schema = relation_ref.schema.pick(&attributes);
-            (schema, picked)
+        let (schema, projected) = match projection_helper(&expr.attributes) {
+            ProjectionStrategy::Projection(projection) => {
+                let (schema, projection) = projection.prepare(&relation_ref.schema);
+                let projected = relation_ref.inner.map_index({
+                    let relation_clone = Rc::clone(&relation);
+                    let environment = ctx.environment.clone();
+                    move |(key, tuple)| {
+                        let schema = &relation_clone.borrow().schema;
+                        let mut environment = &mut environment.clone();
+                        let mut new_ctx = InterpreterContext::new(&mut environment);
+                        new_ctx.extend_tuple_ctx(&None, &schema.tuple, tuple);
+                        let projected_tuple = projection(new_ctx);
+                        // For now we leave the key as is.
+                        (key.clone(), projected_tuple)
+                    }
+                });
+                (schema, projected)
+            }
+            ProjectionStrategy::Pick(pick) => {
+                let schema = pick.prepare(&relation_ref.schema);
+                let picked = relation_ref.inner.clone();
+                (schema, picked)
+            }
         };
 
         Ok(Value::Relation(new_relation(schema, projected)))
@@ -474,47 +443,48 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         });
 
         let joined_schema = left_ref.schema.join(&right_ref.schema, left_key_fields);
-        let (final_schema, map_fns) = if let Some(info) = &expr.attributes {
-            let (names, map_fns): (Vec<String>, Vec<Expr>) = info.iter().cloned().unzip();
-            (joined_schema.project(names), Some(map_fns))
-        } else {
-            (joined_schema, None)
+
+        let (schema, projection) = match expr
+            .attributes
+            .as_ref()
+            .map(|attributes| projection_helper(attributes))
+        {
+            Some(ProjectionStrategy::Projection(projection)) => {
+                let (projected_schema, projection) = projection.prepare(&joined_schema);
+                (projected_schema, Some(projection))
+            }
+            Some(ProjectionStrategy::Pick(pick)) => {
+                let picked_schema = pick.prepare(&joined_schema);
+                (picked_schema, None)
+            }
+            None => (joined_schema, None),
         };
 
         let joined = left_indexed.join_index(&right_indexed, {
             let left_rel = Rc::clone(&left);
             let right_rel = Rc::clone(&right);
             let environment = ctx.environment.clone();
-            move |key, left, right| {
-                let joined_tuple: TupleValue =
-                    SchemaTuple::new(&left_rel.borrow().schema.tuple, left)
-                        .join(&SchemaTuple::new(&right_rel.borrow().schema.tuple, right))
-                        .collect();
-                let final_tuple: TupleValue = if let Some(map_fns) = map_fns.as_ref() {
+            move |key: &TupleKey, left, right| {
+                let left_schema = &left_rel.borrow().schema;
+                let right_schema = &right_rel.borrow().schema;
+                let joined_tuple: TupleValue = SchemaTuple::new(&left_schema.tuple, left)
+                    .join(&SchemaTuple::new(&right_schema.tuple, right))
+                    .collect();
+                let value = if let Some(projection) = &projection {
                     let mut environment = &mut environment.clone();
                     let mut new_ctx = InterpreterContext::new(&mut environment);
-                    new_ctx.extend_tuple_ctx(&left_alias, &left_rel.borrow().schema.tuple, left);
-                    new_ctx.extend_tuple_ctx(&right_alias, &right_rel.borrow().schema.tuple, right);
-                    let mapped_tuple: TupleValue = map_fns
-                        .iter()
-                        .map(|map_fn| {
-                            ScalarTypedValue::try_from(
-                                Interpreter::new()
-                                    .evaluate(&map_fn, &mut new_ctx)
-                                    .expect("Runtime error while interpreting projection function"),
-                            )
-                            .expect("Type error while interpreting projection function")
-                        })
-                        .collect();
-                    mapped_tuple
+                    new_ctx.extend_tuple_ctx(&left_alias, &left_schema.tuple, left);
+                    new_ctx.extend_tuple_ctx(&right_alias, &right_schema.tuple, right);
+                    let projected_tuple = projection(new_ctx);
+                    projected_tuple
                 } else {
                     joined_tuple
                 };
-                Some((key.clone(), final_tuple))
+                Some((key.clone(), value))
             }
         });
 
-        Ok(Value::Relation(new_relation(final_schema, joined)))
+        Ok(Value::Relation(new_relation(schema, joined)))
     }
 
     fn visit_theta_join_expr(

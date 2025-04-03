@@ -134,7 +134,8 @@ pub struct AliasExpr {
 
 #[derive(Clone, Debug)]
 pub struct UnionExpr {
-    /// All Exprs must evaluate to a relation and have the same schema.
+    /// All `Expr`s must evaluate to a relation and have a compatible schema,
+    /// that is, the same order and arity of attributes with same types, respectively.
     pub relations: Vec<Expr>,
 }
 
@@ -148,10 +149,14 @@ pub struct SelectionExpr {
 pub struct ProjectionExpr {
     /// Must evaluate to a relation.
     pub relation: Expr,
-    /// The attributes to map over. The second element is the expression which
-    /// produces the new value of the attribute. If the second element is
-    /// `None`, the attribute is left unchanged.
-    pub attributes: Vec<(String, Option<Expr>)>,
+    /// The attributes to map over. The first element `String` is the name
+    /// of the attribute. The second element `Expr` is the expression
+    /// which produces the new value of the attribute.
+    ///
+    /// In case the `Expr` is just a `VarExpr` referencing a **tuple** variable,
+    /// the interpreter is not run to evaluate the expression but instead only
+    /// the schema is changed.
+    pub attributes: Vec<(String, Expr)>,
 }
 
 /// An equi join is a join that exclusively uses equality of attribute(s).
@@ -169,7 +174,7 @@ pub struct EquiJoinExpr {
     /// Each attribute pair should produce the same type.
     /// Why not use a `Vec<(Expr, Expr, String)>`?
     pub on: Vec<(String, String)>,
-    /// An optional projection step.
+    /// An optional projection step. See documentation of [`ProjectionExpr`].
     pub attributes: Option<Vec<(String, Expr)>>,
 }
 
@@ -183,7 +188,7 @@ pub struct ThetaJoinExpr {
     /// Must evaluate to a relation.
     pub right: Expr,
     pub condition: Expr,
-    /// An optional projection step.
+    /// An optional projection step. See documentation of [`ProjectionExpr`].
     pub attributes: Option<Vec<(String, Expr)>>,
 }
 

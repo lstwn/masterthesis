@@ -7,6 +7,7 @@ mod expr;
 mod function;
 mod interpreter;
 mod operator;
+mod operators;
 mod relation;
 mod resolver;
 mod scalar;
@@ -247,21 +248,20 @@ mod test {
             Stmt::Var(Box::new(VarStmt {
                 name: "projected".to_string(),
                 initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
-                    attributes: vec![
-                        ("from".to_string(), None),
-                        ("to".to_string(), None),
-                        ("weight".to_string(), None),
-                        (
+                    relation: Expr::Var(Box::new(VarExpr::new("selected"))),
+                    attributes: ["from", "to", "weight"]
+                        .into_iter()
+                        .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
+                        .chain([(
                             // Here we create an entirely new column.
-                            "mapped_weight".to_string(),
-                            Some(Expr::Binary(Box::new(BinaryExpr {
+                            "product_from_to".to_string(),
+                            Expr::Binary(Box::new(BinaryExpr {
                                 operator: Operator::Multiplication,
                                 left: Expr::Var(Box::new(VarExpr::new("from"))),
                                 right: Expr::Var(Box::new(VarExpr::new("to"))),
-                            }))),
-                        ),
-                    ],
-                    relation: Expr::Var(Box::new(VarExpr::new("selected"))),
+                            })),
+                        )])
+                        .collect(),
                 }))),
             })),
         ];
@@ -457,6 +457,7 @@ mod test {
                         // and the right attribute only operates on the right relation.
                         // Also, shall expressions be allowed here?
                         on: vec![("profession_id".to_string(), "profession_id".to_string())],
+                        // attributes: None,
                         attributes: Some(
                             // Here, we filter out the duplicated profession_id column.
                             [
@@ -559,23 +560,25 @@ mod test {
                             relation: Expr::Var(Box::new(VarExpr::new("edges"))),
                             alias: "cur".to_string(),
                         })),
-                        attributes: [
-                            ("from", None),
-                            ("to", None),
-                            (
-                                "cumulated_weight",
-                                Some(Expr::Var(Box::new(VarExpr::new("weight")))),
-                            ),
-                            (
-                                "hops",
-                                Some(Expr::Literal(Box::new(LiteralExpr {
-                                    value: Literal::Uint(1),
-                                }))),
-                            ),
-                        ]
-                        .into_iter()
-                        .map(|(name, expr)| (name.to_string(), expr))
-                        .collect(),
+                        attributes: ["from", "to"]
+                            .into_iter()
+                            .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
+                            .chain(
+                                [
+                                    (
+                                        "cumulated_weight",
+                                        Expr::Var(Box::new(VarExpr::new("weight"))),
+                                    ),
+                                    (
+                                        "hops",
+                                        Expr::Literal(Box::new(LiteralExpr {
+                                            value: Literal::Uint(1),
+                                        })),
+                                    ),
+                                ]
+                                .map(|(name, expr)| (name.to_string(), expr)),
+                            )
+                            .collect(),
                     }))),
                 })),
                 Stmt::Var(Box::new(VarStmt {
@@ -708,7 +711,7 @@ mod test {
                     }))),
                 })),
                 Stmt::Var(Box::new(VarStmt {
-                    name: "len_3_4".to_string(),
+                    name: "full_closure".to_string(),
                     initializer: Some(Expr::Union(Box::new(UnionExpr {
                         relations: ["len_1", "len_2", "len_3", "len_4"]
                             .into_iter()

@@ -943,9 +943,9 @@ dependencies = [
 
 [[package]]
 name = "dbsp"
-version = "0.41.0"
+version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ae9c7ca30fb271a7509307365277eadb316ddefbb8e588952af057b4f739d57"
+checksum = "91f6f8df82e84a5715a2dd4404562df3f6a5c59e5cf4a914e8dfb4c1b65374dc"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1145,6 +1145,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
+name = "erased-serde"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c138974f9d5e7fe373eb04df7cae98833802ae4b11c24ac7039a21d5af4b26c"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1199,9 +1208,9 @@ dependencies = [
 
 [[package]]
 name = "feldera-storage"
-version = "0.41.0"
+version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15543aaec0e9fe6b5d60a07e0b23bf89d775a82a2c5048809e9a15964fcdd636"
+checksum = "74b043e180da31d3366fe4c2f5df70ea3b43fad5d5c12079382c528afa4c717e"
 dependencies = [
  "feldera-types",
  "inventory",
@@ -1219,13 +1228,14 @@ dependencies = [
 
 [[package]]
 name = "feldera-types"
-version = "0.41.0"
+version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "095a3a8a58d71acc95a423ac4d0cf8db614ad474dcf3b4453b45fbee673fc483"
+checksum = "e196c3c80920cd7cdac8d9e04310e2d3842f2690d1e79f42e8c7a8dd9d3c922e"
 dependencies = [
  "actix-web",
  "anyhow",
  "enum-map",
+ "erased-serde",
  "feldera_rust_decimal",
  "libc",
  "log",
@@ -1233,6 +1243,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "utoipa",
+ "uuid",
 ]
 
 [[package]]
@@ -3748,9 +3759,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.15.1"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0f540e3240398cce6128b64ba83fdbdd86129c16a3aa1a3a252efd66eb3d587"
+checksum = "458f7a779bf54acc9f347480ac654f68407d3aab21269a6e3c9f922acd9e2da9"
 dependencies = [
  "getrandom 0.3.1",
  "serde",

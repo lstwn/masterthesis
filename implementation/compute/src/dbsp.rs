@@ -188,3 +188,92 @@ impl DbspOutput {
         table.display().expect("table error")
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use dbsp::{
+        Circuit,
+        operator::{Generator, Z1},
+    };
+    use std::{cell::RefCell, rc::Rc};
+
+    // TODO: Provide a PR to DBSP because their example is buggy and panics.
+    #[test]
+    fn test_iterate() -> Result<(), anyhow::Error> {
+        let (circuit, output) = RootCircuit::build(|circuit| {
+            // Generate sequence 0, 1, 2, ...
+            let mut n: usize = 0;
+            let source = circuit.add_source(Generator::new(move || {
+                let result = n;
+                n = n + 1;
+                result
+            }));
+            // Compute factorial of each number in the sequence.
+            let fact = circuit.iterate(|child| {
+                let counter = Rc::new(RefCell::new(1));
+                let counter_clone = Rc::clone(&counter);
+                let countdown = source.delta0(child).apply(move |parent_val| {
+                    let mut counter_local = counter_clone.borrow_mut();
+                    *counter_local += *parent_val;
+                    let res = *counter_local;
+                    *counter_local -= 1;
+                    res
+                });
+                let (z1_output, z1_feedback) = child.add_feedback_with_export(Z1::new(1));
+                let multiplication =
+                    countdown.apply2(&z1_output.local, |n1: &usize, n2: &usize| n1 * n2);
+                z1_feedback.connect(&multiplication);
+                // Stop iterating once the counter reached 0.
+                Ok((move || Ok(*counter.borrow() == 0), z1_output.export))
+            })?;
+            Ok(fact.output())
+        })?;
+
+        let factorial = |n: usize| (1..n).fold(1, |acc, cur| acc * cur);
+        let iterations = 10;
+        for i in 1..=iterations {
+            circuit.step()?;
+            let result = output.take_from_all();
+            let result = result.first().unwrap();
+            println!("Step {:3}: {:3}! = {}", i, i - 1, result);
+            assert_eq!(*result, factorial(i));
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_feedback() -> Result<(), anyhow::Error> {
+        let (circuit, output) = RootCircuit::build(|circuit| {
+            // Create a data source.
+            let mut n: usize = 1;
+            let source = circuit.add_source(Generator::new(move || {
+                let result = n;
+                n = n + 1;
+                result
+            }));
+            // Create z1.  `z1_output` will contain the output stream of `z1`; `z1_feedback`
+            // is a placeholder where we can later plug the input to `z1`.
+            let (z1_output, z1_feedback) = circuit.add_feedback(Z1::new(0));
+            // Connect outputs of `source` and `z1` to the plus operator.
+            let plus = source.apply2(&z1_output, |n1: &usize, n2: &usize| n1 + n2);
+            // Connect the output of `+` as input to `z1`.
+            z1_feedback.connect(&plus);
+
+            Ok(z1_output.output())
+        })?;
+
+        let sum_first_natural_numbers = |n: usize| (n * (n + 1)) / 2;
+        let iterations = 10;
+        for i in 1..=iterations {
+            circuit.step()?;
+            let result = output.take_from_all();
+            let result = result.first().unwrap();
+            println!("Step {:3}: \\sum_{{i=0}}^{} i = {}", i, i - 1, result);
+            assert_eq!(*result, sum_first_natural_numbers(i - 1));
+        }
+
+        Ok(())
+    }
+}

@@ -556,10 +556,7 @@ mod test {
                 Stmt::Var(Box::new(VarStmt {
                     name: "len_1".to_string(),
                     initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
-                        relation: Expr::Alias(Box::new(AliasExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("edges"))),
-                            alias: "cur".to_string(),
-                        })),
+                        relation: Expr::Var(Box::new(VarExpr::new("edges"))),
                         attributes: ["from", "to"]
                             .into_iter()
                             .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
@@ -724,6 +721,150 @@ mod test {
             match IncLog::new().execute(code) {
                 Ok(Some(Value::Relation(relation))) => {
                     let relation = relation.borrow();
+                    let output_handle = relation.inner.output();
+                    let output_schema = relation.schema.clone();
+                    Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
+                }
+                result => panic!("Expected a relation, got {:?}", result),
+            }
+        })?;
+        let edges_input = inputs.get("edges").unwrap();
+
+        let init_data = vec![
+            Edge::new(0, 1, 1),
+            Edge::new(1, 2, 1),
+            Edge::new(2, 3, 2),
+            Edge::new(3, 4, 2),
+        ];
+
+        println!("Insert of init_data:");
+
+        edges_input.insert_with_same_weight(init_data.iter(), 1);
+
+        circuit.step()?;
+
+        println!("{}", output.to_table());
+
+        // let extra_data = vec![Edge::new(1, 2, 1)];
+
+        // println!("Insert of extra_data:");
+
+        // edges_input.insert_with_same_weight(extra_data.iter(), 1);
+
+        // circuit.step()?;
+
+        // println!("{}", output.to_table());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_iteration() -> Result<(), anyhow::Error> {
+        let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
+            let mut dbsp_inputs = DbspInputs::new();
+
+            let code = [
+                Stmt::Var(Box::new(VarStmt {
+                    name: "edges".to_string(),
+                    initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
+                        relation: Expr::Literal(Box::new(DbspInput::new(
+                            RelationSchema::new(
+                                "edges",
+                                ["from", "to", "weight", "active"],
+                                ["from", "to"],
+                            )?,
+                            root_circuit,
+                            &mut dbsp_inputs,
+                        ))),
+                        attributes: ["from", "to", "weight"]
+                            .into_iter()
+                            .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
+                            .collect(),
+                    }))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "base".to_string(),
+                    initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
+                        relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                        attributes: ["from", "to"]
+                            .into_iter()
+                            .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
+                            .chain(
+                                [
+                                    (
+                                        "cumulated_weight",
+                                        Expr::Var(Box::new(VarExpr::new("weight"))),
+                                    ),
+                                    (
+                                        "hopcount",
+                                        Expr::Literal(Box::new(LiteralExpr {
+                                            value: Literal::Uint(1),
+                                        })),
+                                    ),
+                                ]
+                                .map(|(name, expr)| (name.to_string(), expr)),
+                            )
+                            .collect(),
+                    }))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "step".to_string(),
+                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
+                        left: Expr::Alias(Box::new(AliasExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("base"))),
+                            alias: "cur".to_string(),
+                        })),
+                        right: Expr::Alias(Box::new(AliasExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                            alias: "next".to_string(),
+                        })),
+                        on: vec![("to".to_string(), "from".to_string())],
+                        attributes: Some(
+                            [
+                                ("start", Expr::Var(Box::new(VarExpr::new("cur.from")))),
+                                ("end", Expr::Var(Box::new(VarExpr::new("next.to")))),
+                                (
+                                    "cumulated_weight",
+                                    Expr::Binary(Box::new(BinaryExpr {
+                                        operator: Operator::Addition,
+                                        left: Expr::Var(Box::new(VarExpr::new(
+                                            "cur.cumulated_weight",
+                                        ))),
+                                        right: Expr::Var(Box::new(VarExpr::new("next.weight"))),
+                                    })),
+                                ),
+                                (
+                                    "hopcount",
+                                    Expr::Binary(Box::new(BinaryExpr {
+                                        operator: Operator::Addition,
+                                        left: Expr::Var(Box::new(VarExpr::new("cur.hopcount"))),
+                                        right: Expr::Literal(Box::new(LiteralExpr {
+                                            value: Literal::Uint(1),
+                                        })),
+                                    })),
+                                ),
+                            ]
+                            .into_iter()
+                            .map(|(name, expr)| (name.to_string(), expr))
+                            .collect(),
+                        ),
+                    }))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "closure".to_string(),
+                    initializer: Some(Expr::Union(Box::new(UnionExpr {
+                        relations: ["base", "step"]
+                            .into_iter()
+                            .map(|name| Expr::Var(Box::new(VarExpr::new(name))))
+                            .collect(),
+                    }))),
+                })),
+            ];
+
+            match IncLog::new().execute(code) {
+                Ok(Some(Value::Relation(relation))) => {
+                    let relation = relation.borrow();
+                    // relation.inner.condition(|arg| arg.len() == 0);
                     let output_handle = relation.inner.output();
                     let output_schema = relation.schema.clone();
                     Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))

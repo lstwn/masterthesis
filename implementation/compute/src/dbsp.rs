@@ -50,8 +50,6 @@ impl IndexedTestStream {
         let copy: usize = 12;
         let non_copy = String::from("hi");
 
-        // TODO: How to move interpreter state into the closure?
-
         let selected: OrdIndexedStream = self.a.inner.filter(move |tuple| {
             // Put attributes into scope. How?
             // - Define vars uninitialized beforehand and just assign them here?
@@ -195,12 +193,180 @@ mod test {
     use dbsp::{
         Circuit,
         operator::{Generator, Z1},
+        utils::{Tup2, Tup3, Tup4},
+        zset, zset_set,
     };
     use std::{cell::RefCell, rc::Rc};
 
-    // TODO: Provide a PR to DBSP because their example is buggy and panics.
+    // TODO: Provide a PR to DBSP with this example.
     #[test]
-    fn test_iterate() -> Result<(), anyhow::Error> {
+    fn test_transitive_closure() -> Result<(), anyhow::Error> {
+        let (circuit, output_handle) = RootCircuit::build(move |root_circuit| {
+            let mut edges_data = vec![
+                // The first clock cycle adds a graph of four nodes:
+                // |0| -1-> |1| -1-> |2| -2-> |3| -2-> |4|
+                zset_set! { Tup3(0 as usize, 1 as usize, 1 as usize), Tup3(1, 2, 1), Tup3(2, 3, 2), Tup3(3, 4, 2) },
+                // The second clock cycle removes the edge |1| -1-> |2|.
+                zset! { Tup3(1, 2, 1) => -1 },
+            ]
+            .into_iter();
+
+            let edges = root_circuit.add_source(Generator::new(move || edges_data.next().unwrap()));
+
+            // Create a base relation with all paths of length 1.
+            let len_1 = edges
+                .map(|Tup3(from, to, weight)| Tup4(from.clone(), to.clone(), weight.clone(), 1));
+
+            let closure = root_circuit.recursive(
+                |child_circuit, len_n_minus_1: Stream<_, OrdZSet<Tup4<usize, usize, usize, usize>>>| {
+                    // Import the `edges` and `len_1` relation from the parent circuit.
+                    let edges = edges.delta0(child_circuit);
+                    let len_1 = len_1.delta0(child_circuit);
+
+                    // Perform an iterative step (n-1 to n) through joining the
+                    // paths of length n-1 with the edges.
+                    let len_n = len_n_minus_1
+                        .map_index(|Tup4(start, end, cum_weight, hopcnt)| {
+                            (
+                                end.clone(),
+                                Tup4(start.clone(), end.clone(), cum_weight.clone(), hopcnt.clone()),
+                            )
+                        })
+                        .join(
+                            &edges.map_index(|Tup3(from, to, weight)| {
+                                (from.clone(), Tup3(from.clone(), to.clone(), weight.clone()))
+                            }),
+                            |_end_from,
+                             Tup4(start, _end, cum_weight, hopcnt),
+                             Tup3(_from, to, weight)| {
+                                Tup4(start.clone(), to.clone(), cum_weight + weight, hopcnt + 1)
+                            },
+                        )
+                        .plus(&len_1);
+
+                    Ok(len_n)
+                },
+            )?;
+
+            let mut expected_outputs = vec![
+                // We expect the full transitive closure in the first clock cycle.
+                zset! {
+                    Tup4(0, 1, 1, 1) => 1,
+                    Tup4(0, 2, 2, 2) => 1,
+                    Tup4(0, 3, 4, 3) => 1,
+                    Tup4(0, 4, 6, 4) => 1,
+                    Tup4(1, 2, 1, 1) => 1,
+                    Tup4(1, 3, 3, 2) => 1,
+                    Tup4(1, 4, 5, 3) => 1,
+                    Tup4(2, 3, 2, 1) => 1,
+                    Tup4(2, 4, 4, 2) => 1,
+                    Tup4(3, 4, 2, 1) => 1,
+                },
+                // These paths are removed in the second clock cycle.
+                zset! {
+                    Tup4(0, 2, 2, 2) => -1,
+                    Tup4(0, 3, 4, 3) => -1,
+                    Tup4(0, 4, 6, 4) => -1,
+                    Tup4(1, 2, 1, 1) => -1,
+                    Tup4(1, 3, 3, 2) => -1,
+                    Tup4(1, 4, 5, 3) => -1,
+                },
+            ]
+            .into_iter();
+
+            closure.inspect(move |output| {
+                assert_eq!(*output, expected_outputs.next().unwrap());
+            });
+
+            Ok(closure.output())
+        })?;
+
+        for _ in 0..2 {
+            circuit.step()?;
+        }
+
+        Ok(())
+    }
+
+    // Taken from the [DBSP docs](https://docs.rs/dbsp/latest/dbsp/circuit/circuit_builder/struct.ChildCircuit.html#method.recursive).
+    #[test]
+    fn test_recursive() -> Result<(), anyhow::Error> {
+        // Propagate labels along graph edges.
+        let (circuit, output_handle) = RootCircuit::build(move |root_circuit| {
+            // Graph topology.
+            let mut edges = vec![
+                // Start with four nodes connected in a cycle.
+                zset_set! { Tup2(1, 2), Tup2(2, 3), Tup2(3, 4), Tup2(4, 1) },
+                // Add an edge.
+                zset_set! { Tup2(4, 5) },
+                // Remove an edge, breaking the cycle.
+                zset! { Tup2(1, 2) => -1 },
+            ]
+            .into_iter();
+
+            let edges = root_circuit.add_source(Generator::new(move || edges.next().unwrap()));
+
+            // Initial labeling of the graph.
+            let mut init_labels = vec![
+                // Start with a single label on node 1.
+                zset_set! { Tup2(1, "l1".to_string()) },
+                // Add a label to node 2.
+                zset_set! { Tup2(2, "l2".to_string()) },
+                zset! {},
+            ]
+            .into_iter();
+
+            let init_labels =
+                root_circuit.add_source(Generator::new(move || init_labels.next().unwrap()));
+
+            let labels = root_circuit
+                .recursive(
+                    |child_circuit, labels: Stream<_, OrdZSet<Tup2<u64, String>>>| {
+                        // Import `edges` and `init_labels` relations from the parent circuit.
+                        let edges = edges.delta0(child_circuit);
+                        let init_labels = init_labels.delta0(child_circuit);
+
+                        // Given an edge `from -> to` where the `from` node is labeled with `l`,
+                        // propagate `l` to node `to`.
+                        let result = labels
+                            .map_index(|Tup2(x, y)| (x.clone(), y.clone()))
+                            .join(
+                                &edges.map_index(|Tup2(x, y)| (x.clone(), y.clone())),
+                                |_from, l, to| Tup2(*to, l.clone()),
+                            )
+                            .plus(&init_labels);
+                        Ok(result)
+                    },
+                )
+                .unwrap();
+
+            // Expected _changes_ to the output graph labeling after each clock cycle.
+            let mut expected_outputs = vec![
+                zset! { Tup2(1, "l1".to_string()) => 1, Tup2(2, "l1".to_string()) => 1, Tup2(3, "l1".to_string()) => 1, Tup2(4, "l1".to_string()) => 1 },
+                zset! { Tup2(1, "l2".to_string()) => 1, Tup2(2, "l2".to_string()) => 1, Tup2(3, "l2".to_string()) => 1, Tup2(4, "l2".to_string()) => 1, Tup2(5, "l1".to_string()) => 1, Tup2(5, "l2".to_string()) => 1 },
+                zset! { Tup2(2, "l1".to_string()) => -1, Tup2(3, "l1".to_string()) => -1, Tup2(4, "l1".to_string()) => -1, Tup2(5, "l1".to_string()) => -1 },
+            ]
+            .into_iter();
+
+            labels.inspect(move |ls| {
+                assert_eq!(*ls, expected_outputs.next().unwrap());
+            });
+            Ok(labels.output())
+        })?;
+
+        for _ in 0..3 {
+            circuit.step()?;
+            let x = output_handle.consolidate().iter().collect::<Vec<_>>();
+            println!("Output: {:?}", x);
+        }
+
+        Ok(())
+    }
+
+    // TODO: Provide a PR to DBSP because their example is buggy and panics.
+    // Computes the factorial of the first 10 numbers.
+    #[test]
+    fn test_factorial_with_iterate() -> Result<(), anyhow::Error> {
         let (circuit, output) = RootCircuit::build(|circuit| {
             // Generate sequence 0, 1, 2, ...
             let mut n: usize = 0;
@@ -243,8 +409,9 @@ mod test {
         Ok(())
     }
 
+    // Computes the sum of the first n natural numbers.
     #[test]
-    fn test_add_feedback() -> Result<(), anyhow::Error> {
+    fn test_sum_n_natural_numbers_with_add_feedback() -> Result<(), anyhow::Error> {
         let (circuit, output) = RootCircuit::build(|circuit| {
             // Create a data source.
             let mut n: usize = 1;

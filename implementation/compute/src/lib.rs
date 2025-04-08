@@ -332,7 +332,7 @@ mod test {
 
         println!("Insert of data1:");
 
-        edges_input.insert_with_same_weight(data1.iter(), 1);
+        edges_input.insert_with_same_weight(data1.iter(), 2);
 
         circuit.step()?;
 
@@ -567,7 +567,7 @@ mod test {
                                         Expr::Var(Box::new(VarExpr::new("weight"))),
                                     ),
                                     (
-                                        "hops",
+                                        "hopcount",
                                         Expr::Literal(Box::new(LiteralExpr {
                                             value: Literal::Uint(1),
                                         })),
@@ -605,10 +605,10 @@ mod test {
                                     })),
                                 ),
                                 (
-                                    "hops",
+                                    "hopcount",
                                     Expr::Binary(Box::new(BinaryExpr {
                                         operator: Operator::Addition,
-                                        left: Expr::Var(Box::new(VarExpr::new("cur.hops"))),
+                                        left: Expr::Var(Box::new(VarExpr::new("cur.hopcount"))),
                                         right: Expr::Literal(Box::new(LiteralExpr {
                                             value: Literal::Uint(1),
                                         })),
@@ -648,10 +648,10 @@ mod test {
                                     })),
                                 ),
                                 (
-                                    "hops",
+                                    "hopcount",
                                     Expr::Binary(Box::new(BinaryExpr {
                                         operator: Operator::Addition,
-                                        left: Expr::Var(Box::new(VarExpr::new("cur.hops"))),
+                                        left: Expr::Var(Box::new(VarExpr::new("cur.hopcount"))),
                                         right: Expr::Literal(Box::new(LiteralExpr {
                                             value: Literal::Uint(1),
                                         })),
@@ -691,10 +691,10 @@ mod test {
                                     })),
                                 ),
                                 (
-                                    "hops",
+                                    "hopcount",
                                     Expr::Binary(Box::new(BinaryExpr {
                                         operator: Operator::Addition,
-                                        left: Expr::Var(Box::new(VarExpr::new("cur.hops"))),
+                                        left: Expr::Var(Box::new(VarExpr::new("cur.hopcount"))),
                                         right: Expr::Literal(Box::new(LiteralExpr {
                                             value: Literal::Uint(1),
                                         })),
@@ -745,15 +745,15 @@ mod test {
 
         println!("{}", output.to_table());
 
-        // let extra_data = vec![Edge::new(1, 2, 1)];
+        let extra_data = vec![Edge::new(1, 2, 1)];
 
-        // println!("Insert of extra_data:");
+        println!("Insert of extra_data:");
 
-        // edges_input.insert_with_same_weight(extra_data.iter(), 1);
+        edges_input.insert_with_same_weight(extra_data.iter(), -1);
 
-        // circuit.step()?;
+        circuit.step()?;
 
-        // println!("{}", output.to_table());
+        println!("{}", output.to_table());
 
         Ok(())
     }

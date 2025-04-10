@@ -195,10 +195,21 @@ pub struct ThetaJoinExpr {
 /// Iteration until the condition is met. Should include fixed-point computations.
 // TODO
 #[derive(Clone, Debug)]
-pub struct IterationExpr {
+pub struct GenericIterationExpr {
     pub condition: Expr,
     /// Must evaluate to a relation.
     pub body: Expr,
+}
+
+/// Evaluates to a relation/stream again.
+#[derive(Clone, Debug)]
+pub struct FixedPointIterationExpr {
+    /// Must evaluate to a circuit.
+    pub circuit: Expr,
+    /// What to do as a preparation. Runs in the context of the parent circuit.
+    pub parent: BlockStmt,
+    /// What to do in each iteration. Runs in the context of the child circuit.
+    pub child: BlockStmt,
 }
 
 #[derive(Clone, Debug)]
@@ -359,4 +370,5 @@ impl MemAddr for SelectionExpr {}
 impl MemAddr for ProjectionExpr {}
 impl MemAddr for EquiJoinExpr {}
 impl MemAddr for ThetaJoinExpr {}
-impl MemAddr for IterationExpr {}
+impl MemAddr for GenericIterationExpr {}
+impl MemAddr for FixedPointIterationExpr {}

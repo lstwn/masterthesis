@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
+mod circuit;
 mod context;
 mod dbsp;
 mod error;

@@ -199,23 +199,33 @@ mod test {
     use std::{cell::RefCell, rc::Rc};
 
     // TODO: Provide a PR to DBSP with this example.
+    // Note that this example only works with acyclic graphs.
     #[test]
     fn test_transitive_closure() -> Result<(), anyhow::Error> {
+        const CYCLES: usize = 2;
+
         let (circuit, output_handle) = RootCircuit::build(move |root_circuit| {
-            let mut edges_data = vec![
+            let mut edges_data = ([
                 // The first clock cycle adds a graph of four nodes:
                 // |0| -1-> |1| -1-> |2| -2-> |3| -2-> |4|
                 zset_set! { Tup3(0 as usize, 1 as usize, 1 as usize), Tup3(1, 2, 1), Tup3(2, 3, 2), Tup3(3, 4, 2) },
                 // The second clock cycle removes the edge |1| -1-> |2|.
                 zset! { Tup3(1, 2, 1) => -1 },
-            ]
+                // The third clock cycle would introduce a cycle but that would
+                // cause the fixed-point computation to never terminate.
+                // In total, we have the following graph:
+                // |0| -1-> |1| -1-> |2| -2-> |3| -2-> |4|
+                //  ^                                   |
+                //  |                                   |
+                //  ------------------3------------------
+                // zset_set! { Tup3(1,2,1), Tup3(4, 0, 3)}
+            ] as [_; CYCLES])
             .into_iter();
 
             let edges = root_circuit.add_source(Generator::new(move || edges_data.next().unwrap()));
 
             // Create a base relation with all paths of length 1.
-            let len_1 = edges
-                .map(|Tup3(from, to, weight)| Tup4(from.clone(), to.clone(), weight.clone(), 1));
+            let len_1 = edges.map(|Tup3(from, to, weight)| Tup4(*from, *to, *weight, 1));
 
             let closure = root_circuit.recursive(
                 |child_circuit, len_n_minus_1: Stream<_, OrdZSet<Tup4<usize, usize, usize, usize>>>| {
@@ -225,30 +235,29 @@ mod test {
 
                     // Perform an iterative step (n-1 to n) through joining the
                     // paths of length n-1 with the edges.
-                    let len_n = len_n_minus_1
+                    let len_n = len_1.plus(&len_n_minus_1
                         .map_index(|Tup4(start, end, cum_weight, hopcnt)| {
                             (
-                                end.clone(),
-                                Tup4(start.clone(), end.clone(), cum_weight.clone(), hopcnt.clone()),
+                                *end,
+                                Tup4(*start, *end, *cum_weight, *hopcnt),
                             )
                         })
                         .join(
                             &edges.map_index(|Tup3(from, to, weight)| {
-                                (from.clone(), Tup3(from.clone(), to.clone(), weight.clone()))
+                                (*from, Tup3(*from, *to, *weight))
                             }),
                             |_end_from,
                              Tup4(start, _end, cum_weight, hopcnt),
                              Tup3(_from, to, weight)| {
-                                Tup4(start.clone(), to.clone(), cum_weight + weight, hopcnt + 1)
+                                Tup4(*start, *to, cum_weight + weight, hopcnt + 1)
                             },
-                        )
-                        .plus(&len_1);
+                        ));
 
                     Ok(len_n)
                 },
             )?;
 
-            let mut expected_outputs = vec![
+            let mut expected_outputs = ([
                 // We expect the full transitive closure in the first clock cycle.
                 zset! {
                     Tup4(0, 1, 1, 1) => 1,
@@ -271,8 +280,11 @@ mod test {
                     Tup4(1, 3, 3, 2) => -1,
                     Tup4(1, 4, 5, 3) => -1,
                 },
-            ]
-            .into_iter();
+                // This does not matter anymore, as the computation does not
+                // terminate anymore due to the cycle.
+                // zset! {},
+            ] as [_; CYCLES])
+                .into_iter();
 
             closure.inspect(move |output| {
                 assert_eq!(*output, expected_outputs.next().unwrap());
@@ -281,7 +293,7 @@ mod test {
             Ok(closure.output())
         })?;
 
-        for _ in 0..2 {
+        for _ in 0..CYCLES {
             circuit.step()?;
         }
 
@@ -291,70 +303,71 @@ mod test {
     // Taken from the [DBSP docs](https://docs.rs/dbsp/latest/dbsp/circuit/circuit_builder/struct.ChildCircuit.html#method.recursive).
     #[test]
     fn test_recursive() -> Result<(), anyhow::Error> {
+        const CYCLES: usize = 3;
+
         // Propagate labels along graph edges.
         let (circuit, output_handle) = RootCircuit::build(move |root_circuit| {
             // Graph topology.
-            let mut edges = vec![
+            let mut edges = ([
                 // Start with four nodes connected in a cycle.
                 zset_set! { Tup2(1, 2), Tup2(2, 3), Tup2(3, 4), Tup2(4, 1) },
                 // Add an edge.
                 zset_set! { Tup2(4, 5) },
                 // Remove an edge, breaking the cycle.
                 zset! { Tup2(1, 2) => -1 },
-            ]
-            .into_iter();
+            ] as [_; CYCLES])
+                .into_iter();
 
             let edges = root_circuit.add_source(Generator::new(move || edges.next().unwrap()));
 
             // Initial labeling of the graph.
-            let mut init_labels = vec![
+            let mut init_labels = ([
                 // Start with a single label on node 1.
                 zset_set! { Tup2(1, "l1".to_string()) },
                 // Add a label to node 2.
                 zset_set! { Tup2(2, "l2".to_string()) },
                 zset! {},
-            ]
-            .into_iter();
+            ] as [_; CYCLES])
+                .into_iter();
 
             let init_labels =
                 root_circuit.add_source(Generator::new(move || init_labels.next().unwrap()));
 
-            let labels = root_circuit
-                .recursive(
-                    |child_circuit, labels: Stream<_, OrdZSet<Tup2<u64, String>>>| {
-                        // Import `edges` and `init_labels` relations from the parent circuit.
-                        let edges = edges.delta0(child_circuit);
-                        let init_labels = init_labels.delta0(child_circuit);
+            let labels = root_circuit.recursive(
+                |child_circuit, labels: Stream<_, OrdZSet<Tup2<u64, String>>>| {
+                    // Import `edges` and `init_labels` relations from the parent circuit.
+                    let edges = edges.delta0(child_circuit);
+                    let init_labels = init_labels.delta0(child_circuit);
 
-                        // Given an edge `from -> to` where the `from` node is labeled with `l`,
-                        // propagate `l` to node `to`.
-                        let result = labels
-                            .map_index(|Tup2(x, y)| (x.clone(), y.clone()))
-                            .join(
-                                &edges.map_index(|Tup2(x, y)| (x.clone(), y.clone())),
-                                |_from, l, to| Tup2(*to, l.clone()),
-                            )
-                            .plus(&init_labels);
-                        Ok(result)
-                    },
-                )
-                .unwrap();
+                    // Given an edge `from -> to` where the `from` node is labeled with `l`,
+                    // propagate `l` to node `to`.
+                    let result = labels
+                        .map_index(|Tup2(x, y)| (x.clone(), y.clone()))
+                        .join(
+                            &edges.map_index(|Tup2(x, y)| (x.clone(), y.clone())),
+                            |_from, l, to| Tup2(*to, l.clone()),
+                        )
+                        .plus(&init_labels);
+                    Ok(result)
+                },
+            )?;
 
             // Expected _changes_ to the output graph labeling after each clock cycle.
-            let mut expected_outputs = vec![
+            let mut expected_outputs = ([
                 zset! { Tup2(1, "l1".to_string()) => 1, Tup2(2, "l1".to_string()) => 1, Tup2(3, "l1".to_string()) => 1, Tup2(4, "l1".to_string()) => 1 },
                 zset! { Tup2(1, "l2".to_string()) => 1, Tup2(2, "l2".to_string()) => 1, Tup2(3, "l2".to_string()) => 1, Tup2(4, "l2".to_string()) => 1, Tup2(5, "l1".to_string()) => 1, Tup2(5, "l2".to_string()) => 1 },
                 zset! { Tup2(2, "l1".to_string()) => -1, Tup2(3, "l1".to_string()) => -1, Tup2(4, "l1".to_string()) => -1, Tup2(5, "l1".to_string()) => -1 },
-            ]
+            ] as [_; CYCLES])
             .into_iter();
 
             labels.inspect(move |ls| {
                 assert_eq!(*ls, expected_outputs.next().unwrap());
             });
+
             Ok(labels.output())
         })?;
 
-        for _ in 0..3 {
+        for _ in 0..CYCLES {
             circuit.step()?;
             let x = output_handle.consolidate().iter().collect::<Vec<_>>();
             println!("Output: {:?}", x);

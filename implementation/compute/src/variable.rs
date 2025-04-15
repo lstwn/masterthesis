@@ -53,6 +53,12 @@ impl Default for Value {
     }
 }
 
+impl From<RelationRef> for Value {
+    fn from(value: RelationRef) -> Self {
+        Value::Relation(value)
+    }
+}
+
 impl From<ScalarTypedValue> for Value {
     fn from(value: ScalarTypedValue) -> Self {
         match value {

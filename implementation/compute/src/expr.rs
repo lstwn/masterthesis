@@ -5,7 +5,8 @@ use crate::{
     util::{MemAddr, Named, Resolvable},
     variable::VariableSlot,
 };
-use std::fmt::{self, Display};
+use dbsp::RootCircuit;
+use std::fmt::{self, Debug, Display};
 
 #[derive(Clone, Debug)]
 pub enum Expr {
@@ -25,6 +26,7 @@ pub enum Expr {
     Projection(Box<ProjectionExpr>),
     EquiJoin(Box<EquiJoinExpr>),
     ThetaJoin(Box<ThetaJoinExpr>),
+    FixedPointIter(Box<FixedPointIterExpr>),
 }
 
 #[derive(Clone, Debug)]
@@ -181,6 +183,7 @@ pub struct EquiJoinExpr {
 /// A theta join is a join that uses an arbitrary condition which may be more
 /// complicated than just equality of attribute(s).
 /// [More information on join classifications](https://stackoverflow.com/a/7870216).
+// TODO
 #[derive(Clone, Debug)]
 pub struct ThetaJoinExpr {
     /// Must evaluate to a relation.
@@ -195,21 +198,49 @@ pub struct ThetaJoinExpr {
 /// Iteration until the condition is met. Should include fixed-point computations.
 // TODO
 #[derive(Clone, Debug)]
-pub struct GenericIterationExpr {
+pub struct GenericIterExpr {
     pub condition: Expr,
     /// Must evaluate to a relation.
     pub body: Expr,
 }
 
 /// Evaluates to a relation/stream again.
-#[derive(Clone, Debug)]
-pub struct FixedPointIterationExpr {
-    /// Must evaluate to a circuit.
-    pub circuit: Expr,
-    /// What to do as a preparation. Runs in the context of the parent circuit.
-    pub parent: BlockStmt,
+#[derive(Clone)]
+pub struct FixedPointIterExpr {
+    /// The parent circuit which can only be a root circuit.
+    pub circuit: RootCircuit,
+    /// The streams from the root circuit to make available in the nested circuit.
+    /// The relations are available as variables named according to the first respective
+    /// tuple element in the context of the child circuit, that is,
+    /// within the the context of the [`step`](FixedPointIterExpr.step) statements.
+    /// The second tuple elements must evaluate to a relation, respectively.
+    pub imports: Vec<(String, Expr)>,
+    /// The accumulator is available as a variable named according to the first
+    /// tuple element in the context of the child circuit, that is,
+    /// within the the context of the [`step`](FixedPointIterExpr.step) statements.
+    /// The second tuple element must evaluate to a relation.
+    /// The accumulator also defines the schema of the fixed point computation.
+    pub accumulator: (String, Expr),
     /// What to do in each iteration. Runs in the context of the child circuit.
-    pub child: BlockStmt,
+    /// The value the last statement evaluates to becomes the accumulator of
+    /// the next iteration.
+    pub step: BlockStmt,
+}
+
+impl Debug for FixedPointIterExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let FixedPointIterExpr {
+            circuit: _,
+            accumulator,
+            imports,
+            step,
+        } = self;
+        f.debug_struct("FixedPointIterationExpr")
+            .field("imports", &self.imports)
+            .field("accumulator", &self.accumulator)
+            .field("step", &self.step)
+            .finish()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -261,6 +292,7 @@ pub trait ExprVisitor<T, C> {
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
             Expr::ThetaJoin(expr) => self.visit_theta_join_expr(expr, ctx),
+            Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(expr, ctx),
         }
     }
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: C) -> T;
@@ -278,6 +310,7 @@ pub trait ExprVisitor<T, C> {
     fn visit_projection_expr(&mut self, expr: &ProjectionExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: C) -> T;
     fn visit_theta_join_expr(&mut self, expr: &ThetaJoinExpr, ctx: C) -> T;
+    fn visit_fixed_point_iter_expr(&mut self, expr: &FixedPointIterExpr, ctx: C) -> T;
 }
 
 pub trait ExprVisitorMut<T, C> {
@@ -298,6 +331,7 @@ pub trait ExprVisitorMut<T, C> {
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
             Expr::ThetaJoin(expr) => self.visit_theta_join_expr(expr, ctx),
+            Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(expr, ctx),
         }
     }
     fn visit_ternary_expr(&mut self, expr: &mut TernaryExpr, ctx: C) -> T;
@@ -315,6 +349,7 @@ pub trait ExprVisitorMut<T, C> {
     fn visit_projection_expr(&mut self, expr: &mut ProjectionExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &mut EquiJoinExpr, ctx: C) -> T;
     fn visit_theta_join_expr(&mut self, expr: &mut ThetaJoinExpr, ctx: C) -> T;
+    fn visit_fixed_point_iter_expr(&mut self, expr: &mut FixedPointIterExpr, ctx: C) -> T;
 }
 
 pub trait ExprVisitorOwn<T, C> {
@@ -335,6 +370,7 @@ pub trait ExprVisitorOwn<T, C> {
             Expr::Projection(expr) => self.visit_projection_expr(*expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(*expr, ctx),
             Expr::ThetaJoin(expr) => self.visit_theta_join_expr(*expr, ctx),
+            Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(*expr, ctx),
         }
     }
     fn visit_ternary_expr(&mut self, expr: TernaryExpr, ctx: C) -> T;
@@ -352,6 +388,7 @@ pub trait ExprVisitorOwn<T, C> {
     fn visit_projection_expr(&mut self, expr: ProjectionExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: EquiJoinExpr, ctx: C) -> T;
     fn visit_theta_join_expr(&mut self, expr: ThetaJoinExpr, ctx: C) -> T;
+    fn visit_fixed_point_iter_expr(&mut self, expr: FixedPointIterExpr, ctx: C) -> T;
 }
 
 impl MemAddr for Expr {}
@@ -370,5 +407,5 @@ impl MemAddr for SelectionExpr {}
 impl MemAddr for ProjectionExpr {}
 impl MemAddr for EquiJoinExpr {}
 impl MemAddr for ThetaJoinExpr {}
-impl MemAddr for GenericIterationExpr {}
-impl MemAddr for FixedPointIterationExpr {}
+impl MemAddr for GenericIterExpr {}
+impl MemAddr for FixedPointIterExpr {}

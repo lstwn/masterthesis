@@ -18,6 +18,7 @@
 - [x] Try out holding back a link tuple.
 - [x] Implement unions.
 - [x] Implement schema equality.
+- [x] Implement fixpoint iteration.
 - [ ] Allow expressions for left and right join keys.
 
 ### For proof-of-concept
@@ -31,13 +32,15 @@
   - [x] add support for projection within join
   - [x] with same table (requires aliasing)
   - [x] try out adding missing "link edge" incrementally
-- [ ] iteration until fix point
+- [x] iteration until fix point
   - [x] union/union all support
-  - [ ] how to specify termination condition?
 - [ ] test multithreaded environment
 - [ ] add Datalog parser for string representation
 
 ### Advanced ideas
+
+- [ ] theta join
+- [ ] arbitrary iteration: How to specify the iteration stop condition?
 
 #### Flattened AST
 

@@ -2,15 +2,15 @@ use crate::{
     context::ResolverContext,
     error::SyntaxError,
     expr::{
-        AliasExpr, AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, ExprVisitorMut, FunctionExpr,
-        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr,
-        UnaryExpr, UnionExpr, VarExpr,
+        AliasExpr, AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, ExprVisitorMut,
+        FixedPointIterExpr, FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr,
+        TernaryExpr, ThetaJoinExpr, UnaryExpr, UnionExpr, VarExpr,
     },
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
     util::{Named, Resolvable},
     variable::SCOPES_CAPACITY,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, iter};
 
 #[derive(Clone, Copy, Debug)]
 struct VariableMeta {
@@ -270,6 +270,25 @@ impl<'a, 'b> ExprVisitorMut<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
         self.visit_expr(&mut expr.left, ctx)
             .and_then(|()| self.visit_expr(&mut expr.right, ctx))
             .and_then(|()| self.visit_expr(&mut expr.condition, ctx))
+    }
+
+    fn visit_fixed_point_iter_expr(
+        &mut self,
+        expr: &mut FixedPointIterExpr,
+        ctx: VisitorCtx,
+    ) -> VisitorResult {
+        let exprs = iter::once(&mut expr.accumulator)
+            .chain(expr.imports.iter_mut())
+            .try_for_each(|variable| self.visit_expr(&mut variable.1, ctx));
+        self.visit_block(&mut expr.step.stmts, ctx, |resolver, ctx| {
+            iter::once(&expr.accumulator)
+                .chain(expr.imports.iter())
+                .try_for_each(|variable| {
+                    resolver.declare_var(&variable.0, ctx)?;
+                    resolver.define_var(&variable.0, ctx)?;
+                    Ok(())
+                })
+        })
     }
 }
 

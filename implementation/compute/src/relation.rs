@@ -1,6 +1,5 @@
 use super::scalar::ScalarTypedValue;
-use crate::{dbsp::OrdIndexedStream, error::SyntaxError};
-use dbsp::{ChildCircuit, OrdIndexedZSet, Stream};
+use crate::{dbsp::StreamWrapper, error::SyntaxError};
 use std::{
     cell::RefCell,
     fmt::{self, Debug, Display},
@@ -162,9 +161,9 @@ impl Display for Identifier {
 }
 
 /// Convenience type alias for a reference to a [`Relation`].
-pub type RelationRef<Circuit = ChildCircuit<()>> = Rc<RefCell<Relation<Circuit>>>;
+pub type RelationRef = Rc<RefCell<Relation>>;
 
-pub fn new_relation(schema: RelationSchema, inner: OrdIndexedStream) -> RelationRef {
+pub fn new_relation<T: Into<StreamWrapper>>(schema: RelationSchema, inner: T) -> RelationRef {
     Rc::new(RefCell::new(Relation::new(schema, inner)))
 }
 
@@ -381,16 +380,19 @@ impl PartialEq for RelationSchema {
 impl Eq for RelationSchema {}
 
 #[derive(Clone)]
-pub struct Relation<Circuit = ChildCircuit<()>> {
+pub struct Relation {
     /// The schema of the relation. We need to track it on a per-relation basis
     /// because it may change during execution.
     pub schema: RelationSchema,
-    pub inner: Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>,
+    pub inner: StreamWrapper,
 }
 
 impl Relation {
-    pub fn new(schema: RelationSchema, inner: OrdIndexedStream) -> Self {
-        Self { schema, inner }
+    pub fn new<T: Into<StreamWrapper>>(schema: RelationSchema, inner: T) -> Self {
+        Self {
+            schema,
+            inner: inner.into(),
+        }
     }
 }
 

@@ -4,12 +4,12 @@ use crate::{
 };
 use cli_table::{Cell, Style, Table, format::Justify};
 use dbsp::{
-    ChildCircuit, IndexedZSetHandle, OrdIndexedZSet, OrdZSet, OutputHandle, RootCircuit, Stream,
+    IndexedZSetHandle, NestedCircuit, OrdIndexedZSet, OrdZSet, OutputHandle, RootCircuit, Stream,
     ZWeight,
 };
 use std::{collections::HashMap, fmt::Display, iter};
 
-type OrdStream = Stream<ChildCircuit<()>, OrdZSet<TupleValue>>;
+type OrdStream = Stream<RootCircuit, OrdZSet<TupleValue>>;
 
 struct OrderedTestStream {
     inner: OrdStream,
@@ -50,7 +50,7 @@ impl IndexedTestStream {
         let copy: usize = 12;
         let non_copy = String::from("hi");
 
-        let selected: OrdIndexedStream = self.a.inner.filter(move |tuple| {
+        let selected = self.a.inner.filter(move |tuple| {
             // Put attributes into scope. How?
             // - Define vars uninitialized beforehand and just assign them here?
             //   This would allow to run the resolver just once before the
@@ -66,12 +66,12 @@ impl IndexedTestStream {
             true
         });
 
-        let joined: OrdIndexedStream = selected.join_index(&self.b.inner, |k, left, right| {
+        let joined = selected.join_index(&self.b.inner, |k, left, right| {
             // merge left and right tuple
             Some((k.clone(), right.clone()))
         });
 
-        let projected: OrdIndexedStream = joined.map_index(|(k, tuple)| {
+        let projected = joined.map_index(|(k, tuple)| {
             // project tuple
             (k.clone(), tuple.clone())
         });
@@ -80,7 +80,7 @@ impl IndexedTestStream {
 
 pub fn new_ord_indexed_stream(
     circuit: &mut RootCircuit,
-) -> (OrdIndexedStream, OrdIndexedStreamInputHandle) {
+) -> (OrdIndexedRootStream, OrdIndexedStreamInputHandle) {
     circuit.add_input_indexed_zset::<TupleKey, TupleValue>()
 }
 
@@ -88,8 +88,120 @@ pub type OrdIndexedStreamInputHandle = IndexedZSetHandle<TupleKey, TupleValue>;
 
 pub type OrdIndexedStreamOutputHandle = OutputHandle<OrdIndexedZSet<TupleKey, TupleValue>>;
 
-pub type OrdIndexedStream<Circuit = ChildCircuit<()>> =
-    Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>;
+pub type OrdIndexedStream<Circuit> = Stream<Circuit, OrdIndexedZSet<TupleKey, TupleValue>>;
+
+pub type OrdIndexedRootStream = OrdIndexedStream<RootCircuit>;
+pub type OrdIndexedNestedStream = OrdIndexedStream<NestedCircuit>;
+
+/// A wrapper of DBSP's streams carrying [`dbsp::OrdIndexedZSet`] but generic-free
+/// over the circuit type. This limits the nesting level to one level but this
+/// does not matter for practical applications.
+#[derive(Clone)]
+pub enum StreamWrapper {
+    Root(OrdIndexedRootStream),
+    Nested(OrdIndexedNestedStream),
+}
+
+impl StreamWrapper {
+    pub fn sum<'a, I>(&'a self, streams: I) -> StreamWrapper
+    where
+        I: IntoIterator<Item = &'a Self>,
+    {
+        match self {
+            Self::Root(stream) => {
+                Self::Root(stream.sum(streams.into_iter().map(|s| s.expect_root())))
+            }
+            Self::Nested(stream) => {
+                Self::Nested(stream.sum(streams.into_iter().map(|s| s.expect_nested())))
+            }
+        }
+    }
+
+    pub fn map_index<F>(&self, map_func: F) -> StreamWrapper
+    where
+        F: Fn((&TupleKey, &TupleValue)) -> (TupleKey, TupleValue) + 'static,
+    {
+        match self {
+            Self::Root(stream) => Self::Root(stream.map_index(map_func)),
+            Self::Nested(stream) => Self::Nested(stream.map_index(map_func)),
+        }
+    }
+
+    pub fn filter<F>(&self, filter_func: F) -> Self
+    where
+        F: Fn((&TupleKey, &TupleValue)) -> bool + 'static,
+    {
+        match self {
+            Self::Root(stream) => Self::Root(stream.filter(filter_func)),
+            Self::Nested(stream) => Self::Nested(stream.filter(filter_func)),
+        }
+    }
+
+    pub fn join_index<F, It>(&self, other: &Self, join: F) -> Self
+    where
+        F: Fn(&TupleKey, &TupleValue, &TupleValue) -> It + Clone + 'static,
+        It: IntoIterator<Item = (TupleKey, TupleValue)> + 'static,
+    {
+        match self {
+            Self::Root(stream) => Self::Root(stream.join_index(other.expect_root(), join)),
+            Self::Nested(stream) => Self::Nested(stream.join_index(other.expect_nested(), join)),
+        }
+    }
+
+    /// The delta0 operator imports a stream from the parent circuit into the
+    /// child circuit.
+    pub fn delta0(&self, child_circuit: &NestedCircuit) -> Self {
+        match self {
+            // Transitions from RootStream to NestedStream
+            Self::Root(stream) => Self::Nested(stream.delta0(child_circuit)),
+            Self::Nested(stream) => panic!("No further nesting for beyond NestedStreams"),
+        }
+    }
+
+    pub fn output(&self) -> OrdIndexedStreamOutputHandle {
+        match self {
+            Self::Root(stream) => stream.output(),
+            Self::Nested(stream) => panic!("Nested streams do not support output()"),
+        }
+    }
+
+    pub fn expect_root(&self) -> &OrdIndexedRootStream {
+        if let Self::Root(stream) = self {
+            stream
+        } else {
+            panic!("Expected RootStream")
+        }
+    }
+
+    pub fn expect_nested(&self) -> &OrdIndexedNestedStream {
+        if let Self::Nested(stream) = self {
+            stream
+        } else {
+            panic!("Expected NestedStream")
+        }
+    }
+}
+
+impl From<OrdIndexedRootStream> for StreamWrapper {
+    fn from(stream: OrdIndexedRootStream) -> Self {
+        Self::Root(stream)
+    }
+}
+
+impl From<OrdIndexedNestedStream> for StreamWrapper {
+    fn from(stream: OrdIndexedNestedStream) -> Self {
+        Self::Nested(stream)
+    }
+}
+
+impl<'a> IntoIterator for &'a StreamWrapper {
+    type Item = Self;
+    type IntoIter = std::iter::Once<Self>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::once(self)
+    }
+}
 
 pub struct DbspInputs {
     inputs: HashMap<String, DbspInput>,
@@ -202,7 +314,7 @@ mod test {
     // Note that this example only works with acyclic graphs.
     #[test]
     fn test_transitive_closure() -> Result<(), anyhow::Error> {
-        const CYCLES: usize = 2;
+        const STEPS: usize = 2;
 
         let (circuit, output_handle) = RootCircuit::build(move |root_circuit| {
             let mut edges_data = ([
@@ -219,7 +331,7 @@ mod test {
                 //  |                                   |
                 //  ------------------3------------------
                 // zset_set! { Tup3(1,2,1), Tup3(4, 0, 3)}
-            ] as [_; CYCLES])
+            ] as [_; STEPS])
             .into_iter();
 
             let edges = root_circuit.add_source(Generator::new(move || edges_data.next().unwrap()));
@@ -235,7 +347,7 @@ mod test {
 
                     // Perform an iterative step (n-1 to n) through joining the
                     // paths of length n-1 with the edges.
-                    let len_n = len_1.plus(&len_n_minus_1
+                    let len_n = len_n_minus_1
                         .map_index(|Tup4(start, end, cum_weight, hopcnt)| {
                             (
                                 *end,
@@ -251,7 +363,7 @@ mod test {
                              Tup3(_from, to, weight)| {
                                 Tup4(*start, *to, cum_weight + weight, hopcnt + 1)
                             },
-                        ));
+                        ).plus(&len_1);
 
                     Ok(len_n)
                 },
@@ -283,7 +395,7 @@ mod test {
                 // This does not matter anymore, as the computation does not
                 // terminate anymore due to the cycle.
                 // zset! {},
-            ] as [_; CYCLES])
+            ] as [_; STEPS])
                 .into_iter();
 
             closure.inspect(move |output| {
@@ -293,7 +405,7 @@ mod test {
             Ok(closure.output())
         })?;
 
-        for _ in 0..CYCLES {
+        for _ in 0..STEPS {
             circuit.step()?;
         }
 
@@ -303,7 +415,7 @@ mod test {
     // Taken from the [DBSP docs](https://docs.rs/dbsp/latest/dbsp/circuit/circuit_builder/struct.ChildCircuit.html#method.recursive).
     #[test]
     fn test_recursive() -> Result<(), anyhow::Error> {
-        const CYCLES: usize = 3;
+        const STEPS: usize = 3;
 
         // Propagate labels along graph edges.
         let (circuit, output_handle) = RootCircuit::build(move |root_circuit| {
@@ -315,7 +427,7 @@ mod test {
                 zset_set! { Tup2(4, 5) },
                 // Remove an edge, breaking the cycle.
                 zset! { Tup2(1, 2) => -1 },
-            ] as [_; CYCLES])
+            ] as [_; STEPS])
                 .into_iter();
 
             let edges = root_circuit.add_source(Generator::new(move || edges.next().unwrap()));
@@ -327,7 +439,7 @@ mod test {
                 // Add a label to node 2.
                 zset_set! { Tup2(2, "l2".to_string()) },
                 zset! {},
-            ] as [_; CYCLES])
+            ] as [_; STEPS])
                 .into_iter();
 
             let init_labels =
@@ -357,7 +469,7 @@ mod test {
                 zset! { Tup2(1, "l1".to_string()) => 1, Tup2(2, "l1".to_string()) => 1, Tup2(3, "l1".to_string()) => 1, Tup2(4, "l1".to_string()) => 1 },
                 zset! { Tup2(1, "l2".to_string()) => 1, Tup2(2, "l2".to_string()) => 1, Tup2(3, "l2".to_string()) => 1, Tup2(4, "l2".to_string()) => 1, Tup2(5, "l1".to_string()) => 1, Tup2(5, "l2".to_string()) => 1 },
                 zset! { Tup2(2, "l1".to_string()) => -1, Tup2(3, "l1".to_string()) => -1, Tup2(4, "l1".to_string()) => -1, Tup2(5, "l1".to_string()) => -1 },
-            ] as [_; CYCLES])
+            ] as [_; STEPS])
             .into_iter();
 
             labels.inspect(move |ls| {
@@ -367,7 +479,7 @@ mod test {
             Ok(labels.output())
         })?;
 
-        for _ in 0..CYCLES {
+        for _ in 0..STEPS {
             circuit.step()?;
             let x = output_handle.consolidate().iter().collect::<Vec<_>>();
             println!("Output: {:?}", x);

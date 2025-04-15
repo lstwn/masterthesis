@@ -1,15 +1,16 @@
 use crate::{
     context::InterpreterContext,
+    dbsp::OrdIndexedNestedStream,
     error::RuntimeError,
     expr::{
-        AliasExpr, AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, Expr, ExprVisitor, FunctionExpr,
-        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr,
-        UnaryExpr, UnionExpr, VarExpr,
+        AliasExpr, AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, Expr, ExprVisitor,
+        FixedPointIterExpr, FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr,
+        TernaryExpr, ThetaJoinExpr, UnaryExpr, UnionExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
     operators::projection::{ProjectionStrategy, projection_helper},
-    relation::{Relation, RelationRef, SchemaTuple, TupleKey, TupleValue, new_relation},
+    relation::{RelationRef, SchemaTuple, TupleKey, TupleValue, new_relation},
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
     variable::{Environment, Value},
 };
@@ -91,15 +92,13 @@ macro_rules! arithmetic_helper {
 }
 
 macro_rules! assert_type {
-    ($value:expr, $variant:path, $kind:expr) => {
+    ($value:expr, $variant:path) => {
         match $value {
-            $variant(inner) => inner,
-            _ => {
-                return Err(RuntimeError::new(format!(
-                    "expected {} type, got: {:?}",
-                    $kind, $value
-                )));
-            }
+            $variant(inner) => Ok(inner),
+            _ => Err(RuntimeError::new(format!(
+                "expected {} type, got: {:?}",
+                stringify!($variant:path), $value
+            ))),
         }
     };
 }
@@ -257,11 +256,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
     }
 
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        let callee = assert_type!(
-            self.visit_expr(&expr.callee, ctx)?,
-            Value::Function,
-            "function"
-        );
+        let callee = assert_type!(self.visit_expr(&expr.callee, ctx)?, Value::Function)?;
         let mut callee = callee.borrow_mut();
 
         // TODO: Optimize by checking arity in resolver just _once_ statically.
@@ -284,9 +279,9 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             // Yet, this is safe because the the `body` and `environment` are disjoint
             // borrows from the `callee` struct.
             unsafe { &*std::ptr::from_ref(&callee.declaration().body.stmts) as &Vec<Stmt> };
-        let mut new_ctx = InterpreterContext::new(&mut callee.environment);
+        let mut fn_ctx = InterpreterContext::new(&mut callee.environment);
 
-        self.visit_block(body, &mut new_ctx, move |environment| {
+        self.visit_block(body, &mut fn_ctx, move |environment| {
             for arg in args.into_iter() {
                 environment.define_var(arg);
             }
@@ -314,7 +309,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
             })
             .collect::<Result<Vec<RelationRef>, RuntimeError>>()?;
 
-        let relations: Vec<Ref<'_, Relation>> =
+        let relations: Vec<Ref<'_, _>> =
             relations.iter().map(|relation| relation.borrow()).collect();
 
         let (first, others) = relations
@@ -329,11 +324,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
     }
 
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        let relation = assert_type!(
-            self.visit_expr(&expr.relation, ctx)?,
-            Value::Relation,
-            "relation"
-        );
+        let relation = assert_type!(self.visit_expr(&expr.relation, ctx)?, Value::Relation)?;
         let relation_ref = relation.borrow();
         let relation_clone = Rc::clone(&relation);
 
@@ -362,11 +353,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         expr: &ProjectionExpr,
         ctx: VisitorCtx,
     ) -> ExprVisitorResult {
-        let relation = assert_type!(
-            self.visit_expr(&expr.relation, ctx)?,
-            Value::Relation,
-            "relation"
-        );
+        let relation = assert_type!(self.visit_expr(&expr.relation, ctx)?, Value::Relation)?;
         let relation_ref = relation.borrow();
 
         let (schema, projected) = match projection_helper(&expr.attributes) {
@@ -398,21 +385,13 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
     }
 
     fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        let left = assert_type!(
-            self.visit_expr(&expr.left, ctx)?,
-            Value::Relation,
-            "relation"
-        );
+        let left = assert_type!(self.visit_expr(&expr.left, ctx)?, Value::Relation)?;
         // Observe the order here. Before we evaluate the right expression,
         // we have to consume the alias of the left relation because it is
         // replaced by the right relation's alias otherwise.
         let left_alias = ctx.consume_alias();
 
-        let right = assert_type!(
-            self.visit_expr(&expr.right, ctx)?,
-            Value::Relation,
-            "relation"
-        );
+        let right = assert_type!(self.visit_expr(&expr.right, ctx)?, Value::Relation)?;
         let right_alias = ctx.consume_alias();
 
         let left_ref = left.borrow();
@@ -497,6 +476,66 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         // Yet, there are smarter but more involved approaches:
         // https://hpi.de/oldsite/fileadmin/user_upload/fachgebiete/naumann/publications/PDFs/2021_weise_optimized.pdf
         unimplemented!("Theta joins are not yet implemented. Are they actually required?")
+    }
+
+    fn visit_fixed_point_iter_expr(
+        &mut self,
+        expr: &FixedPointIterExpr,
+        ctx: VisitorCtx,
+    ) -> ExprVisitorResult {
+        let relations = std::iter::once(&expr.accumulator)
+            .chain(expr.imports.iter())
+            .map(|import| {
+                self.visit_expr(&import.1, ctx)
+                    .and_then(|value| assert_type!(value, Value::Relation))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Use of `unwrap` is safe due to the accumulator being statically defined.
+        let (accumulator, imports) = relations.split_first().unwrap();
+
+        let (accumulator_init, schema) = {
+            let accumulator = accumulator.borrow();
+            (
+                accumulator.inner.expect_root().clone(),
+                accumulator.schema.clone(),
+            )
+        };
+
+        let accumulated = expr
+            .circuit
+            .recursive(|nested_circuit, acc: OrdIndexedNestedStream| {
+                let result = self
+                    .visit_block(&expr.step.stmts, ctx, move |environment| {
+                        let accumulator = accumulator.borrow();
+                        // delta0 does not alter the schema.
+                        let schema = accumulator.schema.clone();
+                        let accumulator = accumulator
+                            .inner
+                            .delta0(nested_circuit)
+                            .expect_nested()
+                            .plus(&acc);
+                        environment.define_var(new_relation(schema, accumulator));
+
+                        for import in imports.into_iter() {
+                            let import = import.borrow();
+                            // delta0 does not alter the schema.
+                            let schema = import.schema.clone();
+                            let import = import.inner.delta0(nested_circuit);
+                            environment.define_var(new_relation(schema, import));
+                        }
+                    })
+                    .expect("Runtime error while interpreting fixed point iteration body")
+                    .expect("Fixed point iteration body did not return a value");
+                let result = assert_type!(result, Value::Relation)
+                    .expect("Fixed point iteration body did not return a relation");
+                Ok(result.borrow().inner.expect_nested().clone())
+            })
+            .expect("Recursive error");
+
+        let fixed_point = accumulator_init.plus(&accumulated);
+
+        Ok(Value::Relation(new_relation(schema, fixed_point)))
     }
 }
 

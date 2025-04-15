@@ -98,9 +98,12 @@ mod test {
     use super::*;
     use crate::{
         dbsp::{DbspInput, DbspInputs, DbspOutput},
-        expr::{AliasExpr, EquiJoinExpr, ProjectionExpr, SelectionExpr, UnionExpr},
+        expr::{
+            AliasExpr, EquiJoinExpr, FixedPointIterExpr, ProjectionExpr, SelectionExpr, UnionExpr,
+        },
         relation::{RelationSchema, TupleKey, TupleValue},
         scalar::ScalarTypedValue,
+        stmt::BlockStmt,
     };
     use ::dbsp::RootCircuit;
     use expr::{AssignExpr, BinaryExpr, CallExpr, Expr, Literal, LiteralExpr, VarExpr};
@@ -138,7 +141,7 @@ mod test {
     fn new_add_function_expr() -> Expr {
         Expr::Function(Box::new(expr::FunctionExpr {
             parameters: vec!["a".to_string(), "b".to_string()],
-            body: stmt::BlockStmt {
+            body: BlockStmt {
                 stmts: vec![Stmt::Expr(Box::new(ExprStmt {
                     expr: Expr::Binary(Box::new(BinaryExpr {
                         operator: Operator::Addition,
@@ -809,55 +812,68 @@ mod test {
                     }))),
                 })),
                 Stmt::Var(Box::new(VarStmt {
-                    name: "step".to_string(),
-                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
-                        left: Expr::Alias(Box::new(AliasExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("base"))),
-                            alias: "cur".to_string(),
-                        })),
-                        right: Expr::Alias(Box::new(AliasExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("edges"))),
-                            alias: "next".to_string(),
-                        })),
-                        on: vec![("to".to_string(), "from".to_string())],
-                        attributes: Some(
-                            [
-                                ("start", Expr::Var(Box::new(VarExpr::new("cur.from")))),
-                                ("end", Expr::Var(Box::new(VarExpr::new("next.to")))),
-                                (
-                                    "cumulated_weight",
-                                    Expr::Binary(Box::new(BinaryExpr {
-                                        operator: Operator::Addition,
-                                        left: Expr::Var(Box::new(VarExpr::new(
-                                            "cur.cumulated_weight",
-                                        ))),
-                                        right: Expr::Var(Box::new(VarExpr::new("next.weight"))),
-                                    })),
-                                ),
-                                (
-                                    "hopcount",
-                                    Expr::Binary(Box::new(BinaryExpr {
-                                        operator: Operator::Addition,
-                                        left: Expr::Var(Box::new(VarExpr::new("cur.hopcount"))),
-                                        right: Expr::Literal(Box::new(LiteralExpr {
-                                            value: Literal::Uint(1),
-                                        })),
-                                    })),
-                                ),
-                            ]
-                            .into_iter()
-                            .map(|(name, expr)| (name.to_string(), expr))
-                            .collect(),
-                        ),
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
                     name: "closure".to_string(),
-                    initializer: Some(Expr::Union(Box::new(UnionExpr {
-                        relations: ["base", "step"]
+                    initializer: Some(Expr::FixedPointIter(Box::new(FixedPointIterExpr {
+                        circuit: root_circuit.clone(),
+                        imports: ["edges"]
                             .into_iter()
-                            .map(|name| Expr::Var(Box::new(VarExpr::new(name))))
+                            .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
                             .collect(),
+                        accumulator: (
+                            "accumulator".to_string(),
+                            Expr::Var(Box::new(VarExpr::new("base"))),
+                        ),
+                        step: BlockStmt {
+                            stmts: vec![Stmt::Expr(Box::new(ExprStmt {
+                                expr: Expr::EquiJoin(Box::new(EquiJoinExpr {
+                                    left: Expr::Alias(Box::new(AliasExpr {
+                                        relation: Expr::Var(Box::new(VarExpr::new("accumulator"))),
+                                        alias: "cur".to_string(),
+                                    })),
+                                    right: Expr::Alias(Box::new(AliasExpr {
+                                        relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                                        alias: "next".to_string(),
+                                    })),
+                                    on: vec![("to".to_string(), "from".to_string())],
+                                    attributes: Some(
+                                        [
+                                            (
+                                                "start",
+                                                Expr::Var(Box::new(VarExpr::new("cur.from"))),
+                                            ),
+                                            ("end", Expr::Var(Box::new(VarExpr::new("next.to")))),
+                                            (
+                                                "cumulated_weight",
+                                                Expr::Binary(Box::new(BinaryExpr {
+                                                    operator: Operator::Addition,
+                                                    left: Expr::Var(Box::new(VarExpr::new(
+                                                        "cur.cumulated_weight",
+                                                    ))),
+                                                    right: Expr::Var(Box::new(VarExpr::new(
+                                                        "next.weight",
+                                                    ))),
+                                                })),
+                                            ),
+                                            (
+                                                "hopcount",
+                                                Expr::Binary(Box::new(BinaryExpr {
+                                                    operator: Operator::Addition,
+                                                    left: Expr::Var(Box::new(VarExpr::new(
+                                                        "cur.hopcount",
+                                                    ))),
+                                                    right: Expr::Literal(Box::new(LiteralExpr {
+                                                        value: Literal::Uint(1),
+                                                    })),
+                                                })),
+                                            ),
+                                        ]
+                                        .into_iter()
+                                        .map(|(name, expr)| (name.to_string(), expr))
+                                        .collect(),
+                                    ),
+                                })),
+                            }))],
+                        },
                     }))),
                 })),
             ];

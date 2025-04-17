@@ -520,13 +520,13 @@ mod test {
             Ok(fact.output())
         })?;
 
-        let factorial = |n: usize| (1..n).product::<usize>();
+        let factorial = |n: usize| (1..=n).product::<usize>();
         let iterations = 10;
-        for i in 1..=iterations {
+        for i in 0..iterations {
             circuit.step()?;
             let result = output.take_from_all();
             let result = result.first().unwrap();
-            println!("Step {:3}: {:3}! = {}", i, i - 1, result);
+            println!("Step {:3}: {:3}! = {}", i + 1, i, result);
             assert_eq!(*result, factorial(i));
         }
 

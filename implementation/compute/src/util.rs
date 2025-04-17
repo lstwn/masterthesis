@@ -8,7 +8,7 @@ pub trait MemAddr {
 }
 
 pub trait Resolvable {
-    fn set_resolved(&mut self, resolved: VariableSlot) -> ();
+    fn set_resolved(&mut self, resolved: VariableSlot);
 }
 
 pub trait Named {

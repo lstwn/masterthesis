@@ -43,10 +43,10 @@ impl ScopeStack {
     fn just_global(&self) -> bool {
         self.inner.len() == 1
     }
-    fn begin_scope(&mut self) -> () {
+    fn begin_scope(&mut self) {
         self.inner.push(HashMap::new());
     }
-    fn end_scope(&mut self) -> () {
+    fn end_scope(&mut self) {
         self.inner.pop();
     }
     fn innermost(&self) -> Option<&HashMap<String, VariableMeta>> {
@@ -79,10 +79,10 @@ impl Resolver {
         ret
     }
     // declare in Lox
-    fn declare_var(&mut self, name: &String, ctx: VisitorCtx) -> Result<(), SyntaxError> {
+    fn declare_var(&mut self, name: &str, ctx: VisitorCtx) -> Result<(), SyntaxError> {
         match ctx.scopes.innermost_mut() {
             Some(scope) => {
-                scope.insert(name.clone(), VariableMeta::new(scope.len()));
+                scope.insert(name.to_string(), VariableMeta::new(scope.len()));
                 Ok(())
             }
             None => Err(SyntaxError::new("No scope to declare variable in")),
@@ -156,7 +156,7 @@ impl Resolver {
 type VisitorResult = Result<(), SyntaxError>;
 type VisitorCtx<'a, 'b> = &'a mut ResolverContext<'b>;
 
-impl<'a, 'b> ExprVisitorMut<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
+impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
     fn visit_ternary_expr(&mut self, expr: &mut TernaryExpr, ctx: VisitorCtx) -> VisitorResult {
         self.visit_expr(&mut expr.left, ctx)
             .and_then(|()| self.visit_expr(&mut expr.mid, ctx))
@@ -292,7 +292,7 @@ impl<'a, 'b> ExprVisitorMut<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
     }
 }
 
-impl<'a, 'b> StmtVisitorMut<VisitorResult, VisitorCtx<'a, 'b>> for Resolver {
+impl StmtVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
     fn visit_var_stmt(&mut self, stmt: &mut VarStmt, ctx: VisitorCtx) -> VisitorResult {
         self.declare_var(&stmt.name, ctx)
             .and_then(|()| {

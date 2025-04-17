@@ -44,7 +44,7 @@ impl<'a, T: Tuple> SchemaTuple<'a, T> {
             .active_fields()
             .map(|(index, info)| (info.name(alias), self.tuple.data_at(index).clone()))
     }
-    pub fn pick(&self, fields: &Vec<String>) -> impl Iterator<Item = ScalarTypedValue> {
+    pub fn pick(&self, fields: &[String]) -> impl Iterator<Item = ScalarTypedValue> {
         self.schema.active_fields().filter_map(|(index, info)| {
             if fields.contains(&info.name) {
                 Some(self.tuple.data_at(index).clone())
@@ -234,9 +234,7 @@ impl TupleSchema {
                 if let Some((source_name, target_name)) =
                     fields.iter().find(|field| *field.0 == info.name)
                 {
-                    let name = target_name
-                        .map(|name| name.clone())
-                        .unwrap_or_else(|| info.name.clone());
+                    let name = target_name.cloned().unwrap_or_else(|| info.name.clone());
                     FieldInfo::new(name) // Field is active by constructor.
                 } else {
                     FieldInfo {
@@ -293,7 +291,7 @@ impl FromIterator<FieldInfo> for TupleSchema {
 impl FromIterator<String> for TupleSchema {
     fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
         Self {
-            fields: iter.into_iter().map(|name| FieldInfo::new(name)).collect(),
+            fields: iter.into_iter().map(FieldInfo::new).collect(),
         }
     }
 }

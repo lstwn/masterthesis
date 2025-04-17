@@ -51,14 +51,14 @@ impl Interpreter {
             .into_iter()
             .try_fold(None, |_prev, stmt| self.visit_stmt(stmt, ctx))
     }
-    fn visit_block<'a, F: FnOnce(&mut Environment) -> ()>(
+    fn visit_block<'a, F: FnOnce(&mut Environment)>(
         &mut self,
         stmts: impl IntoIterator<Item = &'a Stmt>,
         ctx: VisitorCtx,
         environment: F,
     ) -> Result<Option<Value>, RuntimeError> {
         ctx.environment.begin_scope();
-        environment(&mut ctx.environment);
+        environment(ctx.environment);
         let ret = self.visit_stmts(stmts, ctx);
         ctx.environment.end_scope();
         ret
@@ -171,7 +171,7 @@ type VisitorCtx<'a, 'b> = &'a mut InterpreterContext<'b>;
 
 type ExprVisitorResult = Result<Value, RuntimeError>;
 
-impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter {
+impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
     // TODO: Remove ternary expressions.
     fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         todo!()
@@ -217,7 +217,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                     .as_ref()
                     // This should never happen because the resolver should have resolved
                     // all non-tuple variables before the interpreter starts.
-                    .expect(&format!("Unresolved variable '{name}'."));
+                    .unwrap_or_else(|| panic!("Unresolved variable '{name}'."));
                 Ok(ctx.environment.lookup_var(resolved).clone())
             },
             |value| Ok(Value::from(value.clone())),
@@ -226,16 +226,15 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
 
     fn visit_assign_expr(&mut self, expr: &AssignExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         let name = &expr.name;
-        self.visit_expr(&expr.value, ctx).and_then(|value| {
+        self.visit_expr(&expr.value, ctx).inspect(|value| {
             let resolved = expr
                 .resolved
                 .as_ref()
                 // This should never happen because the resolver should have resolved
                 // all non-tuple variables before the interpreter starts and assigning
                 // to tuple variables is not allowed.
-                .expect(&format!("Unresolved variable '{name}'."));
+                .unwrap_or_else(|| panic!("Unresolved variable '{name}'."));
             ctx.environment.assign_var(resolved, value.clone());
-            Ok(value)
         })
     }
 
@@ -333,8 +332,8 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
         let selected = relation_ref.inner.filter(move |(_key, tuple)| {
             // No need to run resolver here, already resolved!
             let schema = &relation_clone.borrow().schema;
-            let mut environment = &mut environment.clone();
-            let mut new_ctx = InterpreterContext::new(&mut environment);
+            let environment = &mut environment.clone();
+            let mut new_ctx = InterpreterContext::new(environment);
             new_ctx.extend_tuple_ctx(&None, &schema.tuple, tuple);
             let value = Interpreter::new()
                 .evaluate(&condition, &mut new_ctx)
@@ -364,8 +363,8 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                     let environment = ctx.environment.clone();
                     move |(key, tuple)| {
                         let schema = &relation_clone.borrow().schema;
-                        let mut environment = &mut environment.clone();
-                        let mut new_ctx = InterpreterContext::new(&mut environment);
+                        let environment = &mut environment.clone();
+                        let mut new_ctx = InterpreterContext::new(environment);
                         new_ctx.extend_tuple_ctx(&None, &schema.tuple, tuple);
                         let projected_tuple = projection(new_ctx);
                         // For now we leave the key as is.
@@ -450,12 +449,11 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                     .join(&SchemaTuple::new(&right_schema.tuple, right))
                     .collect();
                 let value = if let Some(projection) = &projection {
-                    let mut environment = &mut environment.clone();
-                    let mut new_ctx = InterpreterContext::new(&mut environment);
+                    let environment = &mut environment.clone();
+                    let mut new_ctx = InterpreterContext::new(environment);
                     new_ctx.extend_tuple_ctx(&left_alias, &left_schema.tuple, left);
                     new_ctx.extend_tuple_ctx(&right_alias, &right_schema.tuple, right);
-                    let projected_tuple = projection(new_ctx);
-                    projected_tuple
+                    projection(new_ctx)
                 } else {
                     joined_tuple
                 };
@@ -517,7 +515,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                             .plus(&acc);
                         environment.define_var(new_relation(schema, accumulator));
 
-                        for import in imports.into_iter() {
+                        for import in imports.iter() {
                             let import = import.borrow();
                             // delta0 does not alter the schema.
                             let schema = import.schema.clone();
@@ -541,7 +539,7 @@ impl<'a, 'b> ExprVisitor<ExprVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
 
 type StmtVisitorResult = Result<Option<Value>, RuntimeError>;
 
-impl<'a, 'b> StmtVisitor<StmtVisitorResult, VisitorCtx<'a, 'b>> for Interpreter {
+impl StmtVisitor<StmtVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
     fn visit_var_stmt(&mut self, stmt: &VarStmt, ctx: VisitorCtx) -> StmtVisitorResult {
         stmt.initializer
             .as_ref()
@@ -549,14 +547,13 @@ impl<'a, 'b> StmtVisitor<StmtVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
                 // We default to null if no initializer is provided.
                 || Ok(Value::default()),
                 |expr| {
-                    self.visit_expr(expr, ctx).map(|val| {
-                        if let Value::Function(function) = &val {
+                    self.visit_expr(expr, ctx).inspect(|val| {
+                        if let Value::Function(function) = val {
                             // Here, a function turns from anonymous to named.
                             // If the function is later aliased, that is, reassigned to another
                             // variable, we stick to this original name (NodeJS does it, too).
                             function.borrow_mut().name = Some(stmt.name.clone());
                         }
-                        val
                     })
                 },
             )
@@ -569,7 +566,7 @@ impl<'a, 'b> StmtVisitor<StmtVisitorResult, VisitorCtx<'a, 'b>> for Interpreter 
     fn visit_expr_stmt(&mut self, stmt: &ExprStmt, ctx: VisitorCtx) -> StmtVisitorResult {
         // Evaluate the expression and return the result.
         // This is the only statement that can return a value.
-        self.visit_expr(&stmt.expr, ctx).map(|expr| Some(expr))
+        self.visit_expr(&stmt.expr, ctx).map(Some)
     }
 
     fn visit_block_stmt(&mut self, stmt: &BlockStmt, ctx: VisitorCtx) -> StmtVisitorResult {

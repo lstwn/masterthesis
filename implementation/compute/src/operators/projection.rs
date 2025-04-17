@@ -6,7 +6,7 @@ use crate::{
     scalar::ScalarTypedValue,
 };
 
-pub fn projection_helper<'a>(attributes: &'a Vec<(String, Expr)>) -> ProjectionStrategy<'a> {
+pub fn projection_helper(attributes: &[(String, Expr)]) -> ProjectionStrategy<'_> {
     let requires_projection = attributes
         .iter()
         .any(|(_, expr)| is_pickable(expr).is_none());
@@ -29,7 +29,7 @@ pub struct ProjectionHelper {
 }
 
 impl ProjectionHelper {
-    fn new(attributes: &Vec<(String, Expr)>) -> Self {
+    fn new(attributes: &[(String, Expr)]) -> Self {
         let (attributes, maps) = attributes.iter().cloned().unzip();
         Self { attributes, maps }
     }
@@ -47,7 +47,7 @@ impl ProjectionHelper {
                 .map(|map| {
                     ScalarTypedValue::try_from(
                         Interpreter::new()
-                            .evaluate(&map, &mut ctx)
+                            .evaluate(map, &mut ctx)
                             .expect("Runtime error while interpreting projection function"),
                     )
                     .expect("Type error while interpreting projection function")
@@ -66,7 +66,7 @@ pub struct PickHelper<'a> {
 }
 
 impl<'a> PickHelper<'a> {
-    fn new(attributes: &'a Vec<(String, Expr)>) -> Self {
+    fn new(attributes: &'a [(String, Expr)]) -> Self {
         let attributes = attributes
             .iter()
             .map(|(target_name, expr)| {

@@ -114,10 +114,10 @@ impl Scope {
             inner: Rc::new(RefCell::new(Vec::new())),
         }
     }
-    fn define_var(&mut self, val: Value) -> () {
+    fn define_var(&mut self, val: Value) {
         self.inner.borrow_mut().push(val);
     }
-    fn assign_var(&mut self, slot_idx: usize, val: Value) -> () {
+    fn assign_var(&mut self, slot_idx: usize, val: Value) {
         self.inner.borrow_mut()[slot_idx] = val;
     }
     fn lookup_var(&self, slot_idx: usize) -> Ref<Value> {
@@ -136,8 +136,8 @@ pub struct Environment {
     scopes: Vec<Scope>,
 }
 
-impl Environment {
-    pub fn new() -> Self {
+impl Default for Environment {
+    fn default() -> Self {
         let mut environment = Self {
             scopes: Vec::with_capacity(SCOPES_CAPACITY),
         };
@@ -145,22 +145,25 @@ impl Environment {
         environment.begin_scope();
         environment
     }
+}
+
+impl Environment {
     pub fn just_global(&self) -> bool {
         self.scopes.len() == 1
     }
-    pub fn begin_scope(&mut self) -> () {
+    pub fn begin_scope(&mut self) {
         self.scopes.push(Scope::new());
     }
-    pub fn end_scope(&mut self) -> () {
+    pub fn end_scope(&mut self) {
         self.scopes.pop();
     }
-    pub fn define_var<T: Into<Value>>(&mut self, val: T) -> () {
+    pub fn define_var<T: Into<Value>>(&mut self, val: T) {
         self.scopes
             .last_mut()
             .expect("no root env")
             .define_var(val.into());
     }
-    pub fn assign_var(&mut self, at: &VariableSlot, val: Value) -> () {
+    pub fn assign_var(&mut self, at: &VariableSlot, val: Value) {
         let (scope_idx, slot_idx) = *at;
         self.scopes[scope_idx].assign_var(slot_idx, val);
     }

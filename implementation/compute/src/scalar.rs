@@ -63,10 +63,10 @@ impl Display for ScalarTypedValue {
     }
 }
 
-/// An enum of all possible scalar types.
+// /// An enum of all possible scalar types.
 // pub type ScalarType = Scalar<(), (), (), (), ()>;
 
-/// Stores a value plus its type.
+// /// Stores a value plus its type.
 // pub type ScalarTypedValue = Scalar<DString, DUint, DIint, DBool, DNull>;
 
 /// Prefixed with `D` to distinguish from Rust's built-in types.

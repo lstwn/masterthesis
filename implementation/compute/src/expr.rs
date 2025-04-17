@@ -71,7 +71,7 @@ impl VarExpr {
 }
 
 impl Resolvable for VarExpr {
-    fn set_resolved(&mut self, info: VariableSlot) -> () {
+    fn set_resolved(&mut self, info: VariableSlot) {
         self.resolved = Some(info);
     }
 }
@@ -100,7 +100,7 @@ impl AssignExpr {
 }
 
 impl Resolvable for AssignExpr {
-    fn set_resolved(&mut self, info: VariableSlot) -> () {
+    fn set_resolved(&mut self, info: VariableSlot) {
         self.resolved = Some(info);
     }
 }

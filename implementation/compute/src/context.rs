@@ -24,7 +24,7 @@ impl ProgramContext {
     pub fn new() -> Self {
         Self {
             program: Program::empty(),
-            environment: Environment::new(),
+            environment: Environment::default(),
             scopes: ScopeStack::new(),
         }
     }
@@ -43,7 +43,7 @@ pub struct InterpreterContext<'a> {
 }
 
 impl InterpreterContext<'_> {
-    pub fn new<'a>(environment: &'a mut Environment) -> InterpreterContext<'a> {
+    pub fn new(environment: &mut Environment) -> InterpreterContext<'_> {
         InterpreterContext {
             environment,
             tuple_vars: HashMap::new(),
@@ -63,7 +63,7 @@ impl InterpreterContext<'_> {
         tuple: &T,
     ) {
         self.tuple_vars
-            .extend(SchemaTuple::new(&schema, tuple).named_fields(alias));
+            .extend(SchemaTuple::new(schema, tuple).named_fields(alias));
     }
     pub fn clear_tuple_ctx(&mut self) {
         self.tuple_vars.clear();
@@ -76,7 +76,7 @@ pub struct ResolverContext<'a> {
 }
 
 impl ResolverContext<'_> {
-    pub fn new<'a>(scopes: &'a mut ScopeStack) -> ResolverContext<'a> {
+    pub fn new(scopes: &mut ScopeStack) -> ResolverContext<'_> {
         ResolverContext {
             scopes,
             is_tuple_context: false,

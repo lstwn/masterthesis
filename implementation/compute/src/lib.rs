@@ -238,7 +238,7 @@ mod test {
                             ],
                         })),
                     })),
-                    relation: Expr::Literal(Box::new(DbspInput::new(
+                    relation: Expr::Literal(Box::new(DbspInput::add(
                         RelationSchema::new(
                             "edges",
                             ["from", "to", "weight", "active"],
@@ -330,9 +330,9 @@ mod test {
         let (circuit, (inputs, output)) = RootCircuit::build(new_selection_expr)?;
         let edges_input = inputs.get("edges").unwrap();
 
-        let data1 = vec![Edge::new(0, 1, 1), Edge::new(1, 2, 2), Edge::new(2, 3, 3)];
+        let data1 = [Edge::new(0, 1, 1), Edge::new(1, 2, 2), Edge::new(2, 3, 3)];
 
-        let data2 = vec![Edge::new(3, 4, 1), Edge::new(4, 5, 2), Edge::new(5, 6, 3)];
+        let data2 = [Edge::new(3, 4, 1), Edge::new(4, 5, 2), Edge::new(5, 6, 3)];
 
         println!("Insert of data1:");
 
@@ -423,7 +423,7 @@ mod test {
             let code = [
                 Stmt::Var(Box::new(VarStmt {
                     name: "person".to_string(),
-                    initializer: Some(Expr::Literal(Box::new(DbspInput::new(
+                    initializer: Some(Expr::Literal(Box::new(DbspInput::add(
                         RelationSchema::new(
                             "person",
                             ["person_id", "name", "age", "profession_id"],
@@ -435,7 +435,7 @@ mod test {
                 })),
                 Stmt::Var(Box::new(VarStmt {
                     name: "profession".to_string(),
-                    initializer: Some(Expr::Literal(Box::new(DbspInput::new(
+                    initializer: Some(Expr::Literal(Box::new(DbspInput::add(
                         RelationSchema::new(
                             "profession",
                             ["profession_id", "name"],
@@ -547,7 +547,7 @@ mod test {
             let code = [
                 Stmt::Var(Box::new(VarStmt {
                     name: "edges".to_string(),
-                    initializer: Some(Expr::Literal(Box::new(DbspInput::new(
+                    initializer: Some(Expr::Literal(Box::new(DbspInput::add(
                         RelationSchema::new(
                             "edges",
                             ["from", "to", "weight", "active"],
@@ -734,7 +734,7 @@ mod test {
         })?;
         let edges_input = inputs.get("edges").unwrap();
 
-        let init_data = vec![
+        let init_data = [
             Edge::new(0, 1, 1),
             Edge::new(1, 2, 1),
             Edge::new(2, 3, 2),
@@ -749,7 +749,7 @@ mod test {
 
         println!("{}", output.to_table());
 
-        let extra_data = vec![Edge::new(1, 2, 1)];
+        let extra_data = [Edge::new(1, 2, 1)];
 
         println!("Insert of extra_data:");
 
@@ -771,7 +771,7 @@ mod test {
                 Stmt::Var(Box::new(VarStmt {
                     name: "edges".to_string(),
                     initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
-                        relation: Expr::Literal(Box::new(DbspInput::new(
+                        relation: Expr::Literal(Box::new(DbspInput::add(
                             RelationSchema::new(
                                 "edges",
                                 ["from", "to", "weight", "active"],
@@ -891,7 +891,7 @@ mod test {
         })?;
         let edges_input = inputs.get("edges").unwrap();
 
-        let init_data = vec![
+        let init_data = [
             Edge::new(0, 1, 1),
             Edge::new(1, 2, 1),
             Edge::new(2, 3, 2),

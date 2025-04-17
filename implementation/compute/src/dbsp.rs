@@ -194,7 +194,7 @@ impl From<OrdIndexedNestedStream> for StreamWrapper {
     }
 }
 
-impl<'a> IntoIterator for &'a StreamWrapper {
+impl IntoIterator for &'_ StreamWrapper {
     type Item = Self;
     type IntoIter = std::iter::Once<Self>;
 
@@ -230,7 +230,7 @@ pub struct DbspInput {
 }
 
 impl DbspInput {
-    pub fn new(
+    pub fn add(
         schema: RelationSchema,
         circuit: &mut RootCircuit,
         inputs: &mut DbspInputs,
@@ -251,7 +251,7 @@ impl DbspInput {
     pub fn insert<'a, T: Into<TupleKey> + Into<TupleValue> + Clone + 'a>(
         &self,
         tuples: impl IntoIterator<Item = (&'a T, ZWeight)>,
-    ) -> () {
+    ) {
         tuples.into_iter().for_each(|(tuple, z_weight)| {
             self.handle
                 .push(tuple.clone().into(), (tuple.clone().into(), z_weight))
@@ -261,7 +261,7 @@ impl DbspInput {
         &self,
         tuples: impl IntoIterator<Item = &'a T>,
         z_weight: ZWeight,
-    ) -> () {
+    ) {
         self.insert(tuples.into_iter().map(|tuple| (tuple, z_weight)));
     }
 }
@@ -320,7 +320,7 @@ mod test {
             let mut edges_data = ([
                 // The first clock cycle adds a graph of four nodes:
                 // |0| -1-> |1| -1-> |2| -2-> |3| -2-> |4|
-                zset_set! { Tup3(0 as usize, 1 as usize, 1 as usize), Tup3(1, 2, 1), Tup3(2, 3, 2), Tup3(3, 4, 2) },
+                zset_set! { Tup3(0_usize, 1_usize, 1_usize), Tup3(1, 2, 1), Tup3(2, 3, 2), Tup3(3, 4, 2) },
                 // The second clock cycle removes the edge |1| -1-> |2|.
                 zset! { Tup3(1, 2, 1) => -1 },
                 // The third clock cycle would introduce a cycle but that would
@@ -454,11 +454,10 @@ mod test {
                     // Given an edge `from -> to` where the `from` node is labeled with `l`,
                     // propagate `l` to node `to`.
                     let result = labels
-                        .map_index(|Tup2(x, y)| (x.clone(), y.clone()))
-                        .join(
-                            &edges.map_index(|Tup2(x, y)| (x.clone(), y.clone())),
-                            |_from, l, to| Tup2(*to, l.clone()),
-                        )
+                        .map_index(|Tup2(x, y)| (*x, y.clone()))
+                        .join(&edges.map_index(|Tup2(x, y)| (*x, *y)), |_from, l, to| {
+                            Tup2(*to, l.clone())
+                        })
                         .plus(&init_labels);
                     Ok(result)
                 },
@@ -497,7 +496,7 @@ mod test {
             let mut n: usize = 0;
             let source = circuit.add_source(Generator::new(move || {
                 let result = n;
-                n = n + 1;
+                n += 1;
                 result
             }));
             // Compute factorial of each number in the sequence.
@@ -521,7 +520,7 @@ mod test {
             Ok(fact.output())
         })?;
 
-        let factorial = |n: usize| (1..n).fold(1, |acc, cur| acc * cur);
+        let factorial = |n: usize| (1..n).product::<usize>();
         let iterations = 10;
         for i in 1..=iterations {
             circuit.step()?;
@@ -542,7 +541,7 @@ mod test {
             let mut n: usize = 1;
             let source = circuit.add_source(Generator::new(move || {
                 let result = n;
-                n = n + 1;
+                n += 1;
                 result
             }));
             // Create z1.  `z1_output` will contain the output stream of `z1`; `z1_feedback`

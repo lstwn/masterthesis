@@ -105,7 +105,7 @@ mod test {
         scalar::ScalarTypedValue,
         stmt::BlockStmt,
     };
-    use ::dbsp::RootCircuit;
+    use ::dbsp::{RootCircuit, zset};
     use expr::{AssignExpr, BinaryExpr, CallExpr, Expr, Literal, LiteralExpr, VarExpr};
     use operator::Operator;
     use stmt::{ExprStmt, Stmt, VarStmt};
@@ -340,7 +340,15 @@ mod test {
 
         circuit.step()?;
 
-        println!("{}", output.to_table());
+        let batch = output.to_batch();
+        println!("{}", batch.as_table());
+        assert_eq!(
+            batch.as_zset(),
+            zset! {
+                tuple!(1_u64, 2_u64, 2_u64, 2_u64) => 2,
+                tuple!(2_u64, 3_u64, 3_u64, 6_u64) => 2,
+            }
+        );
 
         println!("Insert of data2:");
 
@@ -348,7 +356,15 @@ mod test {
 
         circuit.step()?;
 
-        println!("{}", output.to_table());
+        let batch = output.to_batch();
+        println!("{}", batch.as_table());
+        assert_eq!(
+            batch.as_zset(),
+            zset! {
+                tuple!(4_u64, 5_u64, 2_u64, 20_u64) => 1,
+                tuple!(5_u64, 6_u64, 3_u64, 30_u64) => 1,
+            }
+        );
 
         println!("Removal of data1:");
 
@@ -356,7 +372,15 @@ mod test {
 
         circuit.step()?;
 
-        println!("{}", output.to_table());
+        let batch = output.to_batch();
+        println!("{}", batch.as_table());
+        assert_eq!(
+            batch.as_zset(),
+            zset! {
+                tuple!(1_u64, 2_u64, 2_u64, 2_u64) => -1,
+                tuple!(2_u64, 3_u64, 3_u64, 6_u64) => -1,
+            }
+        );
 
         Ok(())
     }
@@ -534,7 +558,16 @@ mod test {
 
         circuit.step()?;
 
-        println!("{}", output.to_table());
+        let batch = output.to_batch();
+        println!("{}", batch.as_table());
+        assert_eq!(
+            batch.as_zset(),
+            zset! {
+                tuple!(0_u64, "Alice", 20_u64, 0_u64, "Engineer") => 1,
+                tuple!(2_u64, "Charlie", 40_u64, 0_u64, "Engineer") => 1,
+                tuple!(1_u64, "Bob", 30_u64, 1_u64, "Doctor") => 1,
+            }
+        );
 
         Ok(())
     }
@@ -736,7 +769,7 @@ mod test {
 
         let init_data = [
             Edge::new(0, 1, 1),
-            Edge::new(1, 2, 1),
+            // This edge is omitted: Edge::new(1, 2, 1),
             Edge::new(2, 3, 2),
             Edge::new(3, 4, 2),
         ];
@@ -747,17 +780,39 @@ mod test {
 
         circuit.step()?;
 
-        println!("{}", output.to_table());
+        let batch = output.to_batch();
+        println!("{}", batch.as_table());
+        assert_eq!(
+            batch.as_zset(),
+            zset! {
+                tuple!(0_u64, 1_u64, 1_u64, 1_u64) => 1,
+                tuple!(2_u64, 3_u64, 2_u64, 1_u64) => 1,
+                tuple!(2_u64, 4_u64, 4_u64, 2_u64) => 1,
+                tuple!(3_u64, 4_u64, 2_u64, 1_u64) => 1,
+            }
+        );
 
         let extra_data = [Edge::new(1, 2, 1)];
 
         println!("Insert of extra_data:");
 
-        edges_input.insert_with_same_weight(extra_data.iter(), -1);
+        edges_input.insert_with_same_weight(extra_data.iter(), 1);
 
         circuit.step()?;
 
-        println!("{}", output.to_table());
+        let batch = output.to_batch();
+        println!("{}", batch.as_table());
+        assert_eq!(
+            batch.as_zset(),
+            zset! {
+                tuple!(0_u64, 2_u64, 2_u64, 2_u64) => 1,
+                tuple!(1_u64, 2_u64, 1_u64, 1_u64) => 1,
+                tuple!(0_u64, 3_u64, 4_u64, 3_u64) => 1,
+                tuple!(1_u64, 3_u64, 3_u64, 2_u64) => 1,
+                tuple!(0_u64, 4_u64, 6_u64, 4_u64) => 1,
+                tuple!(1_u64, 4_u64, 5_u64, 3_u64) => 1,
+            }
+        );
 
         Ok(())
     }
@@ -881,7 +936,6 @@ mod test {
             match IncLog::new().execute(code) {
                 Ok(Some(Value::Relation(relation))) => {
                     let relation = relation.borrow();
-                    // relation.inner.condition(|arg| arg.len() == 0);
                     let output_handle = relation.inner.output();
                     let output_schema = relation.schema.clone();
                     Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
@@ -904,17 +958,23 @@ mod test {
 
         circuit.step()?;
 
-        println!("{}", output.to_table());
-
-        // let extra_data = vec![Edge::new(1, 2, 1)];
-
-        // println!("Insert of extra_data:");
-
-        // edges_input.insert_with_same_weight(extra_data.iter(), 1);
-
-        // circuit.step()?;
-
-        // println!("{}", output.to_table());
+        let batch = output.to_batch();
+        println!("{}", batch.as_table());
+        assert_eq!(
+            batch.as_zset(),
+            zset! {
+                tuple!(0_u64, 1_u64, 1_u64, 1_u64) => 1,
+                tuple!(0_u64, 2_u64, 2_u64, 2_u64) => 1,
+                tuple!(1_u64, 2_u64, 1_u64, 1_u64) => 1,
+                tuple!(0_u64, 3_u64, 4_u64, 3_u64) => 1,
+                tuple!(1_u64, 3_u64, 3_u64, 2_u64) => 1,
+                tuple!(2_u64, 3_u64, 2_u64, 1_u64) => 1,
+                tuple!(0_u64, 4_u64, 6_u64, 4_u64) => 1,
+                tuple!(1_u64, 4_u64, 5_u64, 3_u64) => 1,
+                tuple!(2_u64, 4_u64, 4_u64, 2_u64) => 1,
+                tuple!(3_u64, 4_u64, 2_u64, 1_u64) => 1,
+            }
+        );
 
         Ok(())
     }

@@ -83,10 +83,20 @@ pub struct TupleValue {
     pub data: Vec<ScalarTypedValue>,
 }
 
-impl FromIterator<ScalarTypedValue> for TupleValue {
-    fn from_iter<I: IntoIterator<Item = ScalarTypedValue>>(iter: I) -> Self {
+#[macro_export]
+macro_rules! tuple {
+    ( $( $key:expr ),* $(,)?) => {{
+        let tuple = [$( ScalarTypedValue::from($key) ),*];
+        TupleValue {
+            data: tuple.to_vec(),
+        }
+    }};
+}
+
+impl<T: Into<ScalarTypedValue>> FromIterator<T> for TupleValue {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         Self {
-            data: iter.into_iter().collect(),
+            data: iter.into_iter().map(|v| v.into()).collect(),
         }
     }
 }

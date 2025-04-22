@@ -51,6 +51,42 @@ impl TryFrom<Value> for ScalarTypedValue {
     }
 }
 
+impl From<String> for ScalarTypedValue {
+    fn from(value: String) -> Self {
+        ScalarTypedValue::String(value)
+    }
+}
+
+impl From<&str> for ScalarTypedValue {
+    fn from(value: &str) -> Self {
+        ScalarTypedValue::String(value.to_owned())
+    }
+}
+
+impl From<u64> for ScalarTypedValue {
+    fn from(value: u64) -> Self {
+        ScalarTypedValue::Uint(value)
+    }
+}
+
+impl From<i64> for ScalarTypedValue {
+    fn from(value: i64) -> Self {
+        ScalarTypedValue::Iint(value)
+    }
+}
+
+impl From<bool> for ScalarTypedValue {
+    fn from(value: bool) -> Self {
+        ScalarTypedValue::Bool(value)
+    }
+}
+
+impl From<()> for ScalarTypedValue {
+    fn from(value: ()) -> Self {
+        ScalarTypedValue::Null(value)
+    }
+}
+
 impl Display for ScalarTypedValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {

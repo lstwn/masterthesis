@@ -5,7 +5,7 @@ use crate::{
 use cli_table::{Cell, Style, Table, format::Justify};
 use dbsp::{
     IndexedZSetHandle, NestedCircuit, OrdIndexedZSet, OrdZSet, OutputHandle, RootCircuit, Stream,
-    ZWeight,
+    ZWeight, utils::Tup2,
 };
 use std::{collections::HashMap, fmt::Display, iter};
 
@@ -275,15 +275,28 @@ impl DbspOutput {
     pub fn new(schema: RelationSchema, handle: OrdIndexedStreamOutputHandle) -> Self {
         Self { schema, handle }
     }
-    pub fn to_table(&self) -> impl Display {
+    pub fn to_batch(&self) -> DbspOutputBatch {
+        let inner = self.handle.consolidate().iter().collect::<Vec<_>>();
+        DbspOutputBatch {
+            schema: &self.schema,
+            inner,
+        }
+    }
+}
+
+pub struct DbspOutputBatch<'a> {
+    schema: &'a RelationSchema,
+    inner: Vec<(TupleKey, TupleValue, ZWeight)>,
+}
+
+impl DbspOutputBatch<'_> {
+    pub fn as_table(&self) -> impl Display {
         const JUSTIFICATION: Justify = Justify::Right;
-        let table = self
-            .handle
-            .consolidate()
+        self.inner
             .iter()
             .map(|(key, tuple, weight)| {
                 iter::once(weight.to_string().cell().justify(JUSTIFICATION)).chain(
-                    SchemaTuple::new(&self.schema.tuple, &tuple)
+                    SchemaTuple::new(&self.schema.tuple, tuple)
                         .fields()
                         .map(|attribute| attribute.to_string().cell().justify(JUSTIFICATION))
                         .collect::<Vec<_>>(),
@@ -294,8 +307,22 @@ impl DbspOutput {
                 iter::once("z-weight".cell())
                     .chain(self.schema.tuple.field_names(&None).map(|name| name.cell())),
             )
-            .bold(true);
-        table.display().expect("table error")
+            .bold(true)
+            .display()
+            .expect("Table error")
+    }
+    pub fn as_data(&self) -> impl Iterator<Item = (ZWeight, &TupleValue)> {
+        self.inner
+            .iter()
+            .map(|(_key, tuple, weight)| (*weight, tuple))
+    }
+    pub fn as_zset(&self) -> OrdZSet<TupleValue> {
+        let keys = self
+            .inner
+            .iter()
+            .map(|(_key, tuple, weight)| Tup2(tuple.clone(), *weight))
+            .collect::<Vec<_>>();
+        OrdZSet::from_keys((), keys)
     }
 }
 
@@ -316,7 +343,7 @@ mod test {
     fn test_transitive_closure() -> Result<(), anyhow::Error> {
         const STEPS: usize = 2;
 
-        let (circuit, output_handle) = RootCircuit::build(move |root_circuit| {
+        let (circuit_handle, output_handle) = RootCircuit::build(move |root_circuit| {
             let mut edges_data = ([
                 // The first clock cycle adds a graph of four nodes:
                 // |0| -1-> |1| -1-> |2| -2-> |3| -2-> |4|
@@ -406,7 +433,7 @@ mod test {
         })?;
 
         for _ in 0..STEPS {
-            circuit.step()?;
+            circuit_handle.step()?;
         }
 
         Ok(())
@@ -504,29 +531,29 @@ mod test {
                 let counter = Rc::new(RefCell::new(1));
                 let counter_clone = Rc::clone(&counter);
                 let countdown = source.delta0(child).apply(move |parent_val| {
-                    let mut counter_local = counter_clone.borrow_mut();
-                    *counter_local += *parent_val;
-                    let res = *counter_local;
-                    *counter_local -= 1;
+                    let mut counter_borrow = counter_clone.borrow_mut();
+                    *counter_borrow += *parent_val;
+                    let res = *counter_borrow;
+                    *counter_borrow -= 1;
                     res
                 });
                 let (z1_output, z1_feedback) = child.add_feedback_with_export(Z1::new(1));
                 let multiplication =
                     countdown.apply2(&z1_output.local, |n1: &usize, n2: &usize| n1 * n2);
                 z1_feedback.connect(&multiplication);
-                // Stop iterating once the counter reached 0.
+                // Stop iterating when the counter reaches 0.
                 Ok((move || Ok(*counter.borrow() == 0), z1_output.export))
             })?;
             Ok(fact.output())
         })?;
 
         let factorial = |n: usize| (1..=n).product::<usize>();
-        let iterations = 10;
-        for i in 0..iterations {
+        const ITERATIONS: usize = 10;
+        for i in 0..ITERATIONS {
             circuit.step()?;
             let result = output.take_from_all();
             let result = result.first().unwrap();
-            println!("Step {:3}: {:3}! = {}", i + 1, i, result);
+            println!("Iteration {:3}: {:3}! = {}", i + 1, i, result);
             assert_eq!(*result, factorial(i));
         }
 

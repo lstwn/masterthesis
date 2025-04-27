@@ -943,9 +943,9 @@ dependencies = [
 
 [[package]]
 name = "dbsp"
-version = "0.45.0"
+version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76470d488a9c9d5d7d5c2cb0f3355f8cb6d30556fc822dcc53ad4f87ccfa2212"
+checksum = "e024cebc5d098036b9d141b9edf02c039f1e0b05ed238009bdd28ead58d560a2"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1208,9 +1208,9 @@ dependencies = [
 
 [[package]]
 name = "feldera-storage"
-version = "0.45.0"
+version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cffd29832ff0737b844c8c3c8db7d8cd213407f8533b77acde557ab63bf5924"
+checksum = "5d06238e5a7342d6f0dac1a6097a8cf0308e51574b67742681f4ddcd612f18bf"
 dependencies = [
  "feldera-types",
  "inventory",
@@ -1228,9 +1228,9 @@ dependencies = [
 
 [[package]]
 name = "feldera-types"
-version = "0.45.0"
+version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0fb283f6a2d2e5da76091366dd67cc02a1c213e0298f748257ecd9812fcc0fa"
+checksum = "1e0bb7b62e7595f3dde1790690910804b0eed106a0126ba6fa0212b6140f6bf7"
 dependencies = [
  "actix-web",
  "anyhow",

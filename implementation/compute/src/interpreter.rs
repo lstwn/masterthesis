@@ -3,9 +3,9 @@ use crate::{
     dbsp::OrdIndexedNestedStream,
     error::RuntimeError,
     expr::{
-        AliasExpr, AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, Expr, ExprVisitor,
-        FixedPointIterExpr, FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr,
-        TernaryExpr, ThetaJoinExpr, UnaryExpr, UnionExpr, VarExpr,
+        AliasExpr, AssignExpr, BinaryExpr, CallExpr, DifferenceExpr, EquiJoinExpr, Expr,
+        ExprVisitor, FixedPointIterExpr, FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr,
+        SelectionExpr, TernaryExpr, ThetaJoinExpr, UnaryExpr, UnionExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
@@ -320,6 +320,24 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
             .sum(others.iter().map(|relation| &relation.inner));
 
         Ok(Value::Relation(new_relation(first.schema.clone(), unioned)))
+    }
+
+    fn visit_difference_expr(
+        &mut self,
+        expr: &DifferenceExpr,
+        ctx: VisitorCtx,
+    ) -> ExprVisitorResult {
+        let left = assert_type!(self.visit_expr(&expr.left, ctx)?, Value::Relation)?;
+        let right = assert_type!(self.visit_expr(&expr.right, ctx)?, Value::Relation)?;
+
+        let left_ref = left.borrow();
+
+        let differenced = left_ref.inner.minus(&right.borrow().inner);
+
+        Ok(Value::Relation(new_relation(
+            left_ref.schema.clone(),
+            differenced,
+        )))
     }
 
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: VisitorCtx) -> ExprVisitorResult {

@@ -117,6 +117,13 @@ impl StreamWrapper {
         }
     }
 
+    pub fn minus(&self, other: &Self) -> Self {
+        match self {
+            Self::Root(stream) => Self::Root(stream.minus(other.expect_root())),
+            Self::Nested(stream) => Self::Nested(stream.minus(other.expect_nested())),
+        }
+    }
+
     pub fn map_index<F>(&self, map_func: F) -> StreamWrapper
     where
         F: Fn((&TupleKey, &TupleValue)) -> (TupleKey, TupleValue) + 'static,
@@ -330,7 +337,7 @@ impl DbspOutputBatch<'_> {
 mod test {
     use super::*;
     use dbsp::{
-        Circuit,
+        Circuit, indexed_zset,
         operator::{Generator, Z1},
         utils::{Tup2, Tup3, Tup4},
         zset, zset_set,
@@ -590,6 +597,50 @@ mod test {
             let result = result.first().unwrap();
             println!("Step {:3}: \\sum_{{i=0}}^{} i = {}", i, i - 1, result);
             assert_eq!(*result, sum_first_natural_numbers(i - 1));
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_not_operator() -> Result<(), anyhow::Error> {
+        let (circuit, output) = RootCircuit::build(|root_circuit| {
+            let mut left = [
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                    Tup2(1, 1) => { Tup2(1, 1) => 1 },
+                    Tup2(1, 2) => { Tup2(1, 2) => 1 },
+                    Tup2(1, 3) => { Tup2(1, 3) => 1 },
+                    Tup2(1, 4) => { Tup2(1, 4) => 1 },
+                },
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                },
+            ]
+            .into_iter();
+            let left = root_circuit.add_source(Generator::new(move || left.next().unwrap()));
+
+            let mut right = [
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                    Tup2(1, 2) => { Tup2(1, 2) => 1 },
+                    Tup2(1, 3) => { Tup2(1, 3) => 1 },
+                },
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                    Tup2(1, 4) => { Tup2(1, 4) => 1 },
+                },
+            ]
+            .into_iter();
+            let right = root_circuit.add_source(Generator::new(move || right.next().unwrap()));
+
+            let set_minus = left.minus(&right);
+
+            Ok(set_minus.output())
+        })?;
+
+        let iterations = 2;
+        for i in 1..=iterations {
+            circuit.step()?;
+            let result = output.take_from_all();
+            let result = result.first().unwrap();
+            println!("{:?}", result);
         }
 
         Ok(())

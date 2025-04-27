@@ -99,7 +99,8 @@ mod test {
     use crate::{
         dbsp::{DbspInput, DbspInputs, DbspOutput},
         expr::{
-            AliasExpr, EquiJoinExpr, FixedPointIterExpr, ProjectionExpr, SelectionExpr, UnionExpr,
+            AliasExpr, DifferenceExpr, EquiJoinExpr, FixedPointIterExpr, ProjectionExpr,
+            SelectionExpr, UnionExpr,
         },
         relation::{RelationSchema, TupleKey, TupleValue},
         scalar::ScalarTypedValue,
@@ -975,6 +976,215 @@ mod test {
                 tuple!(3_u64, 4_u64, 2_u64, 1_u64) => 1,
             }
         );
+
+        Ok(())
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    struct PredRel {
+        from_node_id: u64,
+        from_counter: u64,
+        to_node_id: u64,
+        to_counter: u64,
+    }
+
+    impl PredRel {
+        fn new(from_node_id: u64, from_counter: u64, to_node_id: u64, to_counter: u64) -> Self {
+            Self {
+                from_node_id,
+                from_counter,
+                to_node_id,
+                to_counter,
+            }
+        }
+    }
+
+    impl From<PredRel> for TupleKey {
+        fn from(pred_rel: PredRel) -> Self {
+            TupleKey::from_iter([
+                pred_rel.from_node_id,
+                pred_rel.from_counter,
+                pred_rel.to_node_id,
+                pred_rel.to_counter,
+            ])
+        }
+    }
+
+    impl From<PredRel> for TupleValue {
+        fn from(pred_rel: PredRel) -> Self {
+            TupleValue::from_iter([
+                pred_rel.from_node_id,
+                pred_rel.from_counter,
+                pred_rel.to_node_id,
+                pred_rel.to_counter,
+            ])
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    struct SetOp {
+        node_id: u64,
+        counter: u64,
+        key: u64,
+        value: u64,
+    }
+
+    impl SetOp {
+        fn new(node_id: u64, counter: u64, key: u64, value: u64) -> Self {
+            Self {
+                node_id,
+                counter,
+                key,
+                value,
+            }
+        }
+    }
+
+    impl From<SetOp> for TupleKey {
+        fn from(set_op: SetOp) -> Self {
+            TupleKey::from_iter([set_op.node_id, set_op.counter])
+        }
+    }
+
+    impl From<SetOp> for TupleValue {
+        fn from(set_op: SetOp) -> Self {
+            TupleValue::from_iter([set_op.node_id, set_op.counter, set_op.key, set_op.value])
+        }
+    }
+
+    struct Replica {
+        node_id: u64,
+        counter: u64,
+    }
+
+    impl Replica {
+        fn new(node_id: u64) -> Self {
+            Self {
+                node_id,
+                counter: 0,
+            }
+        }
+        fn generate_set(&mut self, key: u64, value: u64) -> SetOp {
+            // TODO: pred op
+            let result = SetOp {
+                node_id: self.node_id,
+                counter: self.counter,
+                key,
+                value,
+            };
+            self.counter += 1;
+            result
+        }
+    }
+
+    #[test]
+    fn test_mvr_store_crdt() -> Result<(), anyhow::Error> {
+        let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
+            let mut dbsp_inputs = DbspInputs::new();
+
+            let code = [
+                Stmt::Var(Box::new(VarStmt {
+                    name: "pred_rel".to_string(),
+                    initializer: Some(Expr::Literal(Box::new(DbspInput::add(
+                        RelationSchema::new(
+                            "pred_rel",
+                            ["from_node_id", "from_counter", "to_node_id", "to_counter"],
+                            ["from_node_id", "from_counter", "to_node_id", "to_counter"],
+                        )?,
+                        root_circuit,
+                        &mut dbsp_inputs,
+                    )))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "set_op".to_string(),
+                    initializer: Some(Expr::Literal(Box::new(DbspInput::add(
+                        RelationSchema::new(
+                            "set_op",
+                            ["node_id", "counter", "key", "value"],
+                            ["node_id", "counter"],
+                        )?,
+                        root_circuit,
+                        &mut dbsp_inputs,
+                    )))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "overwritten".to_string(),
+                    initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
+                        relation: Expr::Var(Box::new(VarExpr::new("pred_rel"))),
+                        attributes: [("node_id", "from_node_id"), ("counter", "from_counter")]
+                            .into_iter()
+                            .map(|(name, origin)| {
+                                (name.to_string(), Expr::Var(Box::new(VarExpr::new(origin))))
+                            })
+                            .collect(),
+                    }))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "overwrites".to_string(),
+                    initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
+                        relation: Expr::Var(Box::new(VarExpr::new("pred_rel"))),
+                        attributes: [("node_id", "to_node_id"), ("counter", "to_counter")]
+                            .into_iter()
+                            .map(|(name, origin)| {
+                                (name.to_string(), Expr::Var(Box::new(VarExpr::new(origin))))
+                            })
+                            .collect(),
+                    }))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "root".to_string(),
+                    initializer: Some(Expr::Difference(Box::new(DifferenceExpr {
+                        // TupleKey of left: (node_id, counter)
+                        left: Expr::Projection(Box::new(ProjectionExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("set_op"))),
+                            attributes: ["node_id", "counter"]
+                                .into_iter()
+                                .map(|name| {
+                                    (name.to_string(), Expr::Var(Box::new(VarExpr::new(name))))
+                                })
+                                .collect(),
+                        })),
+                        // TupleKey of right: (from_node_id, from_counter, to_node_id, to_counter)
+                        right: Expr::Var(Box::new(VarExpr::new("overwrites"))),
+                    }))),
+                })),
+            ];
+
+            match IncLog::new().execute(code) {
+                Ok(Some(Value::Relation(relation))) => {
+                    let relation = relation.borrow();
+                    let output_handle = relation.inner.output();
+                    let output_schema = relation.schema.clone();
+                    Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
+                }
+                result => panic!("Expected a relation, got {:?}", result),
+            }
+        })?;
+
+        let pred_rel_input = inputs.get("pred_rel").unwrap();
+        let set_op_input = inputs.get("set_op").unwrap();
+
+        let pred_rel_data = [
+            PredRel::new(0, 0, 0, 1),
+            PredRel::new(0, 0, 1, 0),
+            PredRel::new(0, 1, 1, 2),
+            PredRel::new(1, 0, 1, 2),
+        ];
+
+        let set_op_data = [
+            SetOp::new(0, 0, 1, 1),
+            SetOp::new(0, 1, 1, 2),
+            SetOp::new(1, 0, 1, 3),
+            SetOp::new(1, 2, 1, 4),
+        ];
+
+        pred_rel_input.insert_with_same_weight(pred_rel_data.iter(), 1);
+        set_op_input.insert_with_same_weight(set_op_data.iter(), 1);
+
+        circuit.step()?;
+
+        let batch = output.to_batch();
+        println!("{}", batch.as_table());
 
         Ok(())
     }

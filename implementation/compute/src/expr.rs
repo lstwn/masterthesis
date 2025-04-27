@@ -22,6 +22,7 @@ pub enum Expr {
     Function(Box<FunctionExpr>),
     Alias(Box<AliasExpr>),
     Union(Box<UnionExpr>),
+    Difference(Box<DifferenceExpr>),
     Selection(Box<SelectionExpr>),
     Projection(Box<ProjectionExpr>),
     EquiJoin(Box<EquiJoinExpr>),
@@ -139,6 +140,14 @@ pub struct UnionExpr {
     /// All `Expr`s must evaluate to a relation and have a compatible schema,
     /// that is, the same order and arity of attributes with same types, respectively.
     pub relations: Vec<Expr>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DifferenceExpr {
+    /// All `Expr`s must evaluate to a relation and have a compatible schema,
+    /// that is, the same order and arity of attributes with same types, respectively.
+    pub left: Expr,
+    pub right: Expr,
 }
 
 #[derive(Clone, Debug)]
@@ -288,6 +297,7 @@ pub trait ExprVisitor<T, C> {
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
             Expr::Alias(expr) => self.visit_alias_expr(expr, ctx),
             Expr::Union(expr) => self.visit_union_expr(expr, ctx),
+            Expr::Difference(expr) => self.visit_difference_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
@@ -306,6 +316,7 @@ pub trait ExprVisitor<T, C> {
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: C) -> T;
     fn visit_alias_expr(&mut self, expr: &AliasExpr, ctx: C) -> T;
     fn visit_union_expr(&mut self, expr: &UnionExpr, ctx: C) -> T;
+    fn visit_difference_expr(&mut self, expr: &DifferenceExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: &ProjectionExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: C) -> T;
@@ -327,6 +338,7 @@ pub trait ExprVisitorMut<T, C> {
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
             Expr::Alias(expr) => self.visit_alias_expr(expr, ctx),
             Expr::Union(expr) => self.visit_union_expr(expr, ctx),
+            Expr::Difference(expr) => self.visit_difference_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
@@ -345,6 +357,7 @@ pub trait ExprVisitorMut<T, C> {
     fn visit_call_expr(&mut self, expr: &mut CallExpr, ctx: C) -> T;
     fn visit_alias_expr(&mut self, expr: &mut AliasExpr, ctx: C) -> T;
     fn visit_union_expr(&mut self, expr: &mut UnionExpr, ctx: C) -> T;
+    fn visit_difference_expr(&mut self, expr: &mut DifferenceExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &mut SelectionExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: &mut ProjectionExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &mut EquiJoinExpr, ctx: C) -> T;
@@ -366,6 +379,7 @@ pub trait ExprVisitorOwn<T, C> {
             Expr::Call(expr) => self.visit_call_expr(*expr, ctx),
             Expr::Alias(expr) => self.visit_alias_expr(*expr, ctx),
             Expr::Union(expr) => self.visit_union_expr(*expr, ctx),
+            Expr::Difference(expr) => self.visit_difference_expr(*expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(*expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(*expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(*expr, ctx),
@@ -384,6 +398,7 @@ pub trait ExprVisitorOwn<T, C> {
     fn visit_call_expr(&mut self, expr: CallExpr, ctx: C) -> T;
     fn visit_alias_expr(&mut self, expr: AliasExpr, ctx: C) -> T;
     fn visit_union_expr(&mut self, expr: UnionExpr, ctx: C) -> T;
+    fn visit_difference_expr(&mut self, expr: DifferenceExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: SelectionExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: ProjectionExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: EquiJoinExpr, ctx: C) -> T;
@@ -403,6 +418,7 @@ impl MemAddr for FunctionExpr {}
 impl MemAddr for CallExpr {}
 impl MemAddr for AliasExpr {}
 impl MemAddr for UnionExpr {}
+impl MemAddr for DifferenceExpr {}
 impl MemAddr for SelectionExpr {}
 impl MemAddr for ProjectionExpr {}
 impl MemAddr for EquiJoinExpr {}

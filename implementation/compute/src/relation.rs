@@ -135,10 +135,10 @@ pub struct TupleKey {
     pub data: Vec<ScalarTypedValue>,
 }
 
-impl FromIterator<ScalarTypedValue> for TupleKey {
-    fn from_iter<I: IntoIterator<Item = ScalarTypedValue>>(iter: I) -> Self {
+impl<T: Into<ScalarTypedValue>> FromIterator<T> for TupleKey {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         Self {
-            data: iter.into_iter().collect(),
+            data: iter.into_iter().map(|v| v.into()).collect(),
         }
     }
 }

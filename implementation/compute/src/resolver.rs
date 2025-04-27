@@ -2,7 +2,7 @@ use crate::{
     context::ResolverContext,
     error::SyntaxError,
     expr::{
-        AliasExpr, AssignExpr, BinaryExpr, CallExpr, EquiJoinExpr, ExprVisitorMut,
+        AliasExpr, AssignExpr, BinaryExpr, CallExpr, DifferenceExpr, EquiJoinExpr, ExprVisitorMut,
         FixedPointIterExpr, FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr,
         TernaryExpr, ThetaJoinExpr, UnaryExpr, UnionExpr, VarExpr,
     },
@@ -234,6 +234,15 @@ impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
         expr.relations
             .iter_mut()
             .try_for_each(|relation| self.visit_expr(relation, ctx))
+    }
+
+    fn visit_difference_expr(
+        &mut self,
+        expr: &mut DifferenceExpr,
+        ctx: VisitorCtx,
+    ) -> VisitorResult {
+        self.visit_expr(&mut expr.right, ctx)
+            .and_then(|()| self.visit_expr(&mut expr.left, ctx))
     }
 
     fn visit_selection_expr(&mut self, expr: &mut SelectionExpr, ctx: VisitorCtx) -> VisitorResult {

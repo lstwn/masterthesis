@@ -21,6 +21,7 @@ pub enum Expr {
     Call(Box<CallExpr>),
     Function(Box<FunctionExpr>),
     Alias(Box<AliasExpr>),
+    Distinct(Box<DistinctExpr>),
     Union(Box<UnionExpr>),
     Difference(Box<DifferenceExpr>),
     Selection(Box<SelectionExpr>),
@@ -133,6 +134,11 @@ pub struct CallExpr {
 pub struct AliasExpr {
     pub relation: Expr,
     pub alias: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct DistinctExpr {
+    pub relation: Expr,
 }
 
 #[derive(Clone, Debug)]
@@ -296,6 +302,7 @@ pub trait ExprVisitor<T, C> {
             Expr::Function(expr) => self.visit_function_expr(expr, ctx),
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
             Expr::Alias(expr) => self.visit_alias_expr(expr, ctx),
+            Expr::Distinct(expr) => self.visit_distinct_expr(expr, ctx),
             Expr::Union(expr) => self.visit_union_expr(expr, ctx),
             Expr::Difference(expr) => self.visit_difference_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
@@ -315,6 +322,7 @@ pub trait ExprVisitor<T, C> {
     fn visit_function_expr(&mut self, expr: &FunctionExpr, ctx: C) -> T;
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: C) -> T;
     fn visit_alias_expr(&mut self, expr: &AliasExpr, ctx: C) -> T;
+    fn visit_distinct_expr(&mut self, expr: &DistinctExpr, ctx: C) -> T;
     fn visit_union_expr(&mut self, expr: &UnionExpr, ctx: C) -> T;
     fn visit_difference_expr(&mut self, expr: &DifferenceExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: C) -> T;
@@ -337,6 +345,7 @@ pub trait ExprVisitorMut<T, C> {
             Expr::Function(expr) => self.visit_function_expr(expr, ctx),
             Expr::Call(expr) => self.visit_call_expr(expr, ctx),
             Expr::Alias(expr) => self.visit_alias_expr(expr, ctx),
+            Expr::Distinct(expr) => self.visit_distinct_expr(expr, ctx),
             Expr::Union(expr) => self.visit_union_expr(expr, ctx),
             Expr::Difference(expr) => self.visit_difference_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
@@ -356,6 +365,7 @@ pub trait ExprVisitorMut<T, C> {
     fn visit_function_expr(&mut self, expr: &mut FunctionExpr, ctx: C) -> T;
     fn visit_call_expr(&mut self, expr: &mut CallExpr, ctx: C) -> T;
     fn visit_alias_expr(&mut self, expr: &mut AliasExpr, ctx: C) -> T;
+    fn visit_distinct_expr(&mut self, expr: &mut DistinctExpr, ctx: C) -> T;
     fn visit_union_expr(&mut self, expr: &mut UnionExpr, ctx: C) -> T;
     fn visit_difference_expr(&mut self, expr: &mut DifferenceExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &mut SelectionExpr, ctx: C) -> T;
@@ -378,6 +388,7 @@ pub trait ExprVisitorOwn<T, C> {
             Expr::Function(expr) => self.visit_function_expr(*expr, ctx),
             Expr::Call(expr) => self.visit_call_expr(*expr, ctx),
             Expr::Alias(expr) => self.visit_alias_expr(*expr, ctx),
+            Expr::Distinct(expr) => self.visit_distinct_expr(*expr, ctx),
             Expr::Union(expr) => self.visit_union_expr(*expr, ctx),
             Expr::Difference(expr) => self.visit_difference_expr(*expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(*expr, ctx),
@@ -397,6 +408,7 @@ pub trait ExprVisitorOwn<T, C> {
     fn visit_function_expr(&mut self, expr: FunctionExpr, ctx: C) -> T;
     fn visit_call_expr(&mut self, expr: CallExpr, ctx: C) -> T;
     fn visit_alias_expr(&mut self, expr: AliasExpr, ctx: C) -> T;
+    fn visit_distinct_expr(&mut self, expr: DistinctExpr, ctx: C) -> T;
     fn visit_union_expr(&mut self, expr: UnionExpr, ctx: C) -> T;
     fn visit_difference_expr(&mut self, expr: DifferenceExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: SelectionExpr, ctx: C) -> T;
@@ -417,6 +429,7 @@ impl MemAddr for LiteralExpr {}
 impl MemAddr for FunctionExpr {}
 impl MemAddr for CallExpr {}
 impl MemAddr for AliasExpr {}
+impl MemAddr for DistinctExpr {}
 impl MemAddr for UnionExpr {}
 impl MemAddr for DifferenceExpr {}
 impl MemAddr for SelectionExpr {}

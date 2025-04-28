@@ -103,6 +103,13 @@ pub enum StreamWrapper {
 }
 
 impl StreamWrapper {
+    pub fn distinct(&self) -> StreamWrapper {
+        match self {
+            Self::Root(stream) => Self::Root(stream.distinct()),
+            Self::Nested(stream) => Self::Nested(stream.distinct()),
+        }
+    }
+
     pub fn sum<'a, I>(&'a self, streams: I) -> StreamWrapper
     where
         I: IntoIterator<Item = &'a Self>,
@@ -297,15 +304,16 @@ pub struct DbspOutputBatch<'a> {
 }
 
 impl DbspOutputBatch<'_> {
+    const JUSTIFICATION: Justify = Justify::Right;
+
     pub fn as_table(&self) -> impl Display {
-        const JUSTIFICATION: Justify = Justify::Right;
         self.inner
             .iter()
             .map(|(key, tuple, weight)| {
-                iter::once(weight.to_string().cell().justify(JUSTIFICATION)).chain(
+                iter::once(weight.to_string().cell().justify(Self::JUSTIFICATION)).chain(
                     SchemaTuple::new(&self.schema.tuple, tuple)
                         .fields()
-                        .map(|attribute| attribute.to_string().cell().justify(JUSTIFICATION))
+                        .map(|attribute| attribute.to_string().cell().justify(Self::JUSTIFICATION))
                         .collect::<Vec<_>>(),
                 )
             })
@@ -313,6 +321,48 @@ impl DbspOutputBatch<'_> {
             .title(
                 iter::once("z-weight".cell())
                     .chain(self.schema.tuple.field_names(&None).map(|name| name.cell())),
+            )
+            .bold(true)
+            .display()
+            .expect("Table error")
+    }
+    pub fn as_debug_table(&self) -> impl Display {
+        self.inner
+            .iter()
+            .map(|(key, tuple, weight)| {
+                iter::once(weight.to_string().cell().justify(Self::JUSTIFICATION))
+                    .chain(
+                        SchemaTuple::new(&self.schema.key, key)
+                            .all_fields()
+                            .map(|attribute| {
+                                attribute.to_string().cell().justify(Self::JUSTIFICATION)
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                    .chain(
+                        SchemaTuple::new(&self.schema.tuple, tuple)
+                            .all_fields()
+                            .map(|attribute| {
+                                attribute.to_string().cell().justify(Self::JUSTIFICATION)
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+            })
+            .table()
+            .title(
+                iter::once("z-weight".cell())
+                    .chain(
+                        self.schema
+                            .key
+                            .all_field_names(&None)
+                            .map(|name| format!("[key] {}", name).cell()),
+                    )
+                    .chain(
+                        self.schema
+                            .tuple
+                            .all_field_names(&None)
+                            .map(|name| format!("[value] {}", name).cell()),
+                    ),
             )
             .bold(true)
             .display()

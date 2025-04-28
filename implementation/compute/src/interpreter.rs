@@ -3,9 +3,9 @@ use crate::{
     dbsp::OrdIndexedNestedStream,
     error::RuntimeError,
     expr::{
-        AliasExpr, AssignExpr, BinaryExpr, CallExpr, DifferenceExpr, EquiJoinExpr, Expr,
-        ExprVisitor, FixedPointIterExpr, FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr,
-        SelectionExpr, TernaryExpr, ThetaJoinExpr, UnaryExpr, UnionExpr, VarExpr,
+        AliasExpr, AssignExpr, BinaryExpr, CallExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr,
+        Expr, ExprVisitor, FixedPointIterExpr, FunctionExpr, GroupingExpr, LiteralExpr,
+        ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr, UnaryExpr, UnionExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
@@ -295,6 +295,18 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         self.visit_expr(&expr.relation, ctx)
     }
 
+    fn visit_distinct_expr(&mut self, expr: &DistinctExpr, ctx: VisitorCtx) -> ExprVisitorResult {
+        let relation = assert_type!(self.visit_expr(&expr.relation, ctx)?, Value::Relation)?;
+        let relation_ref = relation.borrow();
+
+        let distincted = relation_ref.inner.distinct();
+
+        Ok(Value::Relation(new_relation(
+            relation_ref.schema.clone(),
+            distincted,
+        )))
+    }
+
     fn visit_union_expr(&mut self, expr: &UnionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         let relations: Vec<RelationRef> = expr
             .relations
@@ -384,9 +396,7 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
                         let environment = &mut environment.clone();
                         let mut new_ctx = InterpreterContext::new(environment);
                         new_ctx.extend_tuple_ctx(&None, &schema.tuple, tuple);
-                        let projected_tuple = projection(new_ctx);
-                        // For now we leave the key as is.
-                        (key.clone(), projected_tuple)
+                        projection(new_ctx)
                     }
                 });
                 (schema, projected)
@@ -466,16 +476,16 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
                 let joined_tuple: TupleValue = SchemaTuple::new(&left_schema.tuple, left)
                     .join(&SchemaTuple::new(&right_schema.tuple, right))
                     .collect();
-                let value = if let Some(projection) = &projection {
+                let key_value = if let Some(projection) = &projection {
                     let environment = &mut environment.clone();
                     let mut new_ctx = InterpreterContext::new(environment);
                     new_ctx.extend_tuple_ctx(&left_alias, &left_schema.tuple, left);
                     new_ctx.extend_tuple_ctx(&right_alias, &right_schema.tuple, right);
                     projection(new_ctx)
                 } else {
-                    joined_tuple
+                    (key.clone(), joined_tuple)
                 };
-                Some((key.clone(), value))
+                Some(key_value)
             }
         });
 

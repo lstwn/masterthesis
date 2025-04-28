@@ -2,7 +2,7 @@ use crate::{
     context::InterpreterContext,
     expr::Expr,
     interpreter::Interpreter,
-    relation::{RelationSchema, TupleValue},
+    relation::{RelationSchema, Tuple, TupleKey, TupleValue},
     scalar::ScalarTypedValue,
 };
 
@@ -11,11 +11,17 @@ pub fn projection_helper(attributes: &[(String, Expr)]) -> ProjectionStrategy<'_
         .iter()
         .any(|(_, expr)| is_pickable(expr).is_none());
 
-    if requires_projection {
-        ProjectionStrategy::Projection(ProjectionHelper::new(attributes))
-    } else {
-        ProjectionStrategy::Pick(PickHelper::new(attributes))
-    }
+    // TODO: reenable projection strategy but watch out:
+    // We have to make sure both key and value are coalesced before using
+    // them in set operators like difference, union, intersect, etc.
+    // Solve by coalescing them lazily on demand in the set operators and not
+    // here! Reuse the coalescing code similar to this module here.
+    ProjectionStrategy::Projection(ProjectionHelper::new(attributes))
+    // if requires_projection {
+    //     ProjectionStrategy::Projection(ProjectionHelper::new(attributes))
+    // } else {
+    //     ProjectionStrategy::Pick(PickHelper::new(attributes))
+    // }
 }
 
 pub enum ProjectionStrategy<'a> {
@@ -38,11 +44,12 @@ impl ProjectionHelper {
         schema: &RelationSchema,
     ) -> (
         RelationSchema,
-        impl Fn(InterpreterContext) -> TupleValue + use<> + Clone,
+        impl Fn(InterpreterContext) -> (TupleKey, TupleValue) + use<> + Clone,
     ) {
         let schema = schema.project(self.attributes);
         let projection = move |mut ctx: InterpreterContext| {
-            self.maps
+            let value = self
+                .maps
                 .iter()
                 .map(|map| {
                     ScalarTypedValue::try_from(
@@ -52,7 +59,8 @@ impl ProjectionHelper {
                     )
                     .expect("Type error while interpreting projection function")
                 })
-                .collect::<TupleValue>()
+                .collect::<TupleValue>();
+            (TupleKey::empty(), value)
         };
         (schema, projection)
     }

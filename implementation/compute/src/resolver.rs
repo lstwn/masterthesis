@@ -2,9 +2,9 @@ use crate::{
     context::ResolverContext,
     error::SyntaxError,
     expr::{
-        AliasExpr, AssignExpr, BinaryExpr, CallExpr, DifferenceExpr, EquiJoinExpr, ExprVisitorMut,
-        FixedPointIterExpr, FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr,
-        TernaryExpr, ThetaJoinExpr, UnaryExpr, UnionExpr, VarExpr,
+        AliasExpr, AssignExpr, BinaryExpr, CallExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr,
+        ExprVisitorMut, FixedPointIterExpr, FunctionExpr, GroupingExpr, LiteralExpr,
+        ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr, UnaryExpr, UnionExpr, VarExpr,
     },
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
     util::{Named, Resolvable},
@@ -222,6 +222,10 @@ impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
     }
 
     fn visit_alias_expr(&mut self, expr: &mut AliasExpr, ctx: VisitorCtx) -> VisitorResult {
+        self.visit_expr(&mut expr.relation, ctx)
+    }
+
+    fn visit_distinct_expr(&mut self, expr: &mut DistinctExpr, ctx: VisitorCtx) -> VisitorResult {
         self.visit_expr(&mut expr.relation, ctx)
     }
 

@@ -7,6 +7,9 @@ use std::{
 };
 
 pub trait Tuple: FromIterator<ScalarTypedValue> {
+    fn empty() -> Self {
+        Self::from_iter(vec![])
+    }
     fn data_at(&self, index: usize) -> &ScalarTypedValue;
     /// Iterates over _all_ stored fields of the tuple,
     /// regardless if they are part of the current schema.
@@ -35,6 +38,11 @@ impl<'a, T: Tuple> SchemaTuple<'a, T> {
         self.schema
             .active_fields()
             .map(|(index, info)| self.tuple.data_at(index))
+    }
+    pub fn all_fields(&self) -> impl Iterator<Item = &'a ScalarTypedValue> {
+        self.schema
+            .all_fields()
+            .map(|(index, _info)| self.tuple.data_at(index))
     }
     pub fn named_fields(
         &self,
@@ -191,10 +199,15 @@ impl FieldInfo {
         Self { name, active: true }
     }
     fn name(&self, alias: &Option<String>) -> String {
-        alias
+        let name = alias
             .as_ref()
             .map(|alias| format!("{}.{}", alias, self.name))
-            .unwrap_or_else(|| self.name.clone())
+            .unwrap_or_else(|| self.name.clone());
+        if self.active {
+            name
+        } else {
+            format!("{}*", name)
+        }
     }
 }
 
@@ -214,6 +227,9 @@ impl TupleSchema {
                 .collect(),
         }
     }
+    pub fn empty() -> Self {
+        Self { fields: vec![] }
+    }
     fn active_fields(&self) -> impl Iterator<Item = (Index, &FieldInfo)> {
         self.fields
             .iter()
@@ -225,6 +241,9 @@ impl TupleSchema {
     }
     pub fn field_names(&self, alias: &Option<String>) -> impl Iterator<Item = String> {
         self.active_fields().map(|(_index, info)| info.name(alias))
+    }
+    pub fn all_field_names(&self, alias: &Option<String>) -> impl Iterator<Item = String> {
+        self.all_fields().map(|(_index, info)| info.name(alias))
     }
     fn select(&self) -> Self {
         self.clone()
@@ -273,17 +292,7 @@ impl TupleSchema {
         with_extra: bool,
     ) -> String {
         let fields = fields
-            .map(|(_, info)| {
-                if with_extra {
-                    if info.active {
-                        info.name.clone()
-                    } else {
-                        format!("[{}]", info.name)
-                    }
-                } else {
-                    info.name.clone()
-                }
-            })
+            .map(|(_, info)| info.name(&None))
             .collect::<Vec<_>>()
             .join(" | ");
         format!("| {} |", fields)
@@ -351,16 +360,14 @@ impl RelationSchema {
     pub fn pick(&self, fields: &Vec<(&String, Option<&String>)>) -> Self {
         Self {
             name: format!("{}-picked", self.name),
-            // We leave the keys as they are.
-            key: self.key.clone(),
+            key: self.key.pick(fields),
             tuple: self.tuple.pick(fields),
         }
     }
     pub fn project(&self, fields: Vec<String>) -> Self {
         Self {
             name: format!("{}-projected", self.name),
-            // We leave the keys as they are.
-            key: self.key.clone(),
+            key: TupleSchema::empty(),
             tuple: self.tuple.project(fields),
         }
     }

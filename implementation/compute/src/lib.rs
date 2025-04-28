@@ -99,8 +99,8 @@ mod test {
     use crate::{
         dbsp::{DbspInput, DbspInputs, DbspOutput},
         expr::{
-            AliasExpr, DifferenceExpr, EquiJoinExpr, FixedPointIterExpr, ProjectionExpr,
-            SelectionExpr, UnionExpr,
+            AliasExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr, FixedPointIterExpr,
+            ProjectionExpr, SelectionExpr, UnionExpr,
         },
         relation::{RelationSchema, TupleKey, TupleValue},
         scalar::ScalarTypedValue,
@@ -1083,6 +1083,7 @@ mod test {
             let mut dbsp_inputs = DbspInputs::new();
 
             let code = [
+                // Inputs start.
                 Stmt::Var(Box::new(VarStmt {
                     name: "pred_rel".to_string(),
                     initializer: Some(Expr::Literal(Box::new(DbspInput::add(
@@ -1107,34 +1108,38 @@ mod test {
                         &mut dbsp_inputs,
                     )))),
                 })),
+                // Inputs end.
                 Stmt::Var(Box::new(VarStmt {
                     name: "overwritten".to_string(),
-                    initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
-                        relation: Expr::Var(Box::new(VarExpr::new("pred_rel"))),
-                        attributes: [("node_id", "from_node_id"), ("counter", "from_counter")]
-                            .into_iter()
-                            .map(|(name, origin)| {
-                                (name.to_string(), Expr::Var(Box::new(VarExpr::new(origin))))
-                            })
-                            .collect(),
+                    initializer: Some(Expr::Distinct(Box::new(DistinctExpr {
+                        relation: Expr::Projection(Box::new(ProjectionExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("pred_rel"))),
+                            attributes: [("node_id", "from_node_id"), ("counter", "from_counter")]
+                                .into_iter()
+                                .map(|(name, origin)| {
+                                    (name.to_string(), Expr::Var(Box::new(VarExpr::new(origin))))
+                                })
+                                .collect(),
+                        })),
                     }))),
                 })),
                 Stmt::Var(Box::new(VarStmt {
                     name: "overwrites".to_string(),
-                    initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
-                        relation: Expr::Var(Box::new(VarExpr::new("pred_rel"))),
-                        attributes: [("node_id", "to_node_id"), ("counter", "to_counter")]
-                            .into_iter()
-                            .map(|(name, origin)| {
-                                (name.to_string(), Expr::Var(Box::new(VarExpr::new(origin))))
-                            })
-                            .collect(),
+                    initializer: Some(Expr::Distinct(Box::new(DistinctExpr {
+                        relation: Expr::Projection(Box::new(ProjectionExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("pred_rel"))),
+                            attributes: [("node_id", "to_node_id"), ("counter", "to_counter")]
+                                .into_iter()
+                                .map(|(name, origin)| {
+                                    (name.to_string(), Expr::Var(Box::new(VarExpr::new(origin))))
+                                })
+                                .collect(),
+                        })),
                     }))),
                 })),
                 Stmt::Var(Box::new(VarStmt {
                     name: "root".to_string(),
                     initializer: Some(Expr::Difference(Box::new(DifferenceExpr {
-                        // TupleKey of left: (node_id, counter)
                         left: Expr::Projection(Box::new(ProjectionExpr {
                             relation: Expr::Var(Box::new(VarExpr::new("set_op"))),
                             attributes: ["node_id", "counter"]
@@ -1144,8 +1149,115 @@ mod test {
                                 })
                                 .collect(),
                         })),
-                        // TupleKey of right: (from_node_id, from_counter, to_node_id, to_counter)
                         right: Expr::Var(Box::new(VarExpr::new("overwrites"))),
+                    }))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "leaf".to_string(),
+                    initializer: Some(Expr::Difference(Box::new(DifferenceExpr {
+                        left: Expr::Projection(Box::new(ProjectionExpr {
+                            relation: Expr::Var(Box::new(VarExpr::new("set_op"))),
+                            attributes: ["node_id", "counter"]
+                                .into_iter()
+                                .map(|name| {
+                                    (name.to_string(), Expr::Var(Box::new(VarExpr::new(name))))
+                                })
+                                .collect(),
+                        })),
+                        right: Expr::Var(Box::new(VarExpr::new("overwritten"))),
+                    }))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "causally_ready".to_string(),
+                    initializer: Some(Expr::FixedPointIter(Box::new(FixedPointIterExpr {
+                        circuit: root_circuit.clone(),
+                        imports: ["pred_rel"]
+                            .into_iter()
+                            .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
+                            .collect(),
+                        accumulator: (
+                            "accumulator".to_string(),
+                            Expr::Var(Box::new(VarExpr::new("root"))),
+                        ),
+                        step: BlockStmt {
+                            stmts: vec![Stmt::Expr(Box::new(ExprStmt {
+                                expr: Expr::EquiJoin(Box::new(EquiJoinExpr {
+                                    left: Expr::Alias(Box::new(AliasExpr {
+                                        relation: Expr::Var(Box::new(VarExpr::new("accumulator"))),
+                                        alias: "cur".to_string(),
+                                    })),
+                                    right: Expr::Alias(Box::new(AliasExpr {
+                                        relation: Expr::Var(Box::new(VarExpr::new("pred_rel"))),
+                                        alias: "next".to_string(),
+                                    })),
+                                    on: vec![
+                                        ("node_id".to_string(), "from_node_id".to_string()),
+                                        ("counter".to_string(), "from_counter".to_string()),
+                                    ],
+                                    attributes: Some(
+                                        [
+                                            (
+                                                "node_id",
+                                                Expr::Var(Box::new(VarExpr::new(
+                                                    "next.to_node_id",
+                                                ))),
+                                            ),
+                                            (
+                                                "counter",
+                                                Expr::Var(Box::new(VarExpr::new(
+                                                    "next.to_counter",
+                                                ))),
+                                            ),
+                                        ]
+                                        .into_iter()
+                                        .map(|(name, expr)| (name.to_string(), expr))
+                                        .collect(),
+                                    ),
+                                })),
+                            }))],
+                        },
+                    }))),
+                })),
+                Stmt::Var(Box::new(VarStmt {
+                    name: "mvr_store".to_string(),
+                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
+                        left: Expr::Var(Box::new(VarExpr::new("causally_ready"))),
+                        right: Expr::EquiJoin(Box::new(EquiJoinExpr {
+                            left: Expr::Var(Box::new(VarExpr::new("leaf"))),
+                            right: Expr::Var(Box::new(VarExpr::new("set_op"))),
+                            on: vec![
+                                ("node_id".to_string(), "node_id".to_string()),
+                                ("counter".to_string(), "counter".to_string()),
+                            ],
+                            // TODO: With attributes None, it does not work.
+                            // The schema of the pick is probably set wrong and
+                            // has something to do with disabling picks completely.
+                            // attributes: None,
+                            attributes: Some(
+                                [
+                                    ("node_id", Expr::Var(Box::new(VarExpr::new("node_id")))),
+                                    ("counter", Expr::Var(Box::new(VarExpr::new("counter")))),
+                                    ("key", Expr::Var(Box::new(VarExpr::new("key")))),
+                                    ("value", Expr::Var(Box::new(VarExpr::new("value")))),
+                                ]
+                                .into_iter()
+                                .map(|(name, expr)| (name.to_string(), expr))
+                                .collect(),
+                            ),
+                        })),
+                        on: vec![
+                            ("node_id".to_string(), "node_id".to_string()),
+                            ("counter".to_string(), "counter".to_string()),
+                        ],
+                        attributes: Some(
+                            [
+                                ("key", Expr::Var(Box::new(VarExpr::new("key")))),
+                                ("value", Expr::Var(Box::new(VarExpr::new("value")))),
+                            ]
+                            .into_iter()
+                            .map(|(name, expr)| (name.to_string(), expr))
+                            .collect(),
+                        ),
                     }))),
                 })),
             ];
@@ -1164,27 +1276,45 @@ mod test {
         let pred_rel_input = inputs.get("pred_rel").unwrap();
         let set_op_input = inputs.get("set_op").unwrap();
 
+        // The operation history is as follows:
+        // In first step (just one root operation setting register with key 1 to value 1):
+        //
+        // set_0_0(1, 1)
+        //
+        // In second step (concurrent writes by replica 0 and 1):
+        //
+        //               ---> set_0_1(1, 2)
+        // set_0_0(1, 1)
+        //               ---> set_1_0(1, 3)
+        //
+        // In third step (replica 1 does a "merge" operation overwriting the previous conflict):
+        //
+        //               ---> set_0_1(1, 2)
+        // set_0_0(1, 1)                    ---> set_1_2(1, 4)
+        //               ---> set_1_0(1, 3)
+        //
+
         let pred_rel_data = [
-            PredRel::new(0, 0, 0, 1),
-            PredRel::new(0, 0, 1, 0),
-            PredRel::new(0, 1, 1, 2),
-            PredRel::new(1, 0, 1, 2),
+            vec![],
+            vec![PredRel::new(0, 0, 0, 1), PredRel::new(0, 0, 1, 0)],
+            vec![PredRel::new(0, 1, 1, 2), PredRel::new(1, 0, 1, 2)],
         ];
 
         let set_op_data = [
-            SetOp::new(0, 0, 1, 1),
-            SetOp::new(0, 1, 1, 2),
-            SetOp::new(1, 0, 1, 3),
-            SetOp::new(1, 2, 1, 4),
+            vec![SetOp::new(0, 0, 1, 1)],
+            vec![SetOp::new(0, 1, 1, 2), SetOp::new(1, 0, 1, 3)],
+            vec![SetOp::new(1, 2, 1, 4)],
         ];
 
-        pred_rel_input.insert_with_same_weight(pred_rel_data.iter(), 1);
-        set_op_input.insert_with_same_weight(set_op_data.iter(), 1);
+        for (pred_rel_step, set_op_step) in pred_rel_data.iter().zip(set_op_data.iter()) {
+            pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
+            set_op_input.insert_with_same_weight(set_op_step.iter(), 1);
 
-        circuit.step()?;
+            circuit.step()?;
 
-        let batch = output.to_batch();
-        println!("{}", batch.as_table());
+            let batch = output.to_batch();
+            println!("{}", batch.as_debug_table());
+        }
 
         Ok(())
     }

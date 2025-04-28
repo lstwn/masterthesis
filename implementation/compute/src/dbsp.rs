@@ -521,7 +521,6 @@ mod test {
         Ok(())
     }
 
-    // TODO: Provide a PR to DBSP because their example is buggy and panics.
     // Computes the factorial of the first 10 numbers.
     #[test]
     fn test_factorial_with_iterate() -> Result<(), anyhow::Error> {

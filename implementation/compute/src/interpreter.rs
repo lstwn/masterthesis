@@ -9,8 +9,11 @@ use crate::{
     },
     function::new_function,
     operator::Operator,
-    operators::projection::{ProjectionStrategy, projection_helper},
-    relation::{RelationRef, SchemaTuple, TupleKey, TupleValue, new_relation},
+    operators::{
+        coalesce::coalesce_helper,
+        projection::{ProjectionStrategy, projection_helper},
+    },
+    relation::{Relation, RelationRef, SchemaTuple, TupleKey, TupleValue, new_relation},
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
     variable::{Environment, Value},
 };
@@ -255,7 +258,9 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
     }
 
     fn visit_call_expr(&mut self, expr: &CallExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        let callee = assert_type!(self.visit_expr(&expr.callee, ctx)?, Value::Function)?;
+        let callee = self
+            .visit_expr(&expr.callee, ctx)
+            .and_then(|value| assert_type!(value, Value::Function))?;
         let mut callee = callee.borrow_mut();
 
         // TODO: Optimize by checking arity in resolver just _once_ statically.
@@ -296,7 +301,10 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
     }
 
     fn visit_distinct_expr(&mut self, expr: &DistinctExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        let relation = assert_type!(self.visit_expr(&expr.relation, ctx)?, Value::Relation)?;
+        let relation = self
+            .visit_expr(&expr.relation, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))
+            .map(coalesce_helper)?;
         let relation_ref = relation.borrow();
 
         let distincted = relation_ref.inner.distinct();
@@ -311,16 +319,14 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         let relations: Vec<RelationRef> = expr
             .relations
             .iter()
-            .map(|relation| match self.visit_expr(relation, ctx)? {
-                Value::Relation(relation) => Ok(relation),
-                value => Err(RuntimeError::new(format!(
-                    "expected relation type, got: {:?}",
-                    value
-                ))),
+            .map(|relation| {
+                self.visit_expr(relation, ctx)
+                    .and_then(|value| assert_type!(value, Value::Relation))
+                    .map(coalesce_helper)
             })
-            .collect::<Result<Vec<RelationRef>, RuntimeError>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let relations: Vec<Ref<'_, _>> =
+        let relations: Vec<Ref<'_, Relation>> =
             relations.iter().map(|relation| relation.borrow()).collect();
 
         let (first, others) = relations
@@ -339,8 +345,14 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         expr: &DifferenceExpr,
         ctx: VisitorCtx,
     ) -> ExprVisitorResult {
-        let left = assert_type!(self.visit_expr(&expr.left, ctx)?, Value::Relation)?;
-        let right = assert_type!(self.visit_expr(&expr.right, ctx)?, Value::Relation)?;
+        let left = self
+            .visit_expr(&expr.left, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))
+            .map(coalesce_helper)?;
+        let right = self
+            .visit_expr(&expr.right, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))
+            .map(coalesce_helper)?;
 
         let left_ref = left.borrow();
 
@@ -353,7 +365,9 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
     }
 
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        let relation = assert_type!(self.visit_expr(&expr.relation, ctx)?, Value::Relation)?;
+        let relation = self
+            .visit_expr(&expr.relation, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))?;
         let relation_ref = relation.borrow();
         let relation_clone = Rc::clone(&relation);
 
@@ -382,7 +396,9 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         expr: &ProjectionExpr,
         ctx: VisitorCtx,
     ) -> ExprVisitorResult {
-        let relation = assert_type!(self.visit_expr(&expr.relation, ctx)?, Value::Relation)?;
+        let relation = self
+            .visit_expr(&expr.relation, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))?;
         let relation_ref = relation.borrow();
 
         let (schema, projected) = match projection_helper(&expr.attributes) {
@@ -412,13 +428,17 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
     }
 
     fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        let left = assert_type!(self.visit_expr(&expr.left, ctx)?, Value::Relation)?;
-        // Observe the order here. Before we evaluate the right expression,
+        let left = self
+            .visit_expr(&expr.left, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))?;
+        // Note the order here. Before we evaluate the right expression,
         // we have to consume the alias of the left relation because it is
         // replaced by the right relation's alias otherwise.
         let left_alias = ctx.consume_alias();
 
-        let right = assert_type!(self.visit_expr(&expr.right, ctx)?, Value::Relation)?;
+        let right = self
+            .visit_expr(&expr.right, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))?;
         let right_alias = ctx.consume_alias();
 
         let left_ref = left.borrow();
@@ -470,13 +490,13 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
             let left_rel = Rc::clone(&left);
             let right_rel = Rc::clone(&right);
             let environment = ctx.environment.clone();
-            move |key: &TupleKey, left, right| {
+            move |key: &TupleKey, left: &TupleValue, right: &TupleValue| {
                 let left_schema = &left_rel.borrow().schema;
                 let right_schema = &right_rel.borrow().schema;
                 let joined_tuple: TupleValue = SchemaTuple::new(&left_schema.tuple, left)
                     .join(&SchemaTuple::new(&right_schema.tuple, right))
                     .collect();
-                let key_value = if let Some(projection) = &projection {
+                let key_tuple_pair = if let Some(projection) = &projection {
                     let environment = &mut environment.clone();
                     let mut new_ctx = InterpreterContext::new(environment);
                     new_ctx.extend_tuple_ctx(&left_alias, &left_schema.tuple, left);
@@ -485,7 +505,7 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
                 } else {
                     (key.clone(), joined_tuple)
                 };
-                Some(key_value)
+                Some(key_tuple_pair)
             }
         });
 
@@ -509,16 +529,19 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         expr: &FixedPointIterExpr,
         ctx: VisitorCtx,
     ) -> ExprVisitorResult {
-        let relations = std::iter::once(&expr.accumulator)
-            .chain(expr.imports.iter())
+        let accumulator = self
+            .visit_expr(&expr.accumulator.1, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))
+            .map(coalesce_helper)?;
+
+        let imports: Vec<RelationRef> = expr
+            .imports
+            .iter()
             .map(|import| {
                 self.visit_expr(&import.1, ctx)
                     .and_then(|value| assert_type!(value, Value::Relation))
             })
             .collect::<Result<Vec<_>, _>>()?;
-
-        // Use of `unwrap` is safe due to the accumulator being statically defined.
-        let (accumulator, imports) = relations.split_first().unwrap();
 
         let (accumulator_init, schema) = {
             let accumulator = accumulator.borrow();

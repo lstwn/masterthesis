@@ -330,6 +330,10 @@ impl DbspOutputBatch<'_> {
         self.inner
             .iter()
             .map(|(key, tuple, weight)| {
+                // We ensure that the key and tuple data lengths match the
+                // respective schema field lengths.
+                debug_assert!(key.data.len() == self.schema.key.full_len());
+                debug_assert!(tuple.data.len() == self.schema.tuple.full_len());
                 iter::once(weight.to_string().cell().justify(Self::JUSTIFICATION))
                     .chain(
                         SchemaTuple::new(&self.schema.key, key)

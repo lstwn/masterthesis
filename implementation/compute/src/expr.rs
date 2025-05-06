@@ -29,6 +29,7 @@ pub enum Expr {
     EquiJoin(Box<EquiJoinExpr>),
     ThetaJoin(Box<ThetaJoinExpr>),
     FixedPointIter(Box<FixedPointIterExpr>),
+    // CartesianProduct(Box<CartesianProductExpr>),
 }
 
 #[derive(Clone, Debug)]

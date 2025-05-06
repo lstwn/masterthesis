@@ -2,6 +2,7 @@ use super::scalar::ScalarTypedValue;
 use crate::{dbsp::StreamWrapper, error::SyntaxError};
 use std::{
     cell::RefCell,
+    collections::HashSet,
     fmt::{self, Debug, Display},
     rc::Rc,
 };
@@ -51,6 +52,11 @@ impl<'a, T: Tuple> SchemaTuple<'a, T> {
         self.schema
             .active_fields()
             .map(|(index, info)| (info.name(alias), self.tuple.data_at(index).clone()))
+    }
+    pub fn coalesce(&self) -> impl Iterator<Item = ScalarTypedValue> {
+        self.schema
+            .active_fields()
+            .map(|(index, info)| self.tuple.data_at(index).clone())
     }
     pub fn pick(&self, fields: &[String]) -> impl Iterator<Item = ScalarTypedValue> {
         self.schema.active_fields().filter_map(|(index, info)| {
@@ -230,6 +236,24 @@ impl TupleSchema {
     pub fn empty() -> Self {
         Self { fields: vec![] }
     }
+    /// Only the active fields are included in the count.
+    pub fn len(&self) -> usize {
+        self.fields.iter().filter(|info| info.active).count()
+    }
+    /// Includes the active and inactive fields in the count.
+    pub fn full_len(&self) -> usize {
+        self.fields.len()
+    }
+    fn is_coalesced(&self) -> bool {
+        !self.fields.iter().any(|info| !info.active)
+    }
+    fn coalesce(&self) -> Self {
+        self.fields
+            .iter()
+            .filter(|info| info.active)
+            .cloned()
+            .collect()
+    }
     fn active_fields(&self) -> impl Iterator<Item = (Index, &FieldInfo)> {
         self.fields
             .iter()
@@ -248,15 +272,28 @@ impl TupleSchema {
     fn select(&self) -> Self {
         self.clone()
     }
+    /// We mark all fields as inactive, that is, we forget about them.
+    fn forget(&self) -> Self {
+        self.fields
+            .iter()
+            .map(|info| FieldInfo {
+                name: info.name.clone(),
+                active: false,
+            })
+            .collect()
+    }
     /// In contrast to the `project` method, this method does not remove fields
     /// from the schema but marks them as inactive, thereby not coalescing the
     /// schema and the order of fields. Optionally, you can rename a field by
     /// providing an alias/new name/target name as a second element.
     fn pick(&self, fields: &Vec<(&String, Option<&String>)>) -> Self {
+        // For keeping track of duplicated field names.
+        let mut active = HashSet::with_capacity(fields.len());
         // Don't use active_fields() here because the tuple is not coalesced
-        // although we can only pick from the set of active fields though.
+        // but we only allow to pick from the set of active fields though.
         self.all_fields()
             .map(|(_index, info)| {
+                // We do not reactivate already inactive fields.
                 if !info.active {
                     return info.clone();
                 }
@@ -264,12 +301,21 @@ impl TupleSchema {
                     fields.iter().find(|field| *field.0 == info.name)
                 {
                     let name = target_name.cloned().unwrap_or_else(|| info.name.clone());
-                    FieldInfo::new(name) // Field is active by constructor.
-                } else {
-                    FieldInfo {
-                        name: info.name.clone(),
-                        active: false,
+                    if !active.contains(&name) {
+                        active.insert(name.clone());
+                        return FieldInfo::new(name); // Field is active by constructor.
+                    } else {
+                        // We have a duplicated field name, so we mark it as inactive.
+                        return FieldInfo {
+                            name,
+                            active: false,
+                        };
                     }
+                }
+                // Field is not in the list of fields to pick, so we mark it as inactive.
+                FieldInfo {
+                    name: info.name.clone(),
+                    active: false,
                 }
             })
             .collect()
@@ -349,6 +395,16 @@ impl RelationSchema {
             tuple: TupleSchema::new(tuple_fields),
         })
     }
+    pub fn is_coalesced(&self) -> bool {
+        self.key.is_coalesced() && self.tuple.is_coalesced()
+    }
+    pub fn coalesce(&self) -> Self {
+        Self {
+            name: format!("{}-coalesced", self.name),
+            key: self.key.coalesce(),
+            tuple: self.tuple.coalesce(),
+        }
+    }
     /// Just clones the current schema, as selections do not alter the schema.
     pub fn select(&self) -> Self {
         Self {
@@ -360,7 +416,9 @@ impl RelationSchema {
     pub fn pick(&self, fields: &Vec<(&String, Option<&String>)>) -> Self {
         Self {
             name: format!("{}-picked", self.name),
-            key: self.key.pick(fields),
+            // To keep the `ProjectionExpr`'s semantics consistent,
+            // we erase the key here, too, as we do for the full projection below.
+            key: self.key.forget(),
             tuple: self.tuple.pick(fields),
         }
     }

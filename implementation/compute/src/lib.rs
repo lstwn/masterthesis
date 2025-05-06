@@ -1229,10 +1229,12 @@ mod test {
                                 ("node_id".to_string(), "node_id".to_string()),
                                 ("counter".to_string(), "counter".to_string()),
                             ],
-                            // TODO: With attributes None, it does not work.
-                            // The schema of the pick is probably set wrong and
-                            // has something to do with disabling picks completely.
-                            // attributes: None,
+                            // With `attributes: None` the query does not work because
+                            // the fields `node_id` and `counter` are both duplicated in
+                            // the tuple output. The EquiJoin below then indexes upon
+                            // both duplicated fields for its `right` operand
+                            // and no join match is found with its `left` operand.
+                            // Welcome to the funny world of relational algebra's semantics.
                             attributes: Some(
                                 [
                                     ("node_id", Expr::Var(Box::new(VarExpr::new("node_id")))),

@@ -11,17 +11,11 @@ pub fn projection_helper(attributes: &[(String, Expr)]) -> ProjectionStrategy<'_
         .iter()
         .any(|(_, expr)| is_pickable(expr).is_none());
 
-    // TODO: reenable projection strategy but watch out:
-    // We have to make sure both key and value are coalesced before using
-    // them in set operators like difference, union, intersect, etc.
-    // Solve by coalescing them lazily on demand in the set operators and not
-    // here! Reuse the coalescing code similar to this module here.
-    ProjectionStrategy::Projection(ProjectionHelper::new(attributes))
-    // if requires_projection {
-    //     ProjectionStrategy::Projection(ProjectionHelper::new(attributes))
-    // } else {
-    //     ProjectionStrategy::Pick(PickHelper::new(attributes))
-    // }
+    if requires_projection {
+        ProjectionStrategy::Projection(ProjectionHelper::new(attributes))
+    } else {
+        ProjectionStrategy::Pick(PickHelper::new(attributes))
+    }
 }
 
 pub enum ProjectionStrategy<'a> {
@@ -48,7 +42,7 @@ impl ProjectionHelper {
     ) {
         let schema = schema.project(self.attributes);
         let projection = move |mut ctx: InterpreterContext| {
-            let value = self
+            let value: TupleValue = self
                 .maps
                 .iter()
                 .map(|map| {
@@ -59,7 +53,7 @@ impl ProjectionHelper {
                     )
                     .expect("Type error while interpreting projection function")
                 })
-                .collect::<TupleValue>();
+                .collect();
             (TupleKey::empty(), value)
         };
         (schema, projection)

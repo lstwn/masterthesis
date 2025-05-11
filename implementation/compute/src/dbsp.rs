@@ -698,4 +698,72 @@ mod test {
 
         Ok(())
     }
+
+    #[test]
+    fn test_cartesian_product() -> Result<(), anyhow::Error> {
+        const STEPS: usize = 2;
+
+        let (circuit, output) = RootCircuit::build(|root_circuit| {
+            let mut left = ([
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                    Tup2(1, 1) => { Tup2(1, 1) => 1 },
+                    Tup2(1, 1) => { Tup2(1, 1) => 1 }, // duplicate of the above!
+                    Tup2(1, 2) => { Tup2(1, 2) => 1 },
+                    Tup2(1, 3) => { Tup2(1, 3) => 1 },
+                },
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                },
+            ] as [_; STEPS])
+                .into_iter();
+            let left = root_circuit.add_source(Generator::new(move || left.next().unwrap()));
+            let left = left.map_index(|(_k, v)| ((), v.clone()));
+
+            let mut right = ([
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                    Tup2(2, 1) => { Tup2(2, 1) => 1 },
+                    Tup2(2, 2) => { Tup2(2, 2) => 1 },
+                },
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                    Tup2(2, 3) => { Tup2(2, 3) => 1 },
+                },
+            ] as [_; STEPS])
+                .into_iter();
+            let right = root_circuit.add_source(Generator::new(move || right.next().unwrap()));
+            let right = right.map_index(|(_k, v)| ((), v.clone()));
+
+            let cartesian_product = left.join_index(&right, |_k, Tup2(l1, l2), Tup2(r1, r2)| {
+                // Merge left and right tuples.
+                Some(((), Tup4(*l1, *l2, *r1, *r2)))
+            });
+
+            Ok(cartesian_product.output())
+        })?;
+
+        let mut expected_outputs = ([
+            indexed_zset! {() => Tup4<usize, usize, usize, usize>:
+                () => { Tup4(1, 1, 2, 1) => 2 },
+                () => { Tup4(1, 1, 2, 2) => 2 },
+                () => { Tup4(1, 2, 2, 1) => 1 },
+                () => { Tup4(1, 2, 2, 2) => 1 },
+                () => { Tup4(1, 3, 2, 1) => 1 },
+                () => { Tup4(1, 3, 2, 2) => 1 },
+            },
+            indexed_zset! {() => Tup4<usize, usize, usize, usize>:
+                () => { Tup4(1, 1, 2, 3) => 2 },
+                () => { Tup4(1, 2, 2, 3) => 1 },
+                () => { Tup4(1, 3, 2, 3) => 1 },
+            },
+        ] as [_; STEPS])
+            .into_iter();
+
+        for i in 1..=STEPS {
+            circuit.step()?;
+            let result = output.take_from_all();
+            let result = result.first().unwrap();
+            println!("{:?}", result);
+            assert_eq!(*result, expected_outputs.next().unwrap());
+        }
+
+        Ok(())
+    }
 }

@@ -4,10 +4,10 @@ mod circuit;
 mod context;
 mod dbsp;
 mod error;
-mod expr;
+pub mod expr;
 mod function;
 mod interpreter;
-mod operator;
+pub mod operator;
 mod operators;
 mod relation;
 mod resolver;
@@ -115,21 +115,21 @@ mod test {
     fn test_variable_init_assign() -> Result<(), IncLogError> {
         let mut inclog = IncLog::new();
 
-        let initialization = vec![Stmt::Var(Box::new(VarStmt {
+        let initialization = vec![Stmt::from(VarStmt {
             name: "a".to_string(),
-            initializer: Some(Expr::Literal(Box::new(LiteralExpr {
+            initializer: Some(Expr::from(LiteralExpr {
                 value: Literal::Uint(1),
-            }))),
-        }))];
+            })),
+        })];
 
-        let assignment = vec![Stmt::Expr(Box::new(ExprStmt {
-            expr: Expr::Assign(Box::new(AssignExpr::new(
+        let assignment = vec![Stmt::from(ExprStmt {
+            expr: Expr::from(AssignExpr::new(
                 "a",
-                Expr::Literal(Box::new(LiteralExpr {
+                Expr::from(LiteralExpr {
                     value: Literal::Uint(2),
-                })),
-            ))),
-        }))];
+                }),
+            )),
+        })];
 
         assert_eq!(inclog.execute(initialization)?.unwrap(), Value::Uint(1));
 
@@ -140,32 +140,32 @@ mod test {
 
     // A function with two parameters which adds two values.
     fn new_add_function_expr() -> Expr {
-        Expr::Function(Box::new(expr::FunctionExpr {
+        Expr::from(expr::FunctionExpr {
             parameters: vec!["a".to_string(), "b".to_string()],
             body: BlockStmt {
-                stmts: vec![Stmt::Expr(Box::new(ExprStmt {
-                    expr: Expr::Binary(Box::new(BinaryExpr {
+                stmts: vec![Stmt::from(ExprStmt {
+                    expr: Expr::from(BinaryExpr {
                         operator: Operator::Addition,
-                        left: Expr::Var(Box::new(VarExpr::new("a"))),
-                        right: Expr::Var(Box::new(VarExpr::new("b"))),
-                    })),
-                }))],
+                        left: Expr::from(VarExpr::new("a")),
+                        right: Expr::from(VarExpr::new("b")),
+                    }),
+                })],
             },
-        }))
+        })
     }
 
     #[test]
     fn test_function_declarations() -> Result<(), IncLogError> {
         let mut inclog = IncLog::new();
 
-        let anonymous_function = vec![Stmt::Expr(Box::new(ExprStmt {
+        let anonymous_function = vec![Stmt::from(ExprStmt {
             expr: new_add_function_expr(),
-        }))];
+        })];
 
-        let named_function = vec![Stmt::Var(Box::new(VarStmt {
+        let named_function = vec![Stmt::from(VarStmt {
             name: "add".to_string(),
             initializer: Some(new_add_function_expr()),
-        }))];
+        })];
 
         let result = inclog.execute(anonymous_function)?.unwrap();
         assert_eq!(format!("{}", result), "<anonymous fn(a, b)>");
@@ -181,23 +181,23 @@ mod test {
         let mut inclog = IncLog::new();
 
         let function_call = vec![
-            Stmt::Var(Box::new(VarStmt {
+            Stmt::from(VarStmt {
                 name: "add".to_string(),
                 initializer: Some(new_add_function_expr()),
-            })),
-            Stmt::Expr(Box::new(ExprStmt {
-                expr: Expr::Call(Box::new(CallExpr {
-                    callee: Expr::Var(Box::new(VarExpr::new("add"))),
+            }),
+            Stmt::from(ExprStmt {
+                expr: Expr::from(CallExpr {
+                    callee: Expr::from(VarExpr::new("add")),
                     arguments: vec![
-                        Expr::Literal(Box::new(LiteralExpr {
+                        Expr::from(LiteralExpr {
                             value: Literal::Uint(1),
-                        })),
-                        Expr::Literal(Box::new(LiteralExpr {
+                        }),
+                        Expr::from(LiteralExpr {
                             value: Literal::Uint(2),
-                        })),
+                        }),
                     ],
-                })),
-            })),
+                }),
+            }),
         ];
 
         let result = inclog.execute(function_call)?.unwrap();
@@ -212,34 +212,34 @@ mod test {
         let mut dbsp_inputs = DbspInputs::new();
 
         let code = [
-            Stmt::Var(Box::new(VarStmt {
+            Stmt::from(VarStmt {
                 name: "add".to_string(),
                 initializer: Some(new_add_function_expr()),
-            })),
-            Stmt::Var(Box::new(VarStmt {
+            }),
+            Stmt::from(VarStmt {
                 name: "constant".to_string(),
-                initializer: Some(Expr::Literal(Box::new(LiteralExpr {
+                initializer: Some(Expr::from(LiteralExpr {
                     value: Literal::Uint(1),
-                }))),
-            })),
-            Stmt::Var(Box::new(VarStmt {
+                })),
+            }),
+            Stmt::from(VarStmt {
                 name: "selected".to_string(),
-                initializer: Some(Expr::Selection(Box::new(SelectionExpr {
-                    condition: Expr::Binary(Box::new(BinaryExpr {
+                initializer: Some(Expr::from(SelectionExpr {
+                    condition: Expr::from(BinaryExpr {
                         operator: Operator::GreaterEqual,
                         // TODO: Try more complex logical expression with and/or.
-                        left: Expr::Var(Box::new(VarExpr::new("weight"))),
-                        right: Expr::Call(Box::new(CallExpr {
-                            callee: Expr::Var(Box::new(VarExpr::new("add"))),
+                        left: Expr::from(VarExpr::new("weight")),
+                        right: Expr::from(CallExpr {
+                            callee: Expr::from(VarExpr::new("add")),
                             arguments: vec![
-                                Expr::Var(Box::new(VarExpr::new("constant"))),
-                                Expr::Literal(Box::new(LiteralExpr {
+                                Expr::from(VarExpr::new("constant")),
+                                Expr::from(LiteralExpr {
                                     value: Literal::Uint(1),
-                                })),
+                                }),
                             ],
-                        })),
-                    })),
-                    relation: Expr::Literal(Box::new(DbspInput::add(
+                        }),
+                    }),
+                    relation: Expr::from(DbspInput::add(
                         RelationSchema::new(
                             "edges",
                             ["from", "to", "weight", "active"],
@@ -247,28 +247,28 @@ mod test {
                         )?,
                         root_circuit,
                         &mut dbsp_inputs,
-                    ))),
-                }))),
-            })),
-            Stmt::Var(Box::new(VarStmt {
+                    )),
+                })),
+            }),
+            Stmt::from(VarStmt {
                 name: "projected".to_string(),
-                initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
-                    relation: Expr::Var(Box::new(VarExpr::new("selected"))),
+                initializer: Some(Expr::from(ProjectionExpr {
+                    relation: Expr::from(VarExpr::new("selected")),
                     attributes: ["from", "to", "weight"]
                         .into_iter()
-                        .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
+                        .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                         .chain([(
                             // Here we create an entirely new column.
                             "product_from_to".to_string(),
-                            Expr::Binary(Box::new(BinaryExpr {
+                            Expr::from(BinaryExpr {
                                 operator: Operator::Multiplication,
-                                left: Expr::Var(Box::new(VarExpr::new("from"))),
-                                right: Expr::Var(Box::new(VarExpr::new("to"))),
-                            })),
+                                left: Expr::from(VarExpr::new("from")),
+                                right: Expr::from(VarExpr::new("to")),
+                            }),
                         )])
                         .collect(),
-                }))),
-            })),
+                })),
+            }),
         ];
 
         match IncLog::new().execute(code) {
@@ -446,9 +446,9 @@ mod test {
             let mut dbsp_inputs = DbspInputs::new();
 
             let code = [
-                Stmt::Var(Box::new(VarStmt {
+                Stmt::from(VarStmt {
                     name: "person".to_string(),
-                    initializer: Some(Expr::Literal(Box::new(DbspInput::add(
+                    initializer: Some(Expr::from(DbspInput::add(
                         RelationSchema::new(
                             "person",
                             ["person_id", "name", "age", "profession_id"],
@@ -456,11 +456,11 @@ mod test {
                         )?,
                         root_circuit,
                         &mut dbsp_inputs,
-                    )))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                    ))),
+                }),
+                Stmt::from(VarStmt {
                     name: "profession".to_string(),
-                    initializer: Some(Expr::Literal(Box::new(DbspInput::add(
+                    initializer: Some(Expr::from(DbspInput::add(
                         RelationSchema::new(
                             "profession",
                             ["profession_id", "name"],
@@ -468,19 +468,19 @@ mod test {
                         )?,
                         root_circuit,
                         &mut dbsp_inputs,
-                    )))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                    ))),
+                }),
+                Stmt::from(VarStmt {
                     name: "joined".to_string(),
-                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
-                        left: Expr::Alias(Box::new(AliasExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("person"))),
+                    initializer: Some(Expr::from(EquiJoinExpr {
+                        left: Expr::from(AliasExpr {
+                            relation: Expr::from(VarExpr::new("person")),
                             alias: "pers".to_string(),
-                        })),
-                        right: Expr::Alias(Box::new(AliasExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("profession"))),
+                        }),
+                        right: Expr::from(AliasExpr {
+                            relation: Expr::from(VarExpr::new("profession")),
                             alias: "prof".to_string(),
-                        })),
+                        }),
                         // TODO: Shall we force aliasing here? Technically, it isn't
                         // required because the left attribute only operates on the left relation
                         // and the right attribute only operates on the right relation.
@@ -498,15 +498,12 @@ mod test {
                             ]
                             .into_iter()
                             .map(|(name, identifier)| {
-                                (
-                                    name.to_string(),
-                                    Expr::Var(Box::new(VarExpr::new(identifier))),
-                                )
+                                (name.to_string(), Expr::from(VarExpr::new(identifier)))
                             })
                             .collect(),
                         ),
-                    }))),
-                })),
+                    })),
+                }),
             ];
 
             match IncLog::new().execute(code) {
@@ -579,9 +576,9 @@ mod test {
             let mut dbsp_inputs = DbspInputs::new();
 
             let code = [
-                Stmt::Var(Box::new(VarStmt {
+                Stmt::from(VarStmt {
                     name: "edges".to_string(),
-                    initializer: Some(Expr::Literal(Box::new(DbspInput::add(
+                    initializer: Some(Expr::from(DbspInput::add(
                         RelationSchema::new(
                             "edges",
                             ["from", "to", "weight", "active"],
@@ -589,171 +586,162 @@ mod test {
                         )?,
                         root_circuit,
                         &mut dbsp_inputs,
-                    )))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                    ))),
+                }),
+                Stmt::from(VarStmt {
                     name: "len_1".to_string(),
-                    initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
-                        relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                    initializer: Some(Expr::from(ProjectionExpr {
+                        relation: Expr::from(VarExpr::new("edges")),
                         attributes: ["from", "to"]
                             .into_iter()
-                            .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
+                            .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                             .chain(
                                 [
-                                    (
-                                        "cumulated_weight",
-                                        Expr::Var(Box::new(VarExpr::new("weight"))),
-                                    ),
+                                    ("cumulated_weight", Expr::from(VarExpr::new("weight"))),
                                     (
                                         "hopcount",
-                                        Expr::Literal(Box::new(LiteralExpr {
+                                        Expr::from(LiteralExpr {
                                             value: Literal::Uint(1),
-                                        })),
+                                        }),
                                     ),
                                 ]
                                 .map(|(name, expr)| (name.to_string(), expr)),
                             )
                             .collect(),
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                    })),
+                }),
+                Stmt::from(VarStmt {
                     name: "len_2".to_string(),
-                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
-                        left: Expr::Alias(Box::new(AliasExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("len_1"))),
+                    initializer: Some(Expr::from(EquiJoinExpr {
+                        left: Expr::from(AliasExpr {
+                            relation: Expr::from(VarExpr::new("len_1")),
                             alias: "cur".to_string(),
-                        })),
-                        right: Expr::Alias(Box::new(AliasExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                        }),
+                        right: Expr::from(AliasExpr {
+                            relation: Expr::from(VarExpr::new("edges")),
                             alias: "next".to_string(),
-                        })),
+                        }),
                         on: vec![("to".to_string(), "from".to_string())],
                         attributes: Some(
                             [
-                                ("start", Expr::Var(Box::new(VarExpr::new("cur.from")))),
-                                ("end", Expr::Var(Box::new(VarExpr::new("next.to")))),
+                                ("start", Expr::from(VarExpr::new("cur.from"))),
+                                ("end", Expr::from(VarExpr::new("next.to"))),
                                 (
                                     "cumulated_weight",
-                                    Expr::Binary(Box::new(BinaryExpr {
+                                    Expr::from(BinaryExpr {
                                         operator: Operator::Addition,
-                                        left: Expr::Var(Box::new(VarExpr::new(
-                                            "cur.cumulated_weight",
-                                        ))),
-                                        right: Expr::Var(Box::new(VarExpr::new("next.weight"))),
-                                    })),
+                                        left: Expr::from(VarExpr::new("cur.cumulated_weight")),
+                                        right: Expr::from(VarExpr::new("next.weight")),
+                                    }),
                                 ),
                                 (
                                     "hopcount",
-                                    Expr::Binary(Box::new(BinaryExpr {
+                                    Expr::from(BinaryExpr {
                                         operator: Operator::Addition,
-                                        left: Expr::Var(Box::new(VarExpr::new("cur.hopcount"))),
-                                        right: Expr::Literal(Box::new(LiteralExpr {
+                                        left: Expr::from(VarExpr::new("cur.hopcount")),
+                                        right: Expr::from(LiteralExpr {
                                             value: Literal::Uint(1),
-                                        })),
-                                    })),
+                                        }),
+                                    }),
                                 ),
                             ]
                             .into_iter()
                             .map(|(name, expr)| (name.to_string(), expr))
                             .collect(),
                         ),
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                    })),
+                }),
+                Stmt::from(VarStmt {
                     name: "len_3".to_string(),
-                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
-                        left: Expr::Alias(Box::new(AliasExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("len_2"))),
+                    initializer: Some(Expr::from(EquiJoinExpr {
+                        left: Expr::from(AliasExpr {
+                            relation: Expr::from(VarExpr::new("len_2")),
                             alias: "cur".to_string(),
-                        })),
-                        right: Expr::Alias(Box::new(AliasExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                        }),
+                        right: Expr::from(AliasExpr {
+                            relation: Expr::from(VarExpr::new("edges")),
                             alias: "next".to_string(),
-                        })),
+                        }),
                         on: vec![("end".to_string(), "from".to_string())],
                         attributes: Some(
                             [
-                                ("start", Expr::Var(Box::new(VarExpr::new("cur.start")))),
-                                ("end", Expr::Var(Box::new(VarExpr::new("next.to")))),
+                                ("start", Expr::from(VarExpr::new("cur.start"))),
+                                ("end", Expr::from(VarExpr::new("next.to"))),
                                 (
                                     "cumulated_weight",
-                                    Expr::Binary(Box::new(BinaryExpr {
+                                    Expr::from(BinaryExpr {
                                         operator: Operator::Addition,
-                                        left: Expr::Var(Box::new(VarExpr::new(
-                                            "cur.cumulated_weight",
-                                        ))),
-                                        right: Expr::Var(Box::new(VarExpr::new("next.weight"))),
-                                    })),
+                                        left: Expr::from(VarExpr::new("cur.cumulated_weight")),
+                                        right: Expr::from(VarExpr::new("next.weight")),
+                                    }),
                                 ),
                                 (
                                     "hopcount",
-                                    Expr::Binary(Box::new(BinaryExpr {
+                                    Expr::from(BinaryExpr {
                                         operator: Operator::Addition,
-                                        left: Expr::Var(Box::new(VarExpr::new("cur.hopcount"))),
-                                        right: Expr::Literal(Box::new(LiteralExpr {
+                                        left: Expr::from(VarExpr::new("cur.hopcount")),
+                                        right: Expr::from(LiteralExpr {
                                             value: Literal::Uint(1),
-                                        })),
-                                    })),
+                                        }),
+                                    }),
                                 ),
                             ]
                             .into_iter()
                             .map(|(name, expr)| (name.to_string(), expr))
                             .collect(),
                         ),
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                    })),
+                }),
+                Stmt::from(VarStmt {
                     name: "len_4".to_string(),
-                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
-                        left: Expr::Alias(Box::new(AliasExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("len_3"))),
+                    initializer: Some(Expr::from(EquiJoinExpr {
+                        left: Expr::from(AliasExpr {
+                            relation: Expr::from(VarExpr::new("len_3")),
                             alias: "cur".to_string(),
-                        })),
-                        right: Expr::Alias(Box::new(AliasExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                        }),
+                        right: Expr::from(AliasExpr {
+                            relation: Expr::from(VarExpr::new("edges")),
                             alias: "next".to_string(),
-                        })),
+                        }),
                         on: vec![("end".to_string(), "from".to_string())],
                         attributes: Some(
                             [
-                                ("start", Expr::Var(Box::new(VarExpr::new("cur.start")))),
-                                ("end", Expr::Var(Box::new(VarExpr::new("next.to")))),
+                                ("start", Expr::from(VarExpr::new("cur.start"))),
+                                ("end", Expr::from(VarExpr::new("next.to"))),
                                 (
                                     "cumulated_weight",
-                                    Expr::Binary(Box::new(BinaryExpr {
+                                    Expr::from(BinaryExpr {
                                         operator: Operator::Addition,
-                                        left: Expr::Var(Box::new(VarExpr::new(
-                                            "cur.cumulated_weight",
-                                        ))),
-                                        right: Expr::Var(Box::new(VarExpr::new("next.weight"))),
-                                    })),
+                                        left: Expr::from(VarExpr::new("cur.cumulated_weight")),
+                                        right: Expr::from(VarExpr::new("next.weight")),
+                                    }),
                                 ),
                                 (
                                     "hopcount",
-                                    Expr::Binary(Box::new(BinaryExpr {
+                                    Expr::from(BinaryExpr {
                                         operator: Operator::Addition,
-                                        left: Expr::Var(Box::new(VarExpr::new("cur.hopcount"))),
-                                        right: Expr::Literal(Box::new(LiteralExpr {
+                                        left: Expr::from(VarExpr::new("cur.hopcount")),
+                                        right: Expr::from(LiteralExpr {
                                             value: Literal::Uint(1),
-                                        })),
-                                    })),
+                                        }),
+                                    }),
                                 ),
                             ]
                             .into_iter()
                             .map(|(name, expr)| (name.to_string(), expr))
                             .collect(),
                         ),
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                    })),
+                }),
+                Stmt::from(VarStmt {
                     name: "full_closure".to_string(),
-                    initializer: Some(Expr::Union(Box::new(UnionExpr {
+                    initializer: Some(Expr::from(UnionExpr {
                         relations: ["len_1", "len_2", "len_3", "len_4"]
                             .into_iter()
-                            .map(|name| Expr::Var(Box::new(VarExpr::new(name))))
+                            .map(|name| Expr::from(VarExpr::new(name)))
                             .collect(),
-                    }))),
-                })),
+                    })),
+                }),
             ];
 
             match IncLog::new().execute(code) {
@@ -824,10 +812,10 @@ mod test {
             let mut dbsp_inputs = DbspInputs::new();
 
             let code = [
-                Stmt::Var(Box::new(VarStmt {
+                Stmt::from(VarStmt {
                     name: "edges".to_string(),
-                    initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
-                        relation: Expr::Literal(Box::new(DbspInput::add(
+                    initializer: Some(Expr::from(ProjectionExpr {
+                        relation: Expr::from(DbspInput::add(
                             RelationSchema::new(
                                 "edges",
                                 ["from", "to", "weight", "active"],
@@ -835,103 +823,90 @@ mod test {
                             )?,
                             root_circuit,
                             &mut dbsp_inputs,
-                        ))),
+                        )),
                         attributes: ["from", "to", "weight"]
                             .into_iter()
-                            .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
+                            .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                             .collect(),
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                    })),
+                }),
+                Stmt::from(VarStmt {
                     name: "base".to_string(),
-                    initializer: Some(Expr::Projection(Box::new(ProjectionExpr {
-                        relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                    initializer: Some(Expr::from(ProjectionExpr {
+                        relation: Expr::from(VarExpr::new("edges")),
                         attributes: ["from", "to"]
                             .into_iter()
-                            .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
+                            .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                             .chain(
                                 [
-                                    (
-                                        "cumulated_weight",
-                                        Expr::Var(Box::new(VarExpr::new("weight"))),
-                                    ),
+                                    ("cumulated_weight", Expr::from(VarExpr::new("weight"))),
                                     (
                                         "hopcount",
-                                        Expr::Literal(Box::new(LiteralExpr {
+                                        Expr::from(LiteralExpr {
                                             value: Literal::Uint(1),
-                                        })),
+                                        }),
                                     ),
                                 ]
                                 .map(|(name, expr)| (name.to_string(), expr)),
                             )
                             .collect(),
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                    })),
+                }),
+                Stmt::from(VarStmt {
                     name: "closure".to_string(),
-                    initializer: Some(Expr::FixedPointIter(Box::new(FixedPointIterExpr {
+                    initializer: Some(Expr::from(FixedPointIterExpr {
                         circuit: root_circuit.clone(),
                         imports: ["edges"]
                             .into_iter()
-                            .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
+                            .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                             .collect(),
-                        accumulator: (
-                            "accumulator".to_string(),
-                            Expr::Var(Box::new(VarExpr::new("base"))),
-                        ),
+                        accumulator: ("accumulator".to_string(), Expr::from(VarExpr::new("base"))),
                         step: BlockStmt {
-                            stmts: vec![Stmt::Expr(Box::new(ExprStmt {
-                                expr: Expr::EquiJoin(Box::new(EquiJoinExpr {
-                                    left: Expr::Alias(Box::new(AliasExpr {
-                                        relation: Expr::Var(Box::new(VarExpr::new("accumulator"))),
+                            stmts: vec![Stmt::from(ExprStmt {
+                                expr: Expr::from(EquiJoinExpr {
+                                    left: Expr::from(AliasExpr {
+                                        relation: Expr::from(VarExpr::new("accumulator")),
                                         alias: "cur".to_string(),
-                                    })),
-                                    right: Expr::Alias(Box::new(AliasExpr {
-                                        relation: Expr::Var(Box::new(VarExpr::new("edges"))),
+                                    }),
+                                    right: Expr::from(AliasExpr {
+                                        relation: Expr::from(VarExpr::new("edges")),
                                         alias: "next".to_string(),
-                                    })),
+                                    }),
                                     on: vec![("to".to_string(), "from".to_string())],
                                     attributes: Some(
                                         [
-                                            (
-                                                "start",
-                                                Expr::Var(Box::new(VarExpr::new("cur.from"))),
-                                            ),
-                                            ("end", Expr::Var(Box::new(VarExpr::new("next.to")))),
+                                            ("start", Expr::from(VarExpr::new("cur.from"))),
+                                            ("end", Expr::from(VarExpr::new("next.to"))),
                                             (
                                                 "cumulated_weight",
-                                                Expr::Binary(Box::new(BinaryExpr {
+                                                Expr::from(BinaryExpr {
                                                     operator: Operator::Addition,
-                                                    left: Expr::Var(Box::new(VarExpr::new(
+                                                    left: Expr::from(VarExpr::new(
                                                         "cur.cumulated_weight",
-                                                    ))),
-                                                    right: Expr::Var(Box::new(VarExpr::new(
-                                                        "next.weight",
-                                                    ))),
-                                                })),
+                                                    )),
+                                                    right: Expr::from(VarExpr::new("next.weight")),
+                                                }),
                                             ),
                                             (
                                                 "hopcount",
-                                                Expr::Binary(Box::new(BinaryExpr {
+                                                Expr::from(BinaryExpr {
                                                     operator: Operator::Addition,
-                                                    left: Expr::Var(Box::new(VarExpr::new(
-                                                        "cur.hopcount",
-                                                    ))),
-                                                    right: Expr::Literal(Box::new(LiteralExpr {
+                                                    left: Expr::from(VarExpr::new("cur.hopcount")),
+                                                    right: Expr::from(LiteralExpr {
                                                         value: Literal::Uint(1),
-                                                    })),
-                                                })),
+                                                    }),
+                                                }),
                                             ),
                                         ]
                                         .into_iter()
                                         .map(|(name, expr)| (name.to_string(), expr))
                                         .collect(),
                                     ),
-                                })),
-                            }))],
+                                }),
+                            })],
                         },
-                    }))),
-                })),
+                    })),
+                }),
             ];
 
             match IncLog::new().execute(code) {
@@ -1084,9 +1059,9 @@ mod test {
 
             let code = [
                 // Inputs start.
-                Stmt::Var(Box::new(VarStmt {
+                Stmt::from(VarStmt {
                     name: "pred_rel".to_string(),
-                    initializer: Some(Expr::Literal(Box::new(DbspInput::add(
+                    initializer: Some(Expr::from(DbspInput::add(
                         RelationSchema::new(
                             "pred_rel",
                             ["from_node_id", "from_counter", "to_node_id", "to_counter"],
@@ -1094,11 +1069,11 @@ mod test {
                         )?,
                         root_circuit,
                         &mut dbsp_inputs,
-                    )))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                    ))),
+                }),
+                Stmt::from(VarStmt {
                     name: "set_op".to_string(),
-                    initializer: Some(Expr::Literal(Box::new(DbspInput::add(
+                    initializer: Some(Expr::from(DbspInput::add(
                         RelationSchema::new(
                             "set_op",
                             ["node_id", "counter", "key", "value"],
@@ -1106,90 +1081,83 @@ mod test {
                         )?,
                         root_circuit,
                         &mut dbsp_inputs,
-                    )))),
-                })),
+                    ))),
+                }),
                 // Inputs end.
-                Stmt::Var(Box::new(VarStmt {
+                Stmt::from(VarStmt {
                     name: "overwritten".to_string(),
-                    initializer: Some(Expr::Distinct(Box::new(DistinctExpr {
-                        relation: Expr::Projection(Box::new(ProjectionExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("pred_rel"))),
+                    initializer: Some(Expr::from(DistinctExpr {
+                        relation: Expr::from(ProjectionExpr {
+                            relation: Expr::from(VarExpr::new("pred_rel")),
                             attributes: [("node_id", "from_node_id"), ("counter", "from_counter")]
                                 .into_iter()
                                 .map(|(name, origin)| {
-                                    (name.to_string(), Expr::Var(Box::new(VarExpr::new(origin))))
+                                    (name.to_string(), Expr::from(VarExpr::new(origin)))
                                 })
                                 .collect(),
-                        })),
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                        }),
+                    })),
+                }),
+                Stmt::from(VarStmt {
                     name: "overwrites".to_string(),
-                    initializer: Some(Expr::Distinct(Box::new(DistinctExpr {
-                        relation: Expr::Projection(Box::new(ProjectionExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("pred_rel"))),
+                    initializer: Some(Expr::from(DistinctExpr {
+                        relation: Expr::from(ProjectionExpr {
+                            relation: Expr::from(VarExpr::new("pred_rel")),
                             attributes: [("node_id", "to_node_id"), ("counter", "to_counter")]
                                 .into_iter()
                                 .map(|(name, origin)| {
-                                    (name.to_string(), Expr::Var(Box::new(VarExpr::new(origin))))
+                                    (name.to_string(), Expr::from(VarExpr::new(origin)))
                                 })
                                 .collect(),
-                        })),
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                        }),
+                    })),
+                }),
+                Stmt::from(VarStmt {
                     name: "root".to_string(),
-                    initializer: Some(Expr::Difference(Box::new(DifferenceExpr {
-                        left: Expr::Projection(Box::new(ProjectionExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("set_op"))),
+                    initializer: Some(Expr::from(DifferenceExpr {
+                        left: Expr::from(ProjectionExpr {
+                            relation: Expr::from(VarExpr::new("set_op")),
                             attributes: ["node_id", "counter"]
                                 .into_iter()
-                                .map(|name| {
-                                    (name.to_string(), Expr::Var(Box::new(VarExpr::new(name))))
-                                })
+                                .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                                 .collect(),
-                        })),
-                        right: Expr::Var(Box::new(VarExpr::new("overwrites"))),
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                        }),
+                        right: Expr::from(VarExpr::new("overwrites")),
+                    })),
+                }),
+                Stmt::from(VarStmt {
                     name: "leaf".to_string(),
-                    initializer: Some(Expr::Difference(Box::new(DifferenceExpr {
-                        left: Expr::Projection(Box::new(ProjectionExpr {
-                            relation: Expr::Var(Box::new(VarExpr::new("set_op"))),
+                    initializer: Some(Expr::from(DifferenceExpr {
+                        left: Expr::from(ProjectionExpr {
+                            relation: Expr::from(VarExpr::new("set_op")),
                             attributes: ["node_id", "counter"]
                                 .into_iter()
-                                .map(|name| {
-                                    (name.to_string(), Expr::Var(Box::new(VarExpr::new(name))))
-                                })
+                                .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                                 .collect(),
-                        })),
-                        right: Expr::Var(Box::new(VarExpr::new("overwritten"))),
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                        }),
+                        right: Expr::from(VarExpr::new("overwritten")),
+                    })),
+                }),
+                Stmt::from(VarStmt {
                     name: "causally_ready".to_string(),
-                    initializer: Some(Expr::FixedPointIter(Box::new(FixedPointIterExpr {
+                    initializer: Some(Expr::from(FixedPointIterExpr {
                         circuit: root_circuit.clone(),
                         imports: ["pred_rel"]
                             .into_iter()
-                            .map(|name| (name.to_string(), Expr::Var(Box::new(VarExpr::new(name)))))
+                            .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                             .collect(),
-                        accumulator: (
-                            "accumulator".to_string(),
-                            Expr::Var(Box::new(VarExpr::new("root"))),
-                        ),
+                        accumulator: ("accumulator".to_string(), Expr::from(VarExpr::new("root"))),
                         step: BlockStmt {
-                            stmts: vec![Stmt::Expr(Box::new(ExprStmt {
-                                expr: Expr::EquiJoin(Box::new(EquiJoinExpr {
-                                    left: Expr::Alias(Box::new(AliasExpr {
-                                        relation: Expr::Var(Box::new(VarExpr::new("accumulator"))),
+                            stmts: vec![Stmt::from(ExprStmt {
+                                expr: Expr::from(EquiJoinExpr {
+                                    left: Expr::from(AliasExpr {
+                                        relation: Expr::from(VarExpr::new("accumulator")),
                                         alias: "cur".to_string(),
-                                    })),
-                                    right: Expr::Alias(Box::new(AliasExpr {
-                                        relation: Expr::Var(Box::new(VarExpr::new("pred_rel"))),
+                                    }),
+                                    right: Expr::from(AliasExpr {
+                                        relation: Expr::from(VarExpr::new("pred_rel")),
                                         alias: "next".to_string(),
-                                    })),
+                                    }),
                                     on: vec![
                                         ("node_id".to_string(), "from_node_id".to_string()),
                                         ("counter".to_string(), "from_counter".to_string()),
@@ -1198,33 +1166,29 @@ mod test {
                                         [
                                             (
                                                 "node_id",
-                                                Expr::Var(Box::new(VarExpr::new(
-                                                    "next.to_node_id",
-                                                ))),
+                                                Expr::from(VarExpr::new("next.to_node_id")),
                                             ),
                                             (
                                                 "counter",
-                                                Expr::Var(Box::new(VarExpr::new(
-                                                    "next.to_counter",
-                                                ))),
+                                                Expr::from(VarExpr::new("next.to_counter")),
                                             ),
                                         ]
                                         .into_iter()
                                         .map(|(name, expr)| (name.to_string(), expr))
                                         .collect(),
                                     ),
-                                })),
-                            }))],
+                                }),
+                            })],
                         },
-                    }))),
-                })),
-                Stmt::Var(Box::new(VarStmt {
+                    })),
+                }),
+                Stmt::from(VarStmt {
                     name: "mvr_store".to_string(),
-                    initializer: Some(Expr::EquiJoin(Box::new(EquiJoinExpr {
-                        left: Expr::Var(Box::new(VarExpr::new("causally_ready"))),
-                        right: Expr::EquiJoin(Box::new(EquiJoinExpr {
-                            left: Expr::Var(Box::new(VarExpr::new("leaf"))),
-                            right: Expr::Var(Box::new(VarExpr::new("set_op"))),
+                    initializer: Some(Expr::from(EquiJoinExpr {
+                        left: Expr::from(VarExpr::new("causally_ready")),
+                        right: Expr::from(EquiJoinExpr {
+                            left: Expr::from(VarExpr::new("leaf")),
+                            right: Expr::from(VarExpr::new("set_op")),
                             on: vec![
                                 ("node_id".to_string(), "node_id".to_string()),
                                 ("counter".to_string(), "counter".to_string()),
@@ -1237,31 +1201,31 @@ mod test {
                             // Welcome to the funny world of relational algebra's semantics.
                             attributes: Some(
                                 [
-                                    ("node_id", Expr::Var(Box::new(VarExpr::new("node_id")))),
-                                    ("counter", Expr::Var(Box::new(VarExpr::new("counter")))),
-                                    ("key", Expr::Var(Box::new(VarExpr::new("key")))),
-                                    ("value", Expr::Var(Box::new(VarExpr::new("value")))),
+                                    ("node_id", Expr::from(VarExpr::new("node_id"))),
+                                    ("counter", Expr::from(VarExpr::new("counter"))),
+                                    ("key", Expr::from(VarExpr::new("key"))),
+                                    ("value", Expr::from(VarExpr::new("value"))),
                                 ]
                                 .into_iter()
                                 .map(|(name, expr)| (name.to_string(), expr))
                                 .collect(),
                             ),
-                        })),
+                        }),
                         on: vec![
                             ("node_id".to_string(), "node_id".to_string()),
                             ("counter".to_string(), "counter".to_string()),
                         ],
                         attributes: Some(
                             [
-                                ("key", Expr::Var(Box::new(VarExpr::new("key")))),
-                                ("value", Expr::Var(Box::new(VarExpr::new("value")))),
+                                ("key", Expr::from(VarExpr::new("key"))),
+                                ("value", Expr::from(VarExpr::new("value"))),
                             ]
                             .into_iter()
                             .map(|(name, expr)| (name.to_string(), expr))
                             .collect(),
                         ),
-                    }))),
-                })),
+                    })),
+                }),
             ];
 
             match IncLog::new().execute(code) {

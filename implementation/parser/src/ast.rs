@@ -1,87 +1,66 @@
+use compute::expr::{Expr, VarExpr};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Program {
-    instructions: Vec<Statement>,
+    pub rules: Vec<Rule>,
 }
 
-pub enum Statement {
-    Query(QueryOperator),
-    Mutation,
-    Schema,
+impl Default for Program {
+    fn default() -> Self {
+        Self { rules: Vec::new() }
+    }
 }
 
-pub enum QueryOperator {
-    // Binary
-    // Unary
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Rule {
+    pub head: Head,
+    pub body: Body,
 }
 
-pub struct Intersection {}
-
-pub struct Union {}
-
-pub struct SetDifference {}
-
-pub struct Projection {
-    fields: Vec<()>,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Head {
+    pub name: VarExpr,
+    pub variables: Vec<Expr>,
 }
 
-pub struct Selection {
-    condition: Expr,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Body {
+    pub atoms: Vec<Atom>,
 }
 
-pub struct CrossProduct {}
-
-pub struct NaturalJoin {
-    field: (),
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Atom {
+    Positive(Predicate),
+    Negative(Predicate),
+    Comparison(Expr),
 }
 
-pub struct ThetaJoin {
-    condition: Expr,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Predicate {
+    pub name: VarExpr,
+    pub variables: Vec<VarExpr>,
 }
 
-/// Represents an iteration until a fix point is reached.
-pub struct Iteration {
-    body: QueryOperator,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Identifier {
+    pub inner: String,
 }
 
-pub enum Expr {
-    Nary(Box<NaryExpr>),
-    Ternary(Box<TernaryExpr>),
-    Binary(Box<BinaryExpr>),
-    Unary(Box<UnaryExpr>),
-    Variable(Box<VarExpr>),
-    Literal(Box<LitExpr>),
+impl<T: Into<String>> From<T> for Identifier {
+    fn from(value: T) -> Self {
+        Identifier {
+            inner: value.into(),
+        }
+    }
 }
 
-// https://ns.inria.fr/ast/sql/index.html
-pub enum Operator {
-    Comparison,
-    Logical,
-    Arithmetic,
-    Set,
+impl From<Identifier> for VarExpr {
+    fn from(value: Identifier) -> Self {
+        VarExpr::new(value.inner)
+    }
 }
 
-pub struct NaryExpr {
-    operator: Operator,
-    operands: Vec<Expr>,
-}
+// Try sharing the Value representation with the IR representation.
 
-pub struct TernaryExpr {
-    operator: Operator,
-    left: Expr,
-    mid: Expr,
-    right: Expr,
-}
-
-pub struct BinaryExpr {
-    operator: Operator,
-    left: Expr,
-    right: Expr,
-}
-
-pub struct UnaryExpr {
-    operator: Operator,
-    operand: Expr,
-}
-
-pub struct VarExpr {}
-
-pub struct LitExpr {}
+// Try sharing the Expression representation with the IR representation.
+// BinaryExpr, UnaryExpr, GroupingExpr, VarExpr, LiteralExpr

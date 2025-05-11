@@ -1,4 +1,4 @@
-use crate::{expr::Expr, util::MemAddr};
+use crate::{expr::Expr, impl_from_auto_box, util::MemAddr};
 
 pub type Code = Vec<Stmt>;
 
@@ -37,7 +37,7 @@ impl Program {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Stmt {
     // TODO: control flow: IfStmt, WhileStmt, Return?, Print?
     Var(Box<VarStmt>),
@@ -45,7 +45,14 @@ pub enum Stmt {
     Block(Box<BlockStmt>),
 }
 
-#[derive(Clone, Debug)]
+impl_from_auto_box! {
+    Stmt,
+    (Stmt::Var, VarStmt),
+    (Stmt::Expr, ExprStmt),
+    (Stmt::Block, BlockStmt)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VarStmt {
     pub name: String,
     pub initializer: Option<Expr>,
@@ -53,12 +60,12 @@ pub struct VarStmt {
 
 // NOTE: When parsing, allow it to behave just like an expression if it is
 // the last statement
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExprStmt {
     pub expr: Expr,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BlockStmt {
     pub stmts: Vec<Stmt>,
 }

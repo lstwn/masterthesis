@@ -3,9 +3,10 @@ use crate::{
     dbsp::OrdIndexedNestedStream,
     error::RuntimeError,
     expr::{
-        AliasExpr, AssignExpr, BinaryExpr, CallExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr,
-        Expr, ExprVisitor, FixedPointIterExpr, FunctionExpr, GroupingExpr, LiteralExpr,
-        ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr, UnaryExpr, UnionExpr, VarExpr,
+        AliasExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr, DifferenceExpr,
+        DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixedPointIterExpr, FunctionExpr,
+        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr,
+        UnaryExpr, UnionExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
@@ -425,6 +426,21 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         };
 
         Ok(Value::Relation(new_relation(schema, projected)))
+    }
+
+    fn visit_cartesian_product_expr(
+        &mut self,
+        expr: &CartesianProductExpr,
+        ctx: VisitorCtx,
+    ) -> ExprVisitorResult {
+        let left = self
+            .visit_expr(&expr.left, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))?;
+        let right = self
+            .visit_expr(&expr.right, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))?;
+
+        todo!("Share code with equi join")
     }
 
     fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: VisitorCtx) -> ExprVisitorResult {

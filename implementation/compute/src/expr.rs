@@ -1,5 +1,6 @@
 use super::operator::Operator;
 use crate::{
+    impl_from_auto_box,
     relation::Relation,
     stmt::BlockStmt,
     util::{MemAddr, Named, Resolvable},
@@ -8,7 +9,7 @@ use crate::{
 use dbsp::RootCircuit;
 use std::fmt::{self, Debug, Display};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Expr {
     // TODO: factor out LogicalExpr from BinaryExpr
     Ternary(Box<TernaryExpr>),
@@ -26,13 +27,36 @@ pub enum Expr {
     Difference(Box<DifferenceExpr>),
     Selection(Box<SelectionExpr>),
     Projection(Box<ProjectionExpr>),
+    CartesianProduct(Box<CartesianProductExpr>),
     EquiJoin(Box<EquiJoinExpr>),
     ThetaJoin(Box<ThetaJoinExpr>),
     FixedPointIter(Box<FixedPointIterExpr>),
-    // CartesianProduct(Box<CartesianProductExpr>),
 }
 
-#[derive(Clone, Debug)]
+impl_from_auto_box! {
+    Expr,
+    (Expr::Ternary, TernaryExpr),
+    (Expr::Binary, BinaryExpr),
+    (Expr::Unary, UnaryExpr),
+    (Expr::Grouping, GroupingExpr),
+    (Expr::Var, VarExpr),
+    (Expr::Assign, AssignExpr),
+    (Expr::Literal, LiteralExpr),
+    (Expr::Call, CallExpr),
+    (Expr::Function, FunctionExpr),
+    (Expr::Alias, AliasExpr),
+    (Expr::Distinct, DistinctExpr),
+    (Expr::Union, UnionExpr),
+    (Expr::Difference, DifferenceExpr),
+    (Expr::Selection, SelectionExpr),
+    (Expr::Projection, ProjectionExpr),
+    (Expr::CartesianProduct, CartesianProductExpr),
+    (Expr::EquiJoin, EquiJoinExpr),
+    (Expr::ThetaJoin, ThetaJoinExpr),
+    (Expr::FixedPointIter, FixedPointIterExpr)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TernaryExpr {
     pub operator: Operator,
     pub left: Expr,
@@ -40,25 +64,25 @@ pub struct TernaryExpr {
     pub right: Expr,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BinaryExpr {
     pub operator: Operator,
     pub left: Expr,
     pub right: Expr,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnaryExpr {
     pub operator: Operator,
     pub operand: Expr,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GroupingExpr {
     pub expr: Expr,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VarExpr {
     pub name: String,
     pub resolved: Option<VariableSlot>,
@@ -85,7 +109,7 @@ impl Named for VarExpr {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssignExpr {
     pub name: String,
     pub value: Expr,
@@ -114,42 +138,50 @@ impl Named for AssignExpr {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LiteralExpr {
     pub value: Literal,
 }
 
-#[derive(Clone, Debug)]
+impl<T: Into<Literal>> From<T> for LiteralExpr {
+    fn from(value: T) -> Self {
+        Self {
+            value: value.into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionExpr {
     pub parameters: Vec<String>,
     pub body: BlockStmt,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CallExpr {
     pub callee: Expr,
     pub arguments: Vec<Expr>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AliasExpr {
     pub relation: Expr,
     pub alias: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DistinctExpr {
     pub relation: Expr,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnionExpr {
     /// All `Expr`s must evaluate to a relation and have a compatible schema,
     /// that is, the same order and arity of attributes with same types, respectively.
     pub relations: Vec<Expr>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DifferenceExpr {
     /// All `Expr`s must evaluate to a relation and have a compatible schema,
     /// that is, the same order and arity of attributes with same types, respectively.
@@ -157,13 +189,14 @@ pub struct DifferenceExpr {
     pub right: Expr,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SelectionExpr {
+    /// Must evaluate to a relation.
     pub relation: Expr,
     pub condition: Expr,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectionExpr {
     /// Must evaluate to a relation.
     pub relation: Expr,
@@ -177,10 +210,20 @@ pub struct ProjectionExpr {
     pub attributes: Vec<(String, Expr)>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CartesianProductExpr {
+    /// Must evaluate to a relation.
+    pub left: Expr,
+    /// Must evaluate to a relation.
+    pub right: Expr,
+    /// An optional projection step. See documentation of [`ProjectionExpr`].
+    pub attributes: Option<Vec<(String, Expr)>>,
+}
+
 /// An equi join is a join that exclusively uses equality of attribute(s).
 /// [More information on join classifications](https://stackoverflow.com/a/7870216).
 // TODO
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EquiJoinExpr {
     /// Must evaluate to a relation.
     pub left: Expr,
@@ -200,7 +243,7 @@ pub struct EquiJoinExpr {
 /// complicated than just equality of attribute(s).
 /// [More information on join classifications](https://stackoverflow.com/a/7870216).
 // TODO
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ThetaJoinExpr {
     /// Must evaluate to a relation.
     pub left: Expr,
@@ -213,7 +256,7 @@ pub struct ThetaJoinExpr {
 
 /// Iteration until the condition is met. Should include fixed-point computations.
 // TODO
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GenericIterExpr {
     pub condition: Expr,
     /// Must evaluate to a relation.
@@ -241,6 +284,16 @@ pub struct FixedPointIterExpr {
     /// The value the last statement evaluates to becomes the accumulator of
     /// the next iteration.
     pub step: BlockStmt,
+}
+
+impl Eq for FixedPointIterExpr {}
+
+impl PartialEq for FixedPointIterExpr {
+    fn eq(&self, other: &Self) -> bool {
+        self.imports == other.imports
+            && self.accumulator == other.accumulator
+            && self.step == other.step
+    }
 }
 
 impl Debug for FixedPointIterExpr {
@@ -273,8 +326,59 @@ pub enum Literal {
     Null(()),
     /// Relation (an extensional database predicate).
     // With a textual representation of the language, this may be just an
-    // identifier and the stream and the schema are elsewhere.
+    // identifier and the stream with its schema is defined elsewhere.
     Relation(Relation),
+}
+
+impl Eq for Literal {}
+
+impl PartialEq for Literal {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Literal::String(a), Literal::String(b)) => a == b,
+            (Literal::Uint(a), Literal::Uint(b)) => a == b,
+            (Literal::Iint(a), Literal::Iint(b)) => a == b,
+            (Literal::Bool(a), Literal::Bool(b)) => a == b,
+            (Literal::Null(()), Literal::Null(())) => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<String> for Literal {
+    fn from(value: String) -> Self {
+        Literal::String(value)
+    }
+}
+
+impl From<&str> for Literal {
+    fn from(value: &str) -> Self {
+        Literal::String(value.to_string())
+    }
+}
+
+impl From<u64> for Literal {
+    fn from(value: u64) -> Self {
+        Literal::Uint(value)
+    }
+}
+
+impl From<i64> for Literal {
+    fn from(value: i64) -> Self {
+        Literal::Iint(value)
+    }
+}
+
+impl From<bool> for Literal {
+    fn from(value: bool) -> Self {
+        Literal::Bool(value)
+    }
+}
+
+impl From<()> for Literal {
+    fn from(_: ()) -> Self {
+        Literal::Null(())
+    }
 }
 
 impl Display for Literal {
@@ -308,6 +412,7 @@ pub trait ExprVisitor<T, C> {
             Expr::Difference(expr) => self.visit_difference_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
+            Expr::CartesianProduct(expr) => self.visit_cartesian_product_expr(expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
             Expr::ThetaJoin(expr) => self.visit_theta_join_expr(expr, ctx),
             Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(expr, ctx),
@@ -328,6 +433,7 @@ pub trait ExprVisitor<T, C> {
     fn visit_difference_expr(&mut self, expr: &DifferenceExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &SelectionExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: &ProjectionExpr, ctx: C) -> T;
+    fn visit_cartesian_product_expr(&mut self, expr: &CartesianProductExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: C) -> T;
     fn visit_theta_join_expr(&mut self, expr: &ThetaJoinExpr, ctx: C) -> T;
     fn visit_fixed_point_iter_expr(&mut self, expr: &FixedPointIterExpr, ctx: C) -> T;
@@ -351,6 +457,7 @@ pub trait ExprVisitorMut<T, C> {
             Expr::Difference(expr) => self.visit_difference_expr(expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
+            Expr::CartesianProduct(expr) => self.visit_cartesian_product_expr(expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
             Expr::ThetaJoin(expr) => self.visit_theta_join_expr(expr, ctx),
             Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(expr, ctx),
@@ -371,6 +478,7 @@ pub trait ExprVisitorMut<T, C> {
     fn visit_difference_expr(&mut self, expr: &mut DifferenceExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: &mut SelectionExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: &mut ProjectionExpr, ctx: C) -> T;
+    fn visit_cartesian_product_expr(&mut self, expr: &mut CartesianProductExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &mut EquiJoinExpr, ctx: C) -> T;
     fn visit_theta_join_expr(&mut self, expr: &mut ThetaJoinExpr, ctx: C) -> T;
     fn visit_fixed_point_iter_expr(&mut self, expr: &mut FixedPointIterExpr, ctx: C) -> T;
@@ -394,6 +502,7 @@ pub trait ExprVisitorOwn<T, C> {
             Expr::Difference(expr) => self.visit_difference_expr(*expr, ctx),
             Expr::Selection(expr) => self.visit_selection_expr(*expr, ctx),
             Expr::Projection(expr) => self.visit_projection_expr(*expr, ctx),
+            Expr::CartesianProduct(expr) => self.visit_cartesian_product_expr(*expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(*expr, ctx),
             Expr::ThetaJoin(expr) => self.visit_theta_join_expr(*expr, ctx),
             Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(*expr, ctx),
@@ -414,6 +523,7 @@ pub trait ExprVisitorOwn<T, C> {
     fn visit_difference_expr(&mut self, expr: DifferenceExpr, ctx: C) -> T;
     fn visit_selection_expr(&mut self, expr: SelectionExpr, ctx: C) -> T;
     fn visit_projection_expr(&mut self, expr: ProjectionExpr, ctx: C) -> T;
+    fn visit_cartesian_product_expr(&mut self, expr: CartesianProductExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: EquiJoinExpr, ctx: C) -> T;
     fn visit_theta_join_expr(&mut self, expr: ThetaJoinExpr, ctx: C) -> T;
     fn visit_fixed_point_iter_expr(&mut self, expr: FixedPointIterExpr, ctx: C) -> T;
@@ -435,6 +545,7 @@ impl MemAddr for UnionExpr {}
 impl MemAddr for DifferenceExpr {}
 impl MemAddr for SelectionExpr {}
 impl MemAddr for ProjectionExpr {}
+impl MemAddr for CartesianProductExpr {}
 impl MemAddr for EquiJoinExpr {}
 impl MemAddr for ThetaJoinExpr {}
 impl MemAddr for GenericIterExpr {}

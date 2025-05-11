@@ -32,3 +32,16 @@ impl<T: MemAddr> From<&T> for NodeRef {
         Self(addr.mem_addr())
     }
 }
+
+#[macro_export]
+macro_rules! impl_from_auto_box {
+    ($enum:ty, $(($variant:path, $expr:ty)),*) => {
+            $(
+                impl From<$expr> for $enum {
+                    fn from(value: $expr) -> Self {
+                        $variant(Box::new(value))
+                    }
+                }
+            )*
+    }
+}

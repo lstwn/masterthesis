@@ -2,9 +2,10 @@ use crate::{
     context::ResolverContext,
     error::SyntaxError,
     expr::{
-        AliasExpr, AssignExpr, BinaryExpr, CallExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr,
-        ExprVisitorMut, FixedPointIterExpr, FunctionExpr, GroupingExpr, LiteralExpr,
-        ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr, UnaryExpr, UnionExpr, VarExpr,
+        AliasExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr, DifferenceExpr,
+        DistinctExpr, EquiJoinExpr, Expr, ExprVisitorMut, FixedPointIterExpr, FunctionExpr,
+        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr,
+        UnaryExpr, UnionExpr, VarExpr,
     },
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
     util::{Named, Resolvable},
@@ -153,6 +154,26 @@ impl Resolver {
     }
 }
 
+impl Resolver {
+    /// A helper method to visit projection attributes.
+    fn visit_projection_attributes(
+        &mut self,
+        attributes: Option<&mut Vec<(String, Expr)>>,
+        ctx: VisitorCtx,
+    ) -> VisitorResult {
+        ctx.begin_tuple_context();
+        let ret = attributes
+            .map(|attributes| {
+                attributes
+                    .iter_mut()
+                    .try_for_each(|attribute| self.visit_expr(&mut attribute.1, ctx))
+            })
+            .unwrap_or(Ok(()));
+        ctx.end_tuple_context();
+        ret
+    }
+}
+
 type VisitorResult = Result<(), SyntaxError>;
 type VisitorCtx<'a, 'b> = &'a mut ResolverContext<'b>;
 
@@ -266,6 +287,17 @@ impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
         // TODO: statically check that the listed attributes are valid.
         // Implement through returning type information through `VisitorResult`.
         self.visit_expr(&mut expr.relation, ctx)
+            .and_then(|()| self.visit_projection_attributes(Some(&mut expr.attributes), ctx))
+    }
+
+    fn visit_cartesian_product_expr(
+        &mut self,
+        expr: &mut CartesianProductExpr,
+        ctx: VisitorCtx,
+    ) -> VisitorResult {
+        self.visit_expr(&mut expr.left, ctx)
+            .and_then(|()| self.visit_expr(&mut expr.right, ctx))
+            .and_then(|()| self.visit_projection_attributes(expr.attributes.as_mut(), ctx))
     }
 
     fn visit_equi_join_expr(&mut self, expr: &mut EquiJoinExpr, ctx: VisitorCtx) -> VisitorResult {
@@ -273,6 +305,7 @@ impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
         // Implement through returning type information through `VisitorResult`.
         self.visit_expr(&mut expr.left, ctx)
             .and_then(|()| self.visit_expr(&mut expr.right, ctx))
+            .and_then(|()| self.visit_projection_attributes(expr.attributes.as_mut(), ctx))
     }
 
     fn visit_theta_join_expr(
@@ -283,6 +316,7 @@ impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
         self.visit_expr(&mut expr.left, ctx)
             .and_then(|()| self.visit_expr(&mut expr.right, ctx))
             .and_then(|()| self.visit_expr(&mut expr.condition, ctx))
+            .and_then(|()| self.visit_projection_attributes(expr.attributes.as_mut(), ctx))
     }
 
     fn visit_fixed_point_iter_expr(

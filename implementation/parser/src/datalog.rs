@@ -1,15 +1,28 @@
-use crate::ast::{Atom, Body, Head, Predicate, Program, Rule};
-use crate::expression;
-use crate::helper::{lead_trail_ws, ws};
-use crate::literal::identifier;
+//! This module parses the following grammar of a Datalog variant:
+//! ```ebnf
+//! program     = rule* EOF ;
+//! rule        = head ":-" body "." ;
+//! head        = IDENTIFIER "(" comparison ( "," comparison )* ")" ;
+//! body        = atom ( "," atom )* ;
+//! atom        = ( "not"? predicate ) | comparison ;
+//! predicate   = IDENTIFIER "(" IDENTIFIER ( "," IDENTIFIER )* ")" ;
+//! ```
+
+use crate::{
+    ast::{Atom, Body, Head, Predicate, Program, Rule},
+    expr,
+    helper::{lead_trail_ws, lead_ws},
+    literal::identifier,
+};
 use compute::expr::VarExpr;
-use nom::branch::alt;
-use nom::bytes::complete::tag;
-use nom::combinator::opt;
-use nom::multi::{fold_many0, separated_list1};
-use nom::sequence::{delimited, pair};
-use nom::Parser;
-use nom::{combinator, IResult};
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    combinator::{map, opt},
+    multi::{fold_many0, separated_list1},
+    sequence::{delimited, pair},
+    IResult, Parser,
+};
 
 const DIVIDER: &'static str = ":-";
 const COMMA: &'static str = ",";
@@ -19,7 +32,7 @@ const NOT: &'static str = "not";
 const LEFT_PAREN: &'static str = "(";
 const RIGHT_PAREN: &'static str = ")";
 
-fn program(input: &str) -> IResult<&str, Program> {
+pub fn program(input: &str) -> IResult<&str, Program> {
     fold_many0(
         lead_trail_ws(rule),
         Program::default,
@@ -33,7 +46,7 @@ fn program(input: &str) -> IResult<&str, Program> {
 
 fn rule(input: &str) -> IResult<&str, Rule> {
     head.parse(input).and_then(|(input, head)| {
-        delimited(ws(tag(DIVIDER)), ws(body), ws(tag(DOT)))
+        delimited(lead_ws(tag(DIVIDER)), lead_ws(body), lead_ws(tag(DOT)))
             .parse(input)
             .map(|(input, body)| (input, Rule { head, body }))
     })
@@ -42,9 +55,9 @@ fn rule(input: &str) -> IResult<&str, Rule> {
 fn head(input: &str) -> IResult<&str, Head> {
     identifier.parse(input).and_then(|(input, name)| {
         delimited(
-            ws(tag(LEFT_PAREN)),
-            separated_list1(ws(tag(COMMA)), ws(expression::comparison)),
-            ws(tag(RIGHT_PAREN)),
+            lead_ws(tag(LEFT_PAREN)),
+            separated_list1(lead_ws(tag(COMMA)), lead_ws(expr::comparison)),
+            lead_ws(tag(RIGHT_PAREN)),
         )
         .parse(input)
         .map(|(input, variables)| {
@@ -60,22 +73,25 @@ fn head(input: &str) -> IResult<&str, Head> {
 }
 
 fn body(input: &str) -> IResult<&str, Body> {
-    combinator::map(separated_list1(ws(tag(COMMA)), ws(atom)), |atoms| Body {
-        atoms,
-    })
+    map(
+        separated_list1(lead_ws(tag(COMMA)), lead_ws(atom)),
+        |atoms| Body { atoms },
+    )
     .parse(input)
 }
 
 fn atom(input: &str) -> IResult<&str, Atom> {
-    let positive_or_negative =
-        combinator::map(pair(opt(tag(NOT)), ws(predicate)), |(not, predicate)| {
+    let positive_or_negative = map(
+        pair(opt(tag(NOT)), lead_ws(predicate)),
+        |(not, predicate)| {
             if not.is_none() {
                 Atom::Positive(predicate)
             } else {
                 Atom::Negative(predicate)
             }
-        });
-    let comparison = combinator::map(expression::comparison, |expr| Atom::Comparison(expr));
+        },
+    );
+    let comparison = map(expr::comparison, |expr| Atom::Comparison(expr));
 
     alt((positive_or_negative, comparison)).parse(input)
 }
@@ -83,12 +99,9 @@ fn atom(input: &str) -> IResult<&str, Atom> {
 fn predicate(input: &str) -> IResult<&str, Predicate> {
     identifier.parse(input).and_then(|(input, name)| {
         delimited(
-            ws(tag(LEFT_PAREN)),
-            separated_list1(
-                ws(tag(COMMA)),
-                combinator::map(ws(identifier), VarExpr::from),
-            ),
-            ws(tag(RIGHT_PAREN)),
+            lead_ws(tag(LEFT_PAREN)),
+            separated_list1(lead_ws(tag(COMMA)), map(lead_ws(identifier), VarExpr::from)),
+            lead_ws(tag(RIGHT_PAREN)),
         )
         .parse(input)
         .map(|(input, variables)| {
@@ -113,11 +126,11 @@ mod test {
             x(a, b + 1) :- y(a, b, c), c > 2.
             z(a, b)     :- y(a, b), not y(a, b).
         "#;
-        // TODO: Maybe check that there is at least one positive atom! (safety conditions?)
         let result = program(input);
         println!("{:#?}", result);
     }
 
+    #[test]
     fn test_mvr_store_crdt() {
         let input = r#"
             overwritten(NodeId, Counter)     :- pred(NodeId, Counter, _ToNodeId, _ToCounter).

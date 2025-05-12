@@ -1,3 +1,6 @@
+//! This module contains a representation of an AST (Abstract Syntax Tree)
+//! for a Datalog variant.
+
 use compute::expr::{Expr, VarExpr};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -20,6 +23,7 @@ pub struct Rule {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Head {
     pub name: VarExpr,
+    /// Here, we allow the variables to be an expression to create new columns.
     pub variables: Vec<Expr>,
 }
 
@@ -38,6 +42,7 @@ pub enum Atom {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Predicate {
     pub name: VarExpr,
+    /// Here, the variables are just identifiers.
     pub variables: Vec<VarExpr>,
 }
 
@@ -59,8 +64,3 @@ impl From<Identifier> for VarExpr {
         VarExpr::new(value.inner)
     }
 }
-
-// Try sharing the Value representation with the IR representation.
-
-// Try sharing the Expression representation with the IR representation.
-// BinaryExpr, UnaryExpr, GroupingExpr, VarExpr, LiteralExpr

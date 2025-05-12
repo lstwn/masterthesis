@@ -1,13 +1,26 @@
-use crate::helper::ws;
-use crate::literal::{identifier, literal};
-use compute::expr::{BinaryExpr, Expr, LiteralExpr, UnaryExpr, VarExpr};
-use compute::operator::Operator;
-use nom::combinator::opt;
-use nom::multi::fold_many0;
+//! This module parses the following grammar of an expression language:
+//! ```ebnf
+//! comparison  = term ( ( "==" | "!=" | ">" | ">=" | "<" | "<=" ) term )? ;
+//! term        = factor ( ( "+" | "-" ) factor )* ;
+//! factor      = unary ( ( "*" | "/" ) unary )* ;
+//! unary       = ( "-" | "!" ) unary | primary ;
+//! primary     = literal | IDENTIFIER | "(" comparison ")" ;
+//! literal     = BOOL | UINT | IINT | STRING | NULL ;
+//! ```
+
+use crate::{
+    helper::lead_ws,
+    literal::{identifier, literal},
+};
+use compute::{
+    expr::{BinaryExpr, Expr, GroupingExpr, LiteralExpr, UnaryExpr, VarExpr},
+    operator::Operator,
+};
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    combinator,
+    combinator::{map, opt},
+    multi::fold_many0,
     sequence::{delimited, pair},
     IResult, Parser,
 };
@@ -29,13 +42,13 @@ const LEFT_PAREN: &'static str = "(";
 const RIGHT_PAREN: &'static str = ")";
 
 pub fn comparison(input: &str) -> IResult<&str, Expr> {
-    let equals = combinator::map(tag(EQUAL), |_: &str| Operator::Equal);
-    let not_equals = combinator::map(tag(NOT_EQUAL), |_: &str| Operator::NotEqual);
-    let greater = combinator::map(tag(GREATER), |_: &str| Operator::Greater);
-    let greater_equals = combinator::map(tag(GREATER_EQUAL), |_: &str| Operator::GreaterEqual);
-    let less = combinator::map(tag(LESS), |_: &str| Operator::Less);
-    let less_equals = combinator::map(tag(LESS_EQUAL), |_: &str| Operator::LessEqual);
-    let comparison_operator = ws(alt((
+    let equals = map(tag(EQUAL), |_: &str| Operator::Equal);
+    let not_equals = map(tag(NOT_EQUAL), |_: &str| Operator::NotEqual);
+    let greater = map(tag(GREATER), |_: &str| Operator::Greater);
+    let greater_equals = map(tag(GREATER_EQUAL), |_: &str| Operator::GreaterEqual);
+    let less = map(tag(LESS), |_: &str| Operator::Less);
+    let less_equals = map(tag(LESS_EQUAL), |_: &str| Operator::LessEqual);
+    let comparison_operator = lead_ws(alt((
         equals,
         not_equals,
         greater,
@@ -45,7 +58,7 @@ pub fn comparison(input: &str) -> IResult<&str, Expr> {
     )));
 
     term.parse(input).and_then(|(input, left)| {
-        opt(pair(comparison_operator, ws(term)))
+        opt(pair(comparison_operator, lead_ws(term)))
             .parse(input)
             .map(|(input, right)| {
                 let expr = if let Some((operator, right)) = right {
@@ -63,13 +76,13 @@ pub fn comparison(input: &str) -> IResult<&str, Expr> {
 }
 
 fn term(input: &str) -> IResult<&str, Expr> {
-    let plus = combinator::map(tag(PLUS), |_: &str| Operator::Addition);
-    let minus = combinator::map(tag(MINUS), |_: &str| Operator::Subtraction);
-    let term_operator = ws(alt((plus, minus)));
+    let plus = map(tag(PLUS), |_: &str| Operator::Addition);
+    let minus = map(tag(MINUS), |_: &str| Operator::Subtraction);
+    let term_operator = lead_ws(alt((plus, minus)));
 
     factor.parse(input).and_then(|(input, left)| {
         fold_many0(
-            pair(term_operator, ws(factor)),
+            pair(term_operator, lead_ws(factor)),
             // Why is this a FnMut() and not a FnOnce() to avoid the clone?
             move || left.clone(),
             |left, (operator, right)| {
@@ -85,13 +98,13 @@ fn term(input: &str) -> IResult<&str, Expr> {
 }
 
 fn factor(input: &str) -> IResult<&str, Expr> {
-    let multiply = combinator::map(tag(MULTIPLY), |_: &str| Operator::Multiplication);
-    let divide = combinator::map(tag(DIVIDE), |_: &str| Operator::Division);
-    let factor_operator = ws(alt((multiply, divide)));
+    let multiply = map(tag(MULTIPLY), |_: &str| Operator::Multiplication);
+    let divide = map(tag(DIVIDE), |_: &str| Operator::Division);
+    let factor_operator = lead_ws(alt((multiply, divide)));
 
     unary.parse(input).and_then(|(input, left)| {
         fold_many0(
-            pair(factor_operator, ws(unary)),
+            pair(factor_operator, lead_ws(unary)),
             // Why is this a FnMut() and not a FnOnce() to avoid the clone?
             move || left.clone(),
             |left, (operator, right)| {
@@ -107,26 +120,33 @@ fn factor(input: &str) -> IResult<&str, Expr> {
 }
 
 fn unary(input: &str) -> IResult<&str, Expr> {
-    let minus = combinator::map(tag(MINUS), |_: &str| Operator::Subtraction);
-    let bang = combinator::map(tag(BANG), |_: &str| Operator::Not);
+    let minus = map(tag(MINUS), |_: &str| Operator::Subtraction);
+    let bang = map(tag(BANG), |_: &str| Operator::Not);
     let unary_operator = alt((minus, bang));
 
     alt((
-        combinator::map(pair(unary_operator, ws(unary)), |(operator, operand)| {
-            Expr::from(UnaryExpr { operator, operand })
-        }),
+        map(
+            pair(unary_operator, lead_ws(unary)),
+            |(operator, operand)| Expr::from(UnaryExpr { operator, operand }),
+        ),
         primary,
     ))
     .parse(input)
 }
 
 fn primary(input: &str) -> IResult<&str, Expr> {
-    alt((
-        combinator::map(literal, |l| Expr::from(LiteralExpr { value: l })),
-        combinator::map(identifier, |i| Expr::from(VarExpr::new(i.inner))),
-        delimited(tag(LEFT_PAREN), ws(comparison), ws(tag(RIGHT_PAREN))),
-    ))
-    .parse(input)
+    let literal = map(literal, |literal| Expr::from(LiteralExpr::from(literal)));
+    let identifier = map(identifier, |ident| Expr::from(VarExpr::from(ident)));
+    let grouping = map(
+        delimited(
+            tag(LEFT_PAREN),
+            lead_ws(comparison),
+            lead_ws(tag(RIGHT_PAREN)),
+        ),
+        |expr| Expr::from(GroupingExpr { expr }),
+    );
+
+    alt((literal, identifier, grouping)).parse(input)
 }
 
 #[cfg(test)]
@@ -139,10 +159,12 @@ mod test {
         let result = comparison(input);
         let expected = Expr::from(BinaryExpr {
             operator: Operator::Multiplication,
-            left: Expr::from(BinaryExpr {
-                operator: Operator::Addition,
-                left: Expr::from(VarExpr::new("x")),
-                right: Expr::from(LiteralExpr::from(1_u64)),
+            left: Expr::from(GroupingExpr {
+                expr: Expr::from(BinaryExpr {
+                    operator: Operator::Addition,
+                    left: Expr::from(VarExpr::new("x")),
+                    right: Expr::from(LiteralExpr::from(1_u64)),
+                }),
             }),
             right: Expr::from(LiteralExpr::from(2_u64)),
         });

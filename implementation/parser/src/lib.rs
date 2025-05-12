@@ -2,6 +2,6 @@
 
 pub mod ast;
 pub mod datalog;
-pub mod expression;
+pub mod expr;
 pub mod helper;
 pub mod literal;

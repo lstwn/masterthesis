@@ -39,7 +39,7 @@ is a parser generator working on top of PEG grammars. [nom vs pest] gives a good
 overview of the differences.
 
 The missing compile-time checks for the conversion from pest's API to the target
-types are a major downside. Hence, we decided to use [nom] for the parser.
+types are a major downside. Hence, we decided to use [nom].
 
 ## Evaluation Order via Dependency Graph
 
@@ -50,14 +50,23 @@ types are a major downside. Hence, we decided to use [nom] for the parser.
 The dependency graph can also be useful to reject invalid programs, that is,
 programs not adhering to stratified negation or mutually recursive rules.
 
-To us, a Datalog program is valid iff
+To us, a Datalog program is valid, iff
 
-1. The dependency graph is acyclic (except for self-loops).
+1. **Range Restriction.**. Every variable occuring in the head of a rule must
+   also occur in the body of that rule.
+1. **Safety Condition.** Every variable occuring in the body of a rule must
+   appear in at least one positive (non-negated) atom in the body.
+1. **Recursion Limitation.** The dependency graph is acyclic (except for
+   self-loops).
 
-Note that this is a sufficient condition for stratified negation, too, because
-it is more restrictive than the definition of stratified negation: Stratified
-negation does allow cycles in the dependency graph, but only if they do not
-contain a negation on their path.
+Without (2), the results of the query may not be finite anymore, and the results
+would not depend on only the actual contents of the database anymore, thereby
+violating the notion of _domain independence_.
+
+Note that (3) this is a sufficient condition for stratified negation, too,
+because it is more restrictive than the definition of stratified negation:
+Stratified negation does allow cycles in the dependency graph, but only if they
+do not contain a negation on their path.
 
 ## Mapping to IR of Relational Algebra Operators
 

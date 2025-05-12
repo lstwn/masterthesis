@@ -1,3 +1,5 @@
+//! This module provides some helper combinators for parsing.
+
 use nom::{
     character::complete::multispace0,
     error::ParseError,
@@ -7,7 +9,9 @@ use nom::{
 
 /// A combinator that takes a parser `inner` and produces a parser that also
 /// consumes leading but no trailing whitespace, returning the output of `inner`.
-pub fn ws<'a, O, E: ParseError<&'a str>, F>(inner: F) -> impl Parser<&'a str, Output = O, Error = E>
+pub fn lead_ws<'a, O, E: ParseError<&'a str>, F>(
+    inner: F,
+) -> impl Parser<&'a str, Output = O, Error = E>
 where
     F: Parser<&'a str, Output = O, Error = E>,
 {

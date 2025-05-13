@@ -9,7 +9,7 @@
 //! ```
 
 use crate::{
-    helper::lead_ws,
+    helper::ws_cmt,
     literal::{identifier, literal},
 };
 use compute::{
@@ -48,7 +48,7 @@ pub fn comparison(input: &str) -> IResult<&str, Expr> {
     let greater_equals = map(tag(GREATER_EQUAL), |_: &str| Operator::GreaterEqual);
     let less = map(tag(LESS), |_: &str| Operator::Less);
     let less_equals = map(tag(LESS_EQUAL), |_: &str| Operator::LessEqual);
-    let comparison_operator = lead_ws(alt((
+    let comparison_operator = ws_cmt(alt((
         equals,
         not_equals,
         greater,
@@ -58,7 +58,7 @@ pub fn comparison(input: &str) -> IResult<&str, Expr> {
     )));
 
     term.parse(input).and_then(|(input, left)| {
-        opt(pair(comparison_operator, lead_ws(term)))
+        opt(pair(comparison_operator, ws_cmt(term)))
             .parse(input)
             .map(|(input, right)| {
                 let expr = if let Some((operator, right)) = right {
@@ -78,11 +78,11 @@ pub fn comparison(input: &str) -> IResult<&str, Expr> {
 fn term(input: &str) -> IResult<&str, Expr> {
     let plus = map(tag(PLUS), |_: &str| Operator::Addition);
     let minus = map(tag(MINUS), |_: &str| Operator::Subtraction);
-    let term_operator = lead_ws(alt((plus, minus)));
+    let term_operator = ws_cmt(alt((plus, minus)));
 
     factor.parse(input).and_then(|(input, left)| {
         fold_many0(
-            pair(term_operator, lead_ws(factor)),
+            pair(term_operator, ws_cmt(factor)),
             // Why is this a FnMut() and not a FnOnce() to avoid the clone?
             move || left.clone(),
             |left, (operator, right)| {
@@ -100,11 +100,11 @@ fn term(input: &str) -> IResult<&str, Expr> {
 fn factor(input: &str) -> IResult<&str, Expr> {
     let multiply = map(tag(MULTIPLY), |_: &str| Operator::Multiplication);
     let divide = map(tag(DIVIDE), |_: &str| Operator::Division);
-    let factor_operator = lead_ws(alt((multiply, divide)));
+    let factor_operator = ws_cmt(alt((multiply, divide)));
 
     unary.parse(input).and_then(|(input, left)| {
         fold_many0(
-            pair(factor_operator, lead_ws(unary)),
+            pair(factor_operator, ws_cmt(unary)),
             // Why is this a FnMut() and not a FnOnce() to avoid the clone?
             move || left.clone(),
             |left, (operator, right)| {
@@ -126,7 +126,7 @@ fn unary(input: &str) -> IResult<&str, Expr> {
 
     alt((
         map(
-            pair(unary_operator, lead_ws(unary)),
+            pair(unary_operator, ws_cmt(unary)),
             |(operator, operand)| Expr::from(UnaryExpr { operator, operand }),
         ),
         primary,
@@ -140,8 +140,8 @@ fn primary(input: &str) -> IResult<&str, Expr> {
     let grouping = map(
         delimited(
             tag(LEFT_PAREN),
-            lead_ws(comparison),
-            lead_ws(tag(RIGHT_PAREN)),
+            ws_cmt(comparison),
+            ws_cmt(tag(RIGHT_PAREN)),
         ),
         |expr| Expr::from(GroupingExpr { expr }),
     );

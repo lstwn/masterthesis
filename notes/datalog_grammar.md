@@ -10,7 +10,7 @@
 program     = rule* EOF ;
 rule        = head ":-" body "." ;
 head        = IDENTIFIER "(" comparison ( "," comparison )* ")" ;
-body        = atom ( "," atom )* ;
+body        = ( atom ( "," atom )* )? ;
 atom        = ( "not"? predicate ) | comparison ;
 predicate   = IDENTIFIER "(" IDENTIFIER ( "," IDENTIFIER )* ")" ;
 

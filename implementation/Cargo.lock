@@ -943,9 +943,9 @@ dependencies = [
 
 [[package]]
 name = "dbsp"
-version = "0.46.0"
+version = "0.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e024cebc5d098036b9d141b9edf02c039f1e0b05ed238009bdd28ead58d560a2"
+checksum = "291be3d017a08a1560a75075dd0bf9094d45f8eb06ed274a534e523eab3c2f9f"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -961,6 +961,7 @@ dependencies = [
  "enum-map",
  "fastbloom",
  "fdlimit",
+ "feldera-ir",
  "feldera-size-of",
  "feldera-storage",
  "feldera-types",
@@ -991,6 +992,7 @@ dependencies = [
  "rand_chacha",
  "rkyv",
  "serde",
+ "serde_json",
  "snap",
  "static_assertions",
  "tarpc",
@@ -1192,6 +1194,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "feldera-ir"
+version = "0.48.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1c4ac81ab80494588c849973d6ee68ec89968ab96d4932e1b0984eb4b3c154e"
+dependencies = [
+ "feldera-types",
+ "serde",
+ "serde_json",
+ "zip",
+]
+
+[[package]]
 name = "feldera-size-of"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1208,9 +1222,9 @@ dependencies = [
 
 [[package]]
 name = "feldera-storage"
-version = "0.46.0"
+version = "0.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d06238e5a7342d6f0dac1a6097a8cf0308e51574b67742681f4ddcd612f18bf"
+checksum = "d163aabe7cfea9250393f857affad894d7835387f5b7092f0d661d7568c22f26"
 dependencies = [
  "feldera-types",
  "inventory",
@@ -1228,9 +1242,9 @@ dependencies = [
 
 [[package]]
 name = "feldera-types"
-version = "0.46.0"
+version = "0.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e0bb7b62e7595f3dde1790690910804b0eed106a0126ba6fa0212b6140f6bf7"
+checksum = "eb400b70607881e2cfc29799c544e915c2aaaee0f250944bb59286cb9dfb96d7"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -1239,9 +1253,11 @@ dependencies = [
  "feldera_rust_decimal",
  "libc",
  "log",
+ "regex",
  "serde",
  "serde_json",
  "serde_yaml",
+ "thiserror 2.0.12",
  "utoipa",
  "uuid",
 ]

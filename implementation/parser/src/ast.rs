@@ -3,15 +3,9 @@
 
 use compute::expr::{Expr, VarExpr};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Program {
     pub rules: Vec<Rule>,
-}
-
-impl Default for Program {
-    fn default() -> Self {
-        Self { rules: Vec::new() }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -20,11 +14,31 @@ pub struct Rule {
     pub body: Body,
 }
 
+impl Rule {
+    pub fn name(&self) -> &String {
+        &self.head.name.name
+    }
+    pub fn is_extensional(&self) -> bool {
+        // An extensional rule has no body.
+        self.body.atoms.is_empty()
+    }
+    pub fn is_intensional(&self) -> bool {
+        // An intensional rule has a body.
+        !self.body.atoms.is_empty()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Head {
     pub name: VarExpr,
     /// Here, we allow the variables to be an expression to create new columns.
     pub variables: Vec<Expr>,
+}
+
+impl Head {
+    pub fn name(&self) -> &String {
+        &self.name.name
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,6 +58,12 @@ pub struct Predicate {
     pub name: VarExpr,
     /// Here, the variables are just identifiers.
     pub variables: Vec<VarExpr>,
+}
+
+impl Predicate {
+    pub fn name(&self) -> &String {
+        &self.name.name
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

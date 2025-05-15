@@ -8,20 +8,23 @@
 //! predicate   = IDENTIFIER "(" IDENTIFIER ( "," IDENTIFIER )* ")" ;
 //! ```
 //! An empty body is allowed to define extensional database predicates (EDBPs).
+//!
+//! All parser functions assume that there is no leading whitespace in their inputs.
 
 use crate::{
     ast::{Atom, Body, Head, Predicate, Program, Rule},
     expr,
-    helper::ws_cmt,
+    helper::{lead_ws, lead_ws_cmt},
     literal::identifier,
 };
 use compute::expr::VarExpr;
 use nom::{
     branch::alt,
     bytes::complete::tag,
+    character::complete::multispace1,
     combinator::{eof, map, opt, value},
     multi::{fold_many0, separated_list1},
-    sequence::{delimited, pair},
+    sequence::{delimited, pair, terminated},
     IResult, Parser,
 };
 
@@ -34,18 +37,18 @@ const LEFT_PAREN: &'static str = "(";
 const RIGHT_PAREN: &'static str = ")";
 
 pub fn program(input: &str) -> IResult<&str, Program> {
-    fold_many0(ws_cmt(rule), Program::default, |mut program, rule| {
+    fold_many0(lead_ws_cmt(rule), Program::default, |mut program, rule| {
         program.rules.push(rule);
         program
     })
     .parse(input)
-    // We eat trailing whitespace and comments and finally match EOL.
-    .and_then(|(input, program)| value(program, ws_cmt(eof)).parse(input))
+    // We eat trailing whitespace as well as comments and finally match EOL.
+    .and_then(|(input, program)| value(program, lead_ws_cmt(eof)).parse(input))
 }
 
 fn rule(input: &str) -> IResult<&str, Rule> {
     head.parse(input).and_then(|(input, head)| {
-        delimited(ws_cmt(tag(DIVIDER)), ws_cmt(body), ws_cmt(tag(DOT)))
+        delimited(lead_ws(tag(DIVIDER)), lead_ws(body), lead_ws(tag(DOT)))
             .parse(input)
             .map(|(input, body)| (input, Rule { head, body }))
     })
@@ -54,9 +57,9 @@ fn rule(input: &str) -> IResult<&str, Rule> {
 fn head(input: &str) -> IResult<&str, Head> {
     identifier.parse(input).and_then(|(input, name)| {
         delimited(
-            ws_cmt(tag(LEFT_PAREN)),
-            separated_list1(ws_cmt(tag(COMMA)), ws_cmt(expr::comparison)),
-            ws_cmt(tag(RIGHT_PAREN)),
+            lead_ws(tag(LEFT_PAREN)),
+            separated_list1(lead_ws(tag(COMMA)), lead_ws(expr::comparison)),
+            lead_ws(tag(RIGHT_PAREN)),
         )
         .parse(input)
         .map(|(input, variables)| {
@@ -73,7 +76,7 @@ fn head(input: &str) -> IResult<&str, Head> {
 
 fn body(input: &str) -> IResult<&str, Body> {
     map(
-        opt(separated_list1(ws_cmt(tag(COMMA)), ws_cmt(atom))),
+        opt(separated_list1(lead_ws(tag(COMMA)), lead_ws(atom))),
         |atoms| Body {
             atoms: atoms.unwrap_or_default(),
         },
@@ -82,16 +85,14 @@ fn body(input: &str) -> IResult<&str, Body> {
 }
 
 fn atom(input: &str) -> IResult<&str, Atom> {
-    let positive_or_negative = map(
-        pair(opt(tag(NOT)), ws_cmt(predicate)),
-        |(not, predicate)| {
-            if not.is_none() {
-                Atom::Positive(predicate)
-            } else {
-                Atom::Negative(predicate)
-            }
-        },
-    );
+    let not = terminated(tag(NOT), multispace1);
+    let positive_or_negative = map(pair(opt(not), lead_ws(predicate)), |(not, predicate)| {
+        if not.is_none() {
+            Atom::Positive(predicate)
+        } else {
+            Atom::Negative(predicate)
+        }
+    });
     let comparison = map(expr::comparison, |expr| Atom::Comparison(expr));
 
     alt((positive_or_negative, comparison)).parse(input)
@@ -100,9 +101,9 @@ fn atom(input: &str) -> IResult<&str, Atom> {
 fn predicate(input: &str) -> IResult<&str, Predicate> {
     identifier.parse(input).and_then(|(input, name)| {
         delimited(
-            ws_cmt(tag(LEFT_PAREN)),
-            separated_list1(ws_cmt(tag(COMMA)), map(ws_cmt(identifier), VarExpr::from)),
-            ws_cmt(tag(RIGHT_PAREN)),
+            lead_ws(tag(LEFT_PAREN)),
+            separated_list1(lead_ws(tag(COMMA)), map(lead_ws(identifier), VarExpr::from)),
+            lead_ws(tag(RIGHT_PAREN)),
         )
         .parse(input)
         .map(|(input, variables)| {
@@ -118,7 +119,7 @@ fn predicate(input: &str) -> IResult<&str, Predicate> {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use compute::{
         expr::{BinaryExpr, Expr, LiteralExpr},
         operator::Operator,
@@ -127,10 +128,52 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_atom() {
+        let input = "y(a, b)";
+        let result = atom(input);
+        let expected = Atom::Positive(Predicate {
+            name: VarExpr::new("y"),
+            variables: vec![VarExpr::new("a"), VarExpr::new("b")],
+        });
+        assert_eq!(result, Ok(("", expected)));
+
+        let input = "not y(a, b)";
+        let result = atom(input);
+        let expected = Atom::Negative(Predicate {
+            name: VarExpr::new("y"),
+            variables: vec![VarExpr::new("a"), VarExpr::new("b")],
+        });
+        assert_eq!(result, Ok(("", expected)));
+    }
+
+    #[test]
+    fn test_rule() {
+        let input = "notName1(a) :- notName2(a).";
+        let result = rule(input);
+        let expected = Rule {
+            head: Head {
+                name: VarExpr::new("notName1"),
+                variables: vec![Expr::from(VarExpr::new("a"))],
+            },
+            body: Body {
+                // We ensure that this is still a positive atom and insist
+                // that the name contains the prefix `not` keyword.
+                atoms: vec![Atom::Positive(Predicate {
+                    name: VarExpr::new("notName2"),
+                    variables: vec![VarExpr::new("a")],
+                })],
+            },
+        };
+        assert_eq!(result, Ok(("", expected)));
+    }
+
+    #[test]
     fn test_program() {
         let input = r#"
             // Leading eol-comment.
-            x(a, b + 1) :- y(a, b, c), c > 2. // Inline eol-comment.
+            x(a, b + 1) :- y(a, b, c), c > 2.
+            // First line of eol-comment.
+            // Second line of eol-comment.
             z(a, b)     :- y(a, b), not y(a, b).
             // Trailing eol-comment.
         "#;
@@ -193,9 +236,8 @@ mod test {
         assert_eq!(result, Ok(("", expected)));
     }
 
-    #[test]
-    fn test_mvr_store_crdt() {
-        let input = r#"
+    fn mvr_store_crdt_program() -> &'static str {
+        r#"
             // These are extensional database predicates (EDBPs).
             pred(FromNodeId, FromCounter, ToNodeId, ToCounter)  :- .
             set(NodeId, Counter, Key, Value)                    :- .
@@ -217,8 +259,16 @@ mod test {
             mvrStore(Key, Value)             :- isLeaf(NodeId, Counter),
                                                 isCausallyReady(NodeId, Counter),
                                                 set(NodeId, Counter, Key, Value).
-        "#;
-        let result = program(input);
+        "#
+    }
+
+    pub fn mvr_store_crdt_ast() -> Program {
+        program(mvr_store_crdt_program()).unwrap().1
+    }
+
+    #[test]
+    fn test_mvr_store_crdt() {
+        let result = program(mvr_store_crdt_program());
         // TODO: Compare the full program but for now we just check that
         // the parser consumes the full input.
         assert_eq!(result.as_ref().map(|(input, program)| *input), Ok(""));

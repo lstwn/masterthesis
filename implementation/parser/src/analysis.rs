@@ -219,16 +219,12 @@ impl PrecedenceGraph {
 
         Ok(Self { inner })
     }
-    fn to_execution_order(self) -> Result<Vec<AggregatedRule>, SyntaxError> {
+    fn into_execution_order(self) -> Result<Vec<AggregatedRule>, SyntaxError> {
         let sorting = self.inner.kahn_topo_sort().ok_or_else(|| {
             SyntaxError::new("Cannot produce execution order, precedence graph has cycles.")
         })?;
-        let mut nodes: Vec<Option<AggregatedRule>> = self
-            .inner
-            .nodes
-            .into_iter()
-            .map(|node| Some(node))
-            .collect();
+        let mut nodes: Vec<Option<AggregatedRule>> =
+            self.inner.nodes.into_iter().map(Some).collect();
         Ok(sorting
             .into_iter()
             .map(|idx| nodes[idx].take().unwrap())
@@ -289,7 +285,7 @@ impl AggregatedRule {
             ));
         }
         self.bodies.push(rule.body);
-        return Ok(());
+        Ok(())
     }
     fn bodies(&self) -> impl Iterator<Item = &Body> {
         self.bodies.iter()
@@ -339,7 +335,7 @@ mod test {
         let ast = mvr_store_crdt_ast();
         let graph = PrecedenceGraph::from_ast(ast)?;
         println!("{:#?}", graph);
-        let order = graph.to_execution_order()?;
+        let order = graph.into_execution_order()?;
         let expected = [
             "pred",
             "set",

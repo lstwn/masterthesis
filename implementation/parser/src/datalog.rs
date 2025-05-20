@@ -28,13 +28,13 @@ use nom::{
     IResult, Parser,
 };
 
-const DIVIDER: &'static str = ":-";
-const COMMA: &'static str = ",";
-const DOT: &'static str = ".";
-const NOT: &'static str = "not";
+const DIVIDER: &str = ":-";
+const COMMA: &str = ",";
+const DOT: &str = ".";
+const NOT: &str = "not";
 
-const LEFT_PAREN: &'static str = "(";
-const RIGHT_PAREN: &'static str = ")";
+const LEFT_PAREN: &str = "(";
+const RIGHT_PAREN: &str = ")";
 
 pub fn program(input: &str) -> IResult<&str, Program> {
     fold_many0(lead_ws_cmt(rule), Program::default, |mut program, rule| {
@@ -93,7 +93,7 @@ fn atom(input: &str) -> IResult<&str, Atom> {
             Atom::Negative(predicate)
         }
     });
-    let comparison = map(expr::comparison, |expr| Atom::Comparison(expr));
+    let comparison = map(expr::comparison, Atom::Comparison);
 
     alt((positive_or_negative, comparison)).parse(input)
 }

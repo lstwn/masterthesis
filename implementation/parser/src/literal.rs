@@ -22,13 +22,13 @@ use nom::{
     IResult, Parser,
 };
 
-const UNDERSCORE: &'static str = "_";
-const HYPHEN: &'static str = "-";
-const PLUS: &'static str = "+";
-const TRUE: &'static str = "true";
-const FALSE: &'static str = "false";
-const NULL: &'static str = "null";
-const DOUBLE_QUOTE: &'static str = "\"";
+const UNDERSCORE: &str = "_";
+const HYPHEN: &str = "-";
+const PLUS: &str = "+";
+const TRUE: &str = "true";
+const FALSE: &str = "false";
+const NULL: &str = "null";
+const DOUBLE_QUOTE: &str = "\"";
 
 pub fn identifier(input: &str) -> IResult<&str, Identifier> {
     let parse_identifier = recognize(pair(

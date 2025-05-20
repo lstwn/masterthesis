@@ -25,21 +25,21 @@ use nom::{
     IResult, Parser,
 };
 
-const EQUAL: &'static str = "==";
-const NOT_EQUAL: &'static str = "!=";
-const GREATER: &'static str = ">";
-const GREATER_EQUAL: &'static str = ">=";
-const LESS: &'static str = "<";
-const LESS_EQUAL: &'static str = "<=";
+const EQUAL: &str = "==";
+const NOT_EQUAL: &str = "!=";
+const GREATER: &str = ">";
+const GREATER_EQUAL: &str = ">=";
+const LESS: &str = "<";
+const LESS_EQUAL: &str = "<=";
 
-const PLUS: &'static str = "+";
-const MINUS: &'static str = "-";
-const MULTIPLY: &'static str = "*";
-const DIVIDE: &'static str = "/";
-const BANG: &'static str = "!";
+const PLUS: &str = "+";
+const MINUS: &str = "-";
+const MULTIPLY: &str = "*";
+const DIVIDE: &str = "/";
+const BANG: &str = "!";
 
-const LEFT_PAREN: &'static str = "(";
-const RIGHT_PAREN: &'static str = ")";
+const LEFT_PAREN: &str = "(";
+const RIGHT_PAREN: &str = ")";
 
 pub fn comparison(input: &str) -> IResult<&str, Expr> {
     let equals = map(tag(EQUAL), |_: &str| Operator::Equal);

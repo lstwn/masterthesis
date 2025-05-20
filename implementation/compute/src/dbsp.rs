@@ -716,7 +716,7 @@ mod test {
             ] as [_; STEPS])
                 .into_iter();
             let left = root_circuit.add_source(Generator::new(move || left.next().unwrap()));
-            let left = left.map_index(|(_k, v)| ((), v.clone()));
+            let left = left.map_index(|(_k, v)| ((), *v));
 
             let mut right = ([
                 indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
@@ -729,7 +729,7 @@ mod test {
             ] as [_; STEPS])
                 .into_iter();
             let right = root_circuit.add_source(Generator::new(move || right.next().unwrap()));
-            let right = right.map_index(|(_k, v)| ((), v.clone()));
+            let right = right.map_index(|(_k, v)| ((), *v));
 
             let cartesian_product = left.join_index(&right, |_k, Tup2(l1, l2), Tup2(r1, r2)| {
                 // Merge left and right tuples.

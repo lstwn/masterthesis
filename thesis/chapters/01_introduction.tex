@@ -1,7 +1,380 @@
 % !TeX root = ../main.tex
 % Add the above to each chapter to make compiling the PDF easier in some editors.
 
-\chapter{Introduction}\label{chapter:introduction}
+\chapter{Introduction}\label{ch:intro}
+
+Today's CRDT implementations are built around the in-memory,
+object-oriented paradigm~\cite{laddad2022keep} in which there is an API
+in the application language with some predefined interface that
+specifies how to update and read the state of a CRDT.
+However, there is also the idea of defining data structures like CRDTs
+as relational queries~\cite{kleppmann2018data}.
+In this alternative model, the state of a CRDT is obtained through a query over
+relations of operations that are gossiped across replicas.
+This research aims to explore this alternative model further and
+to utilize Datalog as a potential query language due to its elegance in
+expressing recursive queries, which we believe to be a fundamental aspect in
+defining CRDTs as queries.
+Furthermore, the declarative nature of a query language may be easier to work
+with than lower-level, in-memory, object-oriented data structures.
+
+\section{Motivating Example: A Key-Value Store as a Query}\label{sec:motivating-example}
+
+We consider the multi-valued register (MVR), which is a generalization of
+the last-writer-wins register (LWWR), which, unlike the latter,
+exposes conflicting values to the application
+as a consequence of concurrent writes to the register.
+Therefore, a concurrency detection mechanism is required.
+We use causal histories in which every operation specifies a set of
+predecessor operations on which it causally depends on\footnote{
+	Version vectors are another mechanism to detect concurrency
+	but they do not play as nice with relational data models.}.
+In its totality, this example demonstrates how a key value store
+consisting of MVR registers can be expressed with a query language.
+
+First, we consider the fact tables (EDBs) storing
+the base atoms: \code{set} and \code{pred}.
+We assume that they are in the state depicted in \autoref{tab:fact_tables}.
+
+\begin{table*}[h]\center
+	\small
+	\begin{tabular}{@{}llll@{}}
+		\toprule
+		NodeId  & Counter & Key     & Value  \\
+		\midrule
+		\(n_1\) & 1       & \(k_1\) & \(x\)  \\
+		\(n_1\) & 2       & \(k_1\) & \(y\)  \\
+		\(n_2\) & 2       & \(k_1\) & \(z\)  \\
+		\midrule
+		\ldots  & \ldots  & \ldots  & \ldots \\
+		\midrule
+		\(n_1\) & 3       & \(k_2\) & \(a\)  \\
+		\(n_2\) & 4       & \(k_2\) & \(b\)  \\
+		\(n_2\) & 5       & \(k_2\) & \(c\)  \\
+		\bottomrule
+	\end{tabular}
+	\vskip1em
+	\begin{tabular}{@{}llll@{}}
+		\toprule
+		FromNodeId & FromCounter & ToNodeId & ToCounter \\
+		\midrule
+		\(n_1\)    & 1           & \(n_1\)  & 2         \\
+		\(n_1\)    & 1           & \(n_2\)  & 2         \\
+		\midrule
+		\ldots     & \ldots      & \ldots   & \ldots    \\
+		\midrule
+		\(n_1\)    & 3           & \(n_2\)  & 5         \\
+		\(n_2\)    & 4           & \(n_2\)  & 5         \\
+		\bottomrule
+	\end{tabular}
+	\caption{The two EDBs \code{set} (above) and \code{pred} (below).}
+	\label{tab:fact_tables}
+\end{table*}
+
+\begin{figure*}
+	\centering
+	\begin{tikzpicture}[node distance=50pt]
+		\small
+		\def\dist{15pt}
+
+		% nodes and edges
+		\node[op] (k10) {\setop{1}{n_1}{k_1}{x}};
+
+		\node[head,above right=\dist of k10] (k11) {\setop{2}{n_1}{k_1}{y}} edge [pred] (k10);
+		\node[head,below right=\dist of k10] (k12) {\setop{2}{n_2}{k_1}{z}} edge [pred] (k10);
+
+	\end{tikzpicture}
+	\hskip8em
+	\begin{tikzpicture}[node distance=50pt]
+		\small
+		\def\dist{22pt}
+
+		% nodes and edges
+		\node[op] (k20) {\setop{3}{n_1}{k_2}{a}};
+		\node[op,below=of k20] (k21) {\setop{4}{n_2}{k_2}{b}};
+
+		\node[head,below right=\dist of k20] (k22) {\setop{5}{n_2}{k_2}{c}} edge [pred] (k20) edge [pred] (k21);
+
+	\end{tikzpicture}
+	\caption{
+		The state from \autoref{tab:fact_tables} illustrated.
+		The graph on the left depicts the operation history of the register with key \(k_1\)
+		and the graph on the right of the register associated with key \(k_2\).
+	}\label{fig:register-ops}
+\end{figure*}
+
+The causal history between the operations is illustrated on a logical level
+in the graphs of \autoref{fig:register-ops}.
+The edges denote the \code{pred} EDB and a node's
+\setop{Counter}{NodeId}{Key}{Value} label denotes a base atom of the \code{set} EDB.
+To obtain the state of the key value store, the following set must be computed:
+
+\begin{align*}
+	\var{mvrStore} = \{ (\var{Key}, \var{Value}) \mid & (\var{NodeId}, \var{Counter}, \var{Key}, \var{Value}) \in \var{set}                \\
+	\land \text{ }                                    & \nexists (\var{FromNodeId}, \var{FromCounter}, \var{\_}, \var{\_}) \in \var{pred}: \\
+	                                                  & \var{NodeId} = \var{FromNodeId} \land \var{Counter} = \var{FromCounter} \}
+\end{align*}
+
+Intuitively, the query selects all key-value pairs from the \code{set} EDB
+that have not been overwritten.
+With the state illustrated in \autoref{tab:fact_tables} and
+\autoref{fig:register-ops}, the result
+is \(\{ (k_1, y), (k_1, z), (k_2, c)\}\) because other assigned values
+(\(x\) for \(k_1\); \(a, b\) for \(k_2\)) have been overwritten by later operations.
+Formulating the query in Datalog is straightforward,
+as it matches its mathematical counterpart quite well:
+
+\begin{small}
+	\begin{verbatim}
+overwritten(NodeId, Counter) :- pred(NodeId, Counter, ToNodeId, ToCounter)
+mvrStore(Key, Value)         :- set(NodeId, Counter, Key, Value),
+                                not overwritten(NodeId, Counter)
+\end{verbatim}
+\end{small}
+
+We may also use SQL to express this query. We show two variants.
+The first one uses a \code{LEFT JOIN} and a \code{null} filter:
+
+\begin{small}
+	\begin{verbatim}
+SELECT key, value
+FROM set LEFT JOIN pred ON set.NodeId = pred.FromNodeId
+                       AND set.Counter = pred.FromCounter
+WHERE pred.FromNodeId IS NULL;
+\end{verbatim}
+\end{small}
+
+Alternatively, we can use a subquery and negated set inclusion,
+to align the SQL query closer with the mathematical notation:
+
+\begin{small}
+	\begin{verbatim}
+WITH overwritten AS (SELECT FromNodeId, FromCounter FROM pred)
+SELECT key, value FROM set WHERE (NodeId, Counter) NOT IN overwritten;
+\end{verbatim}
+\end{small}
+
+While for this example the SQL queries are not too far off from the mathematical
+notation, we think that Datalog is more elegant, offers better support for
+composition, and excels at expressing recursion~\cite{abo2024convergence},
+which is important for more complex CRDTs~\cite{kleppmann2018data}.
+Especially, we want to avoid the cumbersome syntax around recursive
+CTEs which remains unpopular even within the SQL
+community~\cite{neumann2024critique, hirn2023fix, mcsherry2022recursion}.
+Furthermore, there exists some interesting research about defining Datalog
+over arbitrary semirings~\cite{abo2024convergence, khamis2022datalog},
+which may lift Datalog's current restrictions around stratified negation and
+stratified aggregation~\cite{green2013datalog}, and opens up new avenues for
+Datalog's semantics.
+We emphasize that recursion in SQL also suffers from requiring
+monotonically growing sets for recursive queries~\cite{hirn2023fix},
+just like recursion in Datalog.
+
+\section{Advanced Example: Respecting Causal Order}\label{sec:advanced_example}
+
+Without the assumption of a causal broadcast,
+the example from \autoref{sec:motivating-example} is not a proper MVR,
+as it does not respect the causal order of updates in case updates are delivered
+out-of-order.
+To illustrate this issue, consider \autoref{fig:causal_issue} from the
+perspective of replica \(n_2\).
+Initially, \(n_2\) is in the familiar state from \autoref{fig:register-ops}.
+Then, write \(w_2\) from replica \(n_1\) is delivered to \(n_2\) although its
+causal dependency \(w_1\) has not been delivered yet.
+At this point, the query from \autoref{sec:motivating-example} would return
+\(\{ (k_1, y_1), (k_1, z), (k_1, y_3)\} \)
+but the correct result respecting causal order is
+\(\{ (k_1, y_1), (k_1, z) \}\).
+The value \(y_3\) is delivered too early by eagerly applying the write \(w_2\)
+without awaiting its causal dependency \(w_1\) first.
+If \(w_1\) is eventually delivered, the query ``jumps'' to the result
+\( \{ (k_1, y_3) \} \), skipping the intermediate state
+that overwrites the conflicting values \(y_1\) and \(z\) with \(y_2\).
+This falsely suggests that the value \(y_3\) suddenly overwrote its previously
+reported siblings \(y_1\) and \(z\).
+
+To prevent this, the query has to detect such ``gaps'' in the chain of set
+operations for the same key.
+Hence, the problem of causal delivery is equivalent to a graph connectedness
+problem: Which nodes are reachable from the set of root nodes?
+The following query extends the query from \autoref{sec:motivating-example}
+with a causal broadcast in Datalog through the help of three new IDBs:
+
+\begin{small}
+	\begin{verbatim}
+overwritten(NodeId, Counter) :- pred(NodeId, Counter, ToNodeId, ToCounter)
+overwrites(NodeId, Counter)  :- pred(FromNodeId, FromCounter, NodeId, Counter)
+isRoot(NodeId, Counter)      :- set(NodeId, Counter, Key, Value),
+                                not overwrites(NodeId, Counter)
+isCausallyReady(NodeId, Counter)
+                             :- isRoot(NodeId, Counter)
+isCausallyReady(NodeId, Counter)
+                             :- isCausallyReady(FromNodeId, FromCounter),
+                                pred(FromNodeId, FromCounter, NodeId, Counter)
+mvrStore(Key, Value)         :- set(NodeId, Counter, Key, Value),
+                                isCausallyReady(NodeId, Counter),
+                                not overwritten(NodeId, Counter)
+\end{verbatim}
+\end{small}
+
+Translating this query into SQL shows why we prefer Datalog
+for expressing recursion:
+
+\begin{small}
+	\begin{verbatim}
+WITH overwritten AS (SELECT FromNodeId, FromCounter FROM pred)
+WITH overwrites  AS (SELECT ToNodeId, ToCounter FROM pred)
+WITH isRoot      AS (SELECT NodeId, Counter FROM set
+                     WHERE (NodeId, Counter) NOT IN overwrites)
+WITH RECURSIVE isCausallyReady AS (
+    SELECT * FROM isRoot
+    UNION [ALL]
+    SELECT pred.ToNodeId, pred.ToCounter
+    FROM pred, isCausallyReady
+    WHERE pred.FromNodeId = isCausallyReady.NodeId
+      AND pred.FromCounter = isCausallyReady.Counter
+)
+
+SELECT set.key, set.value
+FROM set, isCausallyReady
+WHERE set.NodeId = isCausallyReady.NodeId
+  AND set.Counter = isCausallyReady.Counter
+  AND (set.NodeId, set.Counter) NOT IN overwritten;
+\end{verbatim}
+\end{small}
+
+The example also demonstrates why atomic writes are important.
+Write \(w_2\) updates both the \code{set} and \code{pred} EDBs.
+If the query reads state in which only the \code{set} EDB has been updated
+but not the \code{pred} EDB,
+the query incorrectly deems \setop{4}{n_1}{k_1}{y_3} as a new root and
+again returns the invalid result from above.
+
+While this issue can be ignored by assuming a causal broadcast either on the
+application or database layer,
+we think that queries benefit from having the full causality graph available.
+It provides them with the ability to detect when operations are concurrent,
+and use that information to adjust their conflict handling
+to perform custom resolution logic.
+
+\begin{figure*}
+	\centering
+	\begin{tikzpicture}[node distance=30pt]
+		\small
+		\def\dist{15pt}
+		\def\shift{+20pt}
+
+		\tikzset{
+			tx/.style={draw=gray, dashed},
+			tx_label/.style={text=gray, align=left, anchor=north}
+		}
+
+		% nodes and edges
+		\node[op] (k10) {\setop{1}{n_1}{k_1}{x}};
+
+		\node[op,above right=\dist of k10,xshift=\shift] (k11) {\setop{2}{n_1}{k_1}{y_1}}
+		edge [pred] (k10);
+		\node[op,below right=\dist of k10,xshift=\shift] (k12) {\setop{2}{n_2}{k_1}{z}}
+		edge [pred] (k10);
+
+		\node[op, below right=\dist of k11,xshift=\shift] (k13) {\setop{3}{n_1}{k_1}{y_2}}
+		edge [pred] (k11) edge [pred] (k12);
+		\node[op, right=of k13] (k14) {\setop{4}{n_1}{k_1}{y_3}}
+		edge [pred] (k13);
+
+		\node[tx,fit=(k10) (k11) (k12)] (tx0) {};
+		\node[tx_label] at (tx0.south) {state of origin};
+		\node[tx,draw=red,fit=(k13)] (tx1) {};
+		\node[tx_label,text=red] at (tx1.south) {\(w_1\) (delayed)};
+		\node[tx,fit=(k14)] (tx2) {};
+		\node[tx_label] at (tx2.south) {\(w_2\)};
+
+	\end{tikzpicture}
+	\caption{
+		Example of a causality issue with the naive queries from \autoref{sec:motivating-example}.
+	}\label{fig:causal_issue}
+\end{figure*}
+
+\section{Contributions}
+
+The goals of this research are twofold:
+First, we deal with the question if Datalog is expressive and ergonomic enough
+to express common CRDTs.
+To answer that question, we implement common CRDT types in Datalog, e.g.,
+a list/sequence CRDT, a map CRDT, as well as a set CRDT,
+and evaluate our experience.
+Queries often involve negation (see Section \ref{sec:motivating-example} and
+\ref{sec:advanced_example}),
+and because core Datalog does not support negation, the question arises if
+the most commonly used Datalog extension for negation,
+stratified negation~\cite{green2013datalog}, is expressive enough.
+
+Second, we turn to the question of the practical performance of this approach.
+We want to test some CRDT workloads against our CRDT Datalog implementations and
+evaluate the performance.
+To do so, we (1) may have to define common CRDT workloads for benchmarking
+(unfortunately, there is no standard like TPCH established yet\footnote{
+	There are some benchmarks for text editing:
+	\url{https://github.com/dmonad/crdt-benchmarks} and
+	\url{https://github.com/josephg/editing-traces}.
+}), and we (2) either utilize some existing Datalog engines and test them
+with and without incremental view maintenance or may have to deal with
+prototyping our own, as support for incremental view maintenance is variable
+among Datalog engines
+(see \autoref{tab:datalog-engines} for a non-exhaustive overview).
+
+Ideally, this different approach to CRDTs would move them closer to the power,
+guarantees and flexibility of database systems.
+The higher abstraction of a query language better supports the decoupling from
+logical and physical data representations than object-oriented APIs,
+and a higher abstraction allows for optimizations without breaking changes,
+something relational databases have benefitted from over the years and has
+arguably contributed towards their widespread adoption.
+Furthermore, the read finality issue of CRDTs under non-monotone queries
+may be better addressed with the support of a query language~\cite{laddad2022keep}.
+
+Applications benefit from extending the idea of functional reactive programming
+beyond the GUI to the whole application stack,
+\emph{including} the database layer.
+The application can then be considered a reactive, pure function
+of some state captured in the EDBs~\cite{schiefer2022building}.
+
+On the other hand, database systems can be introduced to coordination-free
+environments.
+In exchange for some guarantees which cannot be upheld
+like for instance uniqueness constraints,
+coordination-free database systems can deliver ultimate availability
+to their clients:
+As long as the client, which \emph{is} a replica of the distributed database,
+is alive, the system is available.
+This property can be useful in contexts where a network partition would be
+prohibitively expensive to tolerate such as manufacturing processes,
+which cannot afford to stop an entire production facility just because
+some server is not available.
+
+\begin{table*}[]
+	\center
+	\small
+	\begin{tabular}{@{}lp{3.4cm}lp{1.2cm}p{0.7cm}l@{}}
+		\toprule
+		Engine                                                                      & Datalog Variant                          & IVM & Language  & Open Source & Active \\
+		\midrule
+		\href{https://github.com/souffle-lang/souffle}{Souffle}                     & With stratified negation                 & No  & C++       & Yes         & Yes    \\
+		\href{https://github.com/rust-lang/datafrog}{Datafrog}                      & Vanilla                                  & No  & Rust      & Yes         & No     \\
+		\href{https://github.com/vmware/differential-datalog}{Differential Datalog} & ?                                        & Yes & Rust/Java & Yes         & No     \\
+		\href{https://github.com/s-arash/ascent/}{Ascent}                           & With stratified negation and aggregation & No  & Rust      & Yes         & Yes    \\
+		\href{https://github.com/ekzhang/crepe}{Crepe}                              & With stratified negation                 & No  & Rust      & Yes         & No     \\
+		\href{https://github.com/knowsys/nemo}{Nemo}                                & Based on RDF instead of relations        & ?   & Rust      & Yes         & Yes    \\
+		\href{https://www.datomic.com}{Datomic}                                     & Custom (and appears to use RDF)          & ?   & Clojure   & No          & Yes    \\
+		\href{https://github.com/tonsky/datascript}{Datascript}                     & Appears to mimic Datomic                 & ?   & Clojure   & Yes         & Yes    \\
+		\href{https://github.com/comnik/declarative-dataflow}{Declarative Dataflow} & ?                                        & Yes & Rust      & Yes         & No     \\
+		\bottomrule
+	\end{tabular}
+	\caption{Overview of some Datalog Engines}
+	\label{tab:datalog-engines}
+\end{table*}
+
+%% FROM TUM TEMPLATE
 
 \section{Section}
 Citation test~\parencite{latex}.

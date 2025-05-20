@@ -109,7 +109,7 @@ Convergent Replicated Data Types (CRDTs)\footnote{
 	Although CRDTs are often referred to as \emph{Conflict-free} Replicated
 	Data Types, we use the term \emph{convergent} here because the former term
 	is a bit misleading as conflicts can still occur
-	(see \autoref{sec:motivating_example}).
+	(see \autoref{sec:motivating-example}).
 	We think CRDTs are better characterized by their property that diverging
 	replicas eventually \emph{converge} to the same state,
 	given the delivery of the same updates,
@@ -144,7 +144,7 @@ consistency to formulate their own, application-specific CRDTs without
 having to worry about convergence.
 
 \section{A Primer on Datalog}
-\label{sec:primer_datalog}
+\label{sec:datalog-primer}
 
 Datalog~\cite{green2013datalog} is a declarative logic programming language
 that can be used to express queries over a database.
@@ -188,7 +188,7 @@ from which \emph{derived atoms} are created,
 which then form \emph{intensional database predicates} (IDB).
 
 \section{Motivating Example: A Key-Value Store as a Query}
-\label{sec:motivating_example}
+\label{sec:motivating-example}
 
 We consider the multi-valued register (MVR), which is a generalization of
 the last-writer-wins register (LWWR), which, unlike the latter,
@@ -204,7 +204,7 @@ consisting of MVR registers can be expressed with a query language.
 
 First, we consider the fact tables (EDBs) storing
 the base atoms: \code{set} and \code{pred}.
-We assume that they are in the state depicted in \autoref{tab:fact_tables}.
+We assume that they are in the state depicted in \autoref{tab:fact-tables}.
 
 \begin{table*}[h]\center
 	\small
@@ -238,7 +238,7 @@ We assume that they are in the state depicted in \autoref{tab:fact_tables}.
 		\bottomrule
 	\end{tabular}
 	\caption{The two EDBs \code{set} (above) and \code{pred} (below).}
-	\label{tab:fact_tables}
+	\label{tab:fact-tables}
 \end{table*}
 
 \begin{figure*}
@@ -267,14 +267,15 @@ We assume that they are in the state depicted in \autoref{tab:fact_tables}.
 
 	\end{tikzpicture}
 	\caption{
-		The state from \autoref{tab:fact_tables} illustrated.
+		The state from \autoref{tab:fact-tables} illustrated.
 		The graph on the left depicts the operation history of the register with key \(k_1\)
 		and the graph on the right of the register associated with key \(k_2\).
-	}\label{fig:register_ops}
+	}
+	\label{fig:register-ops}
 \end{figure*}
 
 The causal history between the operations is illustrated on a logical level
-in the graphs of \autoref{fig:register_ops}.
+in the graphs of \autoref{fig:register-ops}.
 The edges denote the \code{pred} EDB and a node's
 \setop{Counter}{NodeId}{Key}{Value} label denotes a base atom of the \code{set} EDB.
 To obtain the state of the key value store, the following set must be computed:
@@ -287,8 +288,8 @@ To obtain the state of the key value store, the following set must be computed:
 
 Intuitively, the query selects all key-value pairs from the \code{set} EDB
 that have not been overwritten.
-With the state illustrated in \autoref{tab:fact_tables} and
-\autoref{fig:register_ops}, the result
+With the state illustrated in \autoref{tab:fact-tables} and
+\autoref{fig:register-ops}, the result
 is \(\{ (k_1, y), (k_1, z), (k_2, c)\}\) because other assigned values
 (\(x\) for \(k_1\); \(a, b\) for \(k_2\)) have been overwritten by later operations.
 Formulating the query in Datalog is straightforward,
@@ -341,7 +342,7 @@ monotonically growing sets for recursive queries~\cite{hirn2023fix},
 just like recursion in Datalog.
 
 \section{Connecting the Dots: CRDTs and Datalog}
-\label{sec:crdts_datalog}
+\label{sec:crdts-datalog}
 
 The literature defines two classes of CRDTs: state-based and operation-based
 which both have different requirements for correctness.
@@ -403,9 +404,9 @@ can turn out to be an essential aspect to make CRDTs expressed as
 queries over relations feasible.
 
 \section{System Overview}
-\label{sec:system_overview}
+\label{sec:system-overview}
 
-We provide a system overview of the approach in \autoref{fig:system_overview}.
+We provide a system overview of the approach in \autoref{fig:system-overview}.
 The \emph{database layer} incrementally updates the views \deltaO{},
 as defined by the CRDT Datalog queries formulated on the \emph{application layer},
 in response to updates from both the local \deltaI{local} and remote replicas
@@ -418,7 +419,7 @@ of a write to safeguard the CRDT queries against reading inconsistent
 state, i.e., queries must read from a consistent snapshot of the database.
 The next section demonstrates the importance of atomic writes.
 
-\autoref{fig:system_overview} illustrates a peer to peer architecture
+\autoref{fig:system-overview} illustrates a peer to peer architecture
 but, due to the lack of hierarchy, different network topologies are also possible,
 e.g., a star network topology with a central server for more efficient update
 gossiping.
@@ -502,22 +503,23 @@ Replicas are assumed to be non-byzantine.
 		the EDBs from the local and remote replicas, respectively.
 		\deltaO{} models the output delta of all Datalog queries and is based on
 		the current state of the EDBs on the respective replica.
-	}\label{fig:system_overview}
+	}
+	\label{fig:system-overview}
 \end{figure*}
 
 \section{Advanced Example: Respecting Causal Order}
-\label{sec:advanced_example}
+\label{sec:advanced-example}
 
 Without the assumption of a causal broadcast,
-the example from \autoref{sec:motivating_example} is not a proper MVR,
+the example from \autoref{sec:motivating-example} is not a proper MVR,
 as it does not respect the causal order of updates in case updates are delivered
 out-of-order.
-To illustrate this issue, consider \autoref{fig:causal_issue} from the
+To illustrate this issue, consider \autoref{fig:causal-issue} from the
 perspective of replica \(n_2\).
-Initially, \(n_2\) is in the familiar state from \autoref{fig:register_ops}.
+Initially, \(n_2\) is in the familiar state from \autoref{fig:register-ops}.
 Then, write \(w_2\) from replica \(n_1\) is delivered to \(n_2\) although its
 causal dependency \(w_1\) has not been delivered yet.
-At this point, the query from \autoref{sec:motivating_example} would return
+At this point, the query from \autoref{sec:motivating-example} would return
 \(\{ (k_1, y_1), (k_1, z), (k_1, y_3)\} \)
 but the correct result respecting causal order is
 \(\{ (k_1, y_1), (k_1, z) \}\).
@@ -533,7 +535,7 @@ To prevent this, the query has to detect such ``gaps'' in the chain of set
 operations for the same key.
 Hence, the problem of causal delivery is equivalent to a graph connectedness
 problem: Which nodes are reachable from the set of root nodes?
-The following query extends the query from \autoref{sec:motivating_example}
+The following query extends the query from \autoref{sec:motivating-example}
 with a causal broadcast in Datalog through the help of three new IDBs:
 
 \begin{small}
@@ -627,12 +629,13 @@ to perform custom resolution logic.
 
 	\end{tikzpicture}
 	\caption{
-		Example of a causality issue with the naive queries from \autoref{sec:motivating_example}.
-	}\label{fig:causal_issue}
+		Example of a causality issue with the naive queries from \autoref{sec:motivating-example}.
+	}
+	\label{fig:causal-issue}
 \end{figure*}
 
 \section{Contributions}
-\label{sec:problem_stmnt}
+\label{sec:contributions}
 
 The goals of this research are twofold:
 First, we deal with the question if Datalog is expressive and ergonomic enough
@@ -640,8 +643,8 @@ to express common CRDTs.
 To answer that question, we implement common CRDT types in Datalog, e.g.,
 a list/sequence CRDT, a map CRDT, as well as a set CRDT,
 and evaluate our experience.
-Queries often involve negation (see Section \ref{sec:motivating_example} and
-\ref{sec:advanced_example}),
+Queries often involve negation (see Section \ref{sec:motivating-example} and
+\ref{sec:advanced-example}),
 and because core Datalog does not support negation, the question arises if
 the most commonly used Datalog extension for negation,
 stratified negation~\cite{green2013datalog}, is expressive enough.

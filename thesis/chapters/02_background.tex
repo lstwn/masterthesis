@@ -1,0 +1,265 @@
+% !TeX root = ../main.tex
+% Add the above to each chapter to make compiling the PDF easier in some editors.
+
+\chapter{Background}\label{ch:background}
+
+\section{System Overview}
+
+We provide a system overview of the approach in \autoref{fig:system-overview}.
+The \emph{database layer} incrementally updates the views \deltaO{},
+as defined by the CRDT Datalog queries formulated on the \emph{application layer},
+in response to updates from both the local \deltaI{local} and remote replicas
+\deltaI{remote}.
+In this model the application layer is responsible for forwarding updates
+to the database layer but forwarding could equally well happen exclusively
+on the latter.
+The database layer must be capable of atomically updating all relations
+of a write to safeguard the CRDT queries against reading inconsistent
+state, i.e., queries must read from a consistent snapshot of the database.
+The next section demonstrates the importance of atomic writes.
+
+\autoref{fig:system-overview} illustrates a peer to peer architecture
+but, due to the lack of hierarchy, different network topologies are also possible,
+e.g., a star network topology with a central server for more efficient update
+gossiping.
+Yet, the issue of update propagation (and update integrity) is not the focus
+of this research and various approaches exist in the literature~\cite{
+	auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
+	kleppmann2022making}.
+This also excludes the question of how to efficiently send just the minimum
+set of missing updates to each replica.
+We only make the basic assumption of some network topology and protocol
+which ensures that each update will eventually be delivered to all replicas.
+Replicas are assumed to be non-byzantine.
+
+\begin{figure*}
+	\centering
+
+	\newcommand{\replica}{
+		\begin{tikzpicture}
+			\tikzset{
+			layer/.style={
+					rectangle, draw, minimum height=1.5cm, minimum width=2.3cm,
+					rounded corners=1mm,
+					font=\footnotesize, align=center,
+				},
+			rel/.style={
+			->, >={Stealth[round]}, },
+			}
+			\node[layer] (app) {\textbf{Application}\\ \textbf{Layer}};
+			\node[layer,right=of app] (db) {
+				\textbf{Database Layer}\\
+				Maintains Datalog\\
+				Queries \(\delta I \to \delta O\)
+			};
+			\node[layer,above=2.0cm of app] (user) {\textbf{User}};
+
+			\draw[rel] (user) to["issues \deltaI{local}", bend left, near start] (app);
+			\draw[rel] (app) to["sees \deltaO", bend left,auto=right] (user);
+
+			\draw[rel] (app) to["forwards \deltaI{local} and \deltaI{remote}", bend right=45, auto=right] (db);
+			\draw[rel] (db) to["provides \deltaO", bend right=45, auto=right,near start] (app);
+		\end{tikzpicture}
+	}
+
+	\begin{tikzpicture}
+		\tikzset{
+		replica/.style={rectangle, draw, rounded corners=1mm,fill=white},
+		local_replica/.style={replica},
+		remote_replica/.style={replica,scale=0.66},
+		label/.style={font=\bfseries},
+		rel/.style={
+		->, >={Stealth[round]},bend left,},
+		}
+
+		\node[local_replica] (local) {\replica};
+		\node[label] (local-label) [above=0pt of local] {Local Replica};
+
+		\node[remote_replica] (remote3) [right=of local,yshift=+15pt,xshift=+15pt] {\replica};
+		\node[remote_replica] (remote2) [right=of local,yshift=+10pt,xshift=+10pt] {\replica};
+		\node[remote_replica] (remote1) [right=of local,yshift=+5pt,xshift=+5pt] {\replica};
+		\node[remote_replica] (remote0) [right=of local] {\replica};
+		\node[label] (remote-label) [above=0pt of remote3] {Remote Replicas};
+
+		\begin{scope}[on background layer]
+			\draw[rel] (local.north east) to[] (remote0.north west);
+			\draw[rel] (local.north east) to[] (remote1.north west);
+			\draw[rel] (local.north east) to[] (remote2.north west);
+			\draw[rel] (local.north east) to["distributes \deltaI{local}"] (remote3.north west);
+
+			\draw[rel] (remote0.south west) to[] (local.south east);
+			\draw[rel] (remote1.south west) to[] (local.south east);
+			\draw[rel] (remote2.south west) to[] (local.south east);
+			\draw[rel] (remote3.south west) to["receives \deltaI{remote}"] (local.south east);
+		\end{scope}
+
+	\end{tikzpicture}
+
+	\caption{
+		Overview of the system architecture from the perspective of a local
+		replica.
+		\deltaI{local} and \deltaI{remote} refer to the input deltas to
+		the EDBs from the local and remote replicas, respectively.
+		\deltaO{} models the output delta of all Datalog queries and is based on
+		the current state of the EDBs on the respective replica.
+	}\label{fig:system-overview}
+\end{figure*}
+
+\section{CRDTs and Coordination-Free Environments}
+
+Convergent Replicated Data Types (CRDTs)\footnote{
+	Although CRDTs are often referred to as \emph{Conflict-free} Replicated
+	Data Types, we use the term \emph{convergent} here because the former term
+	is a bit misleading as conflicts can still occur, e.g., in case of
+	concurrent writes to the same location.
+	We think CRDTs are better characterized by their property that diverging
+	replicas eventually \emph{converge} to the same state,
+	given the delivery of the same updates,
+	and that state may include conflicts, e.g., within a register.
+}
+try to solve the problems arising from asynchronous collaboration over
+message-passing networks on the data structure level.
+In these coordination-free environments, in which replicas can be offline
+for extended periods of time but are still permitted to write (and read)
+to (from) their local state,
+the naive delivery of messages allows messages to be arbitrarily delayed,
+to be reordered, and the same message may be delivered multiple times.
+CRDTs address these challenges by augmenting messages (hereafter updates
+to the CRDT) with additional metadata (1) to preserve the user's intention
+in the ``best'' possible manner and (2) to ensure the convergence of replicas,
+even after temporary divergence.
+This model is great for two things: excellent availability and latency for writes.
+Reads also offer excellent latency but may be stale insofar that they do not
+reflect the full global state.
+As a consequence of allowing offline writes,
+application specific invariants (beyond the ones guaranteed by the concrete CRDT)
+may be violated on the aggregate level after convergence,
+even though each write individually respected the invariants (based on their
+respective replica's state at write creation time).
+However, this issue sometimes even affects the ``guarantees'' of a CRDT:
+Their correct definition is complex and error-prone,
+let alone proving their convergence, even for people familiar with distributed
+systems~\cite{kleppmann2022assessing, gomes2017verifying}.
+Hence, we want to explore a system based on queries over relational data
+which ensures the convergence property is always satisfied by construction.
+This allows application developers with little background in eventual
+consistency to formulate their own, application-specific CRDTs without
+having to worry about convergence.
+
+\section{Datalog}
+
+Datalog~\cite{green2013datalog} is a declarative logic programming language
+invented in the 80s which is primarily used for expressing queries to
+retrieve data in database systems.
+A Datalog program (or query) consists of a set of rules,
+which are used to derive new facts from existing ones.
+
+\subsection{Syntax}
+
+The rules are expressed in the form of Horn clauses
+which are logical implications of this form
+
+\[
+	\underbrace{
+	\underbrace{A}_{\text{head}}
+	\text{ :- }
+	\underbrace{
+	\underbrace{B_1}_{\text{atom}},
+	\underbrace{B_2}_{\text{atom}},
+	\ldots,
+	\underbrace{B_n}_{\text{atom}}
+	}_{\text{body}}
+	}_{\text{rule}}
+\]
+
+\noindent{}and can be read (rather from right to left) as
+``$B_1$ and $B_2$ and \ldots\ and $B_n$ imply $A$''.
+Written in more mathematical notation, this can be expressed as:
+
+\[
+	\begin{aligned}
+		                & A \Leftarrow B_1 \land B_2 \land \ldots \land B_n          \\
+		\Leftrightarrow & A \lor \lnot B_1 \lor \lnot B_2 \lor \ldots \lor \lnot B_n
+	\end{aligned}
+\]
+
+If there are multiple rules with the same head,
+the bodies are connected with a disjunction~\cite{abo2024convergence}.
+Special cases of Horn clauses are facts (fact rules, base atoms),
+which are rules without a body, that is $n=0$, e.g., \( A \text{ :- } \text{true} \),
+and they are assumed to be unconditionally true.
+These facts or \emph{base atoms} are the basis of a Datalog query and
+define \emph{extensional database predicates} (EDB)
+from which \emph{derived atoms} are created,
+which then form \emph{intensional database predicates} (IDB).
+
+TODO: What is a "tuple of a rule"?
+
+If the body of a rule is empty, the rule is called a \emph{fact} and it is
+assumed to be unconditionally true. That is, the tuples of that rule are
+externally given and are not derived from other rules.
+
+\subsection{Semantics}
+
+\subsection{Connecting the Dots: CRDTs and Datalog}\label{sec:crdts-datalog}
+
+The literature defines two classes of CRDTs: state-based and operation-based
+which both have different requirements for correctness.
+Let \( S \) be the set of all possible states of a CRDT.
+State-based CRDTs require a merge function \( \sqcup: S \times S \to S \)
+which must be commutative, associative, and idempotent.
+Operation-based CRDTs require that the operation functions \( op_i: S \to S \)
+are commutative and applied exactly once.
+Both models must adhere to these properties under the strong eventual consistency
+model which demands three properties~\cite{shapiro2011comprehensive}:
+
+\begin{enumerate}
+	\item \textbf{Eventual Delivery}: All updates are eventually delivered to
+	      all replicas.
+	\item \textbf{Termination}: All method executions terminate.
+	\item \textbf{Convergence}: All replicas that have delivered the same set of
+	      updates are in an equivalent state.
+\end{enumerate}
+
+Verifying the correctness for a CRDT is a complex,
+error-prone task~\cite{gomes2017verifying, kleppmann2022assessing},
+and currently has to be done for each CRDT individually.
+If, however, the set of operations on a CRDT \emph{is} the state,
+the merge function can be defined as the set union,
+for which the properties of commutativity, associativity, and idempotency hold.
+The critical convergence property demanded by the strong eventual consistency
+model is then also trivially satisfied because the state is by definition
+the set of all (delivered) operations.
+Moreover, applying any \emph{pure}\footnote{
+	That is, the function is deterministic and side-effect-free.
+}
+function \( f: S \to T \) on the state does not impede the convergence property,
+as the function is applied on all replicas in the same deterministic way.
+\( T \) is an arbitrary set of all possible derived states \( f \) can map to.
+This approach to CRDTs is known in the literature as
+\emph{pure operation-based replicated data types}~\cite{baquero2017pure, stewen2024undo},
+and is used in practice in the Automerge CRDT~\cite{automerge}.
+
+The pure function \( f \) can be expressed in a Datalog query.
+As Datalog evaluation is deterministic, the convergence property is satisfied.
+This gives application developers the power to define their own, custom CRDTs
+without worrying about the complex aspect of convergence.
+Furthermore, the query engine running the Datalog program is responsible
+for finding an efficient algorithm to execute the query and application developers
+can focus on the CRDT at a declarative level and get the implementation ``for free''.
+
+A common pattern of collaboration is near-real-time collaboration on a shared
+document and CRDTs can be used to power this form of collaboration.
+In this scenario, updates are usually frequent but small and therefore it
+may make sense to reuse the result of a previous query along with the input
+delta in hope of saving computation time over recomputing the query from scratch
+based on the whole input with every update.
+Ideally, the computation time is only proportional to the size of the input
+change but not to the whole input size anymore.
+As older, causally overwritten updates to a CRDT are often not contributing
+to the current state of the CRDT anymore, incremental view
+maintenance (IVM)~\cite{mcsherry2013differential, budiu2022dbsp, budiu2024dbsp}
+can turn out to be an essential aspect to make CRDTs expressed as
+queries over relations feasible.
+
+\section{Incremental View Maintenance}

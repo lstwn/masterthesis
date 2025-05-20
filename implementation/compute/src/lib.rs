@@ -3,7 +3,7 @@
 mod circuit;
 mod context;
 mod dbsp;
-mod error;
+pub mod error;
 pub mod expr;
 mod function;
 mod interpreter;

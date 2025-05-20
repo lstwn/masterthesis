@@ -381,6 +381,20 @@ impl DbspOutputBatch<'_> {
         let keys = self
             .inner
             .iter()
+            .map(|(_key, tuple, weight)| {
+                let tuple: TupleValue = SchemaTuple::new(&self.schema.tuple, tuple)
+                    .fields()
+                    .cloned()
+                    .collect();
+                Tup2(tuple, *weight)
+            })
+            .collect::<Vec<_>>();
+        OrdZSet::from_keys((), keys)
+    }
+    pub fn as_debug_zset(&self) -> OrdZSet<TupleValue> {
+        let keys = self
+            .inner
+            .iter()
             .map(|(_key, tuple, weight)| Tup2(tuple.clone(), *weight))
             .collect::<Vec<_>>();
         OrdZSet::from_keys((), keys)

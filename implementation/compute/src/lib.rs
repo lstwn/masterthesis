@@ -344,7 +344,7 @@ mod test {
         let batch = output.to_batch();
         println!("{}", batch.as_table());
         assert_eq!(
-            batch.as_zset(),
+            batch.as_debug_zset(),
             zset! {
                 tuple!(1_u64, 2_u64, 2_u64, 2_u64) => 2,
                 tuple!(2_u64, 3_u64, 3_u64, 6_u64) => 2,
@@ -360,7 +360,7 @@ mod test {
         let batch = output.to_batch();
         println!("{}", batch.as_table());
         assert_eq!(
-            batch.as_zset(),
+            batch.as_debug_zset(),
             zset! {
                 tuple!(4_u64, 5_u64, 2_u64, 20_u64) => 1,
                 tuple!(5_u64, 6_u64, 3_u64, 30_u64) => 1,
@@ -376,7 +376,7 @@ mod test {
         let batch = output.to_batch();
         println!("{}", batch.as_table());
         assert_eq!(
-            batch.as_zset(),
+            batch.as_debug_zset(),
             zset! {
                 tuple!(1_u64, 2_u64, 2_u64, 2_u64) => -1,
                 tuple!(2_u64, 3_u64, 3_u64, 6_u64) => -1,
@@ -559,7 +559,7 @@ mod test {
         let batch = output.to_batch();
         println!("{}", batch.as_table());
         assert_eq!(
-            batch.as_zset(),
+            batch.as_debug_zset(),
             zset! {
                 tuple!(0_u64, "Alice", 20_u64, 0_u64, "Engineer") => 1,
                 tuple!(2_u64, "Charlie", 40_u64, 0_u64, "Engineer") => 1,
@@ -772,7 +772,7 @@ mod test {
         let batch = output.to_batch();
         println!("{}", batch.as_table());
         assert_eq!(
-            batch.as_zset(),
+            batch.as_debug_zset(),
             zset! {
                 tuple!(0_u64, 1_u64, 1_u64, 1_u64) => 1,
                 tuple!(2_u64, 3_u64, 2_u64, 1_u64) => 1,
@@ -792,7 +792,7 @@ mod test {
         let batch = output.to_batch();
         println!("{}", batch.as_table());
         assert_eq!(
-            batch.as_zset(),
+            batch.as_debug_zset(),
             zset! {
                 tuple!(0_u64, 2_u64, 2_u64, 2_u64) => 1,
                 tuple!(1_u64, 2_u64, 1_u64, 1_u64) => 1,
@@ -937,7 +937,7 @@ mod test {
         let batch = output.to_batch();
         println!("{}", batch.as_table());
         assert_eq!(
-            batch.as_zset(),
+            batch.as_debug_zset(),
             zset! {
                 tuple!(0_u64, 1_u64, 1_u64, 1_u64) => 1,
                 tuple!(0_u64, 2_u64, 2_u64, 2_u64) => 1,
@@ -1272,6 +1272,23 @@ mod test {
             vec![SetOp::new(1, 2, 1, 4)],
         ];
 
+        let mut expected = [
+            zset! {
+                tuple!(1_u64, 1_u64) => 1,
+            },
+            zset! {
+                tuple!(1_u64, 1_u64) => -1,
+                tuple!(1_u64, 2_u64) => 1,
+                tuple!(1_u64, 3_u64) => 1,
+            },
+            zset! {
+                tuple!(1_u64, 2_u64) => -1,
+                tuple!(1_u64, 3_u64) => -1,
+                tuple!(1_u64, 4_u64) => 1,
+            },
+        ]
+        .into_iter();
+
         for (pred_rel_step, set_op_step) in pred_rel_data.iter().zip(set_op_data.iter()) {
             pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
             set_op_input.insert_with_same_weight(set_op_step.iter(), 1);
@@ -1279,7 +1296,8 @@ mod test {
             circuit.step()?;
 
             let batch = output.to_batch();
-            println!("{}", batch.as_debug_table());
+            println!("{}", batch.as_table());
+            assert_eq!(batch.as_zset(), expected.next().unwrap());
         }
 
         Ok(())

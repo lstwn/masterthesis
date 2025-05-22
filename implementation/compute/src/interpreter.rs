@@ -434,14 +434,7 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         expr: &CartesianProductExpr,
         ctx: VisitorCtx,
     ) -> ExprVisitorResult {
-        let left = self
-            .visit_expr(&expr.left, ctx)
-            .and_then(|value| assert_type!(value, Value::Relation))?;
-        let right = self
-            .visit_expr(&expr.right, ctx)
-            .and_then(|value| assert_type!(value, Value::Relation))?;
-
-        todo!("Share code with equi join")
+        self.visit_equi_join_expr(&expr.inner, ctx)
     }
 
     fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: VisitorCtx) -> ExprVisitorResult {

@@ -295,9 +295,7 @@ impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
         expr: &mut CartesianProductExpr,
         ctx: VisitorCtx,
     ) -> VisitorResult {
-        self.visit_expr(&mut expr.left, ctx)
-            .and_then(|()| self.visit_expr(&mut expr.right, ctx))
-            .and_then(|()| self.visit_projection_attributes(expr.attributes.as_mut(), ctx))
+        self.visit_equi_join_expr(&mut expr.inner, ctx)
     }
 
     fn visit_equi_join_expr(&mut self, expr: &mut EquiJoinExpr, ctx: VisitorCtx) -> VisitorResult {

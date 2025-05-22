@@ -210,12 +210,21 @@ pub struct ProjectionExpr {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CartesianProductExpr {
-    /// Must evaluate to a relation.
-    pub left: Expr,
-    /// Must evaluate to a relation.
-    pub right: Expr,
-    /// An optional projection step. See documentation of [`ProjectionExpr`].
-    pub attributes: Option<Vec<(String, Expr)>>,
+    /// We delegate to an [`EquiJoinExpr`] with an empty `on` clause.
+    pub inner: EquiJoinExpr,
+}
+
+impl CartesianProductExpr {
+    pub fn new(left: Expr, right: Expr, attributes: Option<Vec<(String, Expr)>>) -> Self {
+        Self {
+            inner: EquiJoinExpr {
+                left,
+                right,
+                on: vec![],
+                attributes,
+            },
+        }
+    }
 }
 
 /// An equi join is a join that exclusively uses equality of attribute(s).

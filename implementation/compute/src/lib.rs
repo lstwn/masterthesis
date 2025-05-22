@@ -99,8 +99,8 @@ mod test {
     use crate::{
         dbsp::{DbspInput, DbspInputs, DbspOutput},
         expr::{
-            AliasExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr, FixedPointIterExpr,
-            ProjectionExpr, SelectionExpr, UnionExpr,
+            AliasExpr, CartesianProductExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr,
+            FixedPointIterExpr, ProjectionExpr, SelectionExpr, UnionExpr,
         },
         relation::{RelationSchema, TupleKey, TupleValue},
         scalar::ScalarTypedValue,
@@ -440,6 +440,41 @@ mod test {
         }
     }
 
+    fn persons_and_professions_data() -> (Vec<Person>, Vec<Profession>) {
+        let persons: Vec<Person> = vec![
+            Person {
+                person_id: 0,
+                name: "Alice".to_string(),
+                age: 20,
+                profession_id: 0,
+            },
+            Person {
+                person_id: 1,
+                name: "Bob".to_string(),
+                age: 30,
+                profession_id: 1,
+            },
+            Person {
+                person_id: 2,
+                name: "Charlie".to_string(),
+                age: 40,
+                profession_id: 0,
+            },
+        ];
+
+        let professions: Vec<Profession> = vec![
+            Profession {
+                profession_id: 0,
+                name: "Engineer".to_string(),
+            },
+            Profession {
+                profession_id: 1,
+                name: "Doctor".to_string(),
+            },
+        ];
+        (persons, professions)
+    }
+
     #[test]
     fn test_standard_join() -> Result<(), anyhow::Error> {
         let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
@@ -522,38 +557,7 @@ mod test {
         let person_input = inputs.get("person").unwrap();
         let profession_input = inputs.get("profession").unwrap();
 
-        let persons: Vec<Person> = vec![
-            Person {
-                person_id: 0,
-                name: "Alice".to_string(),
-                age: 20,
-                profession_id: 0,
-            },
-            Person {
-                person_id: 1,
-                name: "Bob".to_string(),
-                age: 30,
-                profession_id: 1,
-            },
-            Person {
-                person_id: 2,
-                name: "Charlie".to_string(),
-                age: 40,
-                profession_id: 0,
-            },
-        ];
-
-        let professions: Vec<Profession> = vec![
-            Profession {
-                profession_id: 0,
-                name: "Engineer".to_string(),
-            },
-            Profession {
-                profession_id: 1,
-                name: "Doctor".to_string(),
-            },
-        ];
-
+        let (persons, professions) = persons_and_professions_data();
         person_input.insert_with_same_weight(persons.iter(), 1);
         profession_input.insert_with_same_weight(professions.iter(), 1);
 
@@ -567,6 +571,88 @@ mod test {
                 tuple!(0_u64, "Alice", 20_u64, 0_u64, "Engineer") => 1,
                 tuple!(2_u64, "Charlie", 40_u64, 0_u64, "Engineer") => 1,
                 tuple!(1_u64, "Bob", 30_u64, 1_u64, "Doctor") => 1,
+            }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cartesian_product() -> Result<(), anyhow::Error> {
+        let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
+            let mut dbsp_inputs = DbspInputs::new();
+
+            let code = [
+                Stmt::from(VarStmt {
+                    name: "person".to_string(),
+                    initializer: Some(Expr::from(DbspInput::add(
+                        RelationSchema::new(
+                            "person",
+                            ["person_id", "name", "age", "profession_id"],
+                            ["person_id"],
+                        )?,
+                        root_circuit,
+                        &mut dbsp_inputs,
+                    ))),
+                }),
+                Stmt::from(VarStmt {
+                    name: "profession".to_string(),
+                    initializer: Some(Expr::from(DbspInput::add(
+                        RelationSchema::new(
+                            "profession",
+                            ["profession_id", "name"],
+                            ["profession_id"],
+                        )?,
+                        root_circuit,
+                        &mut dbsp_inputs,
+                    ))),
+                }),
+                Stmt::from(VarStmt {
+                    name: "joined".to_string(),
+                    initializer: Some(Expr::from(CartesianProductExpr::new(
+                        Expr::from(AliasExpr {
+                            relation: Expr::from(VarExpr::new("person")),
+                            alias: "pers".to_string(),
+                        }),
+                        Expr::from(AliasExpr {
+                            relation: Expr::from(VarExpr::new("profession")),
+                            alias: "prof".to_string(),
+                        }),
+                        None,
+                    ))),
+                }),
+            ];
+
+            match IncLog::new().execute(code) {
+                Ok(Some(Value::Relation(relation))) => {
+                    let relation = relation.borrow();
+                    let output_handle = relation.inner.output();
+                    let output_schema = relation.schema.clone();
+                    Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
+                }
+                result => panic!("Expected a relation, got {:?}", result),
+            }
+        })?;
+        let person_input = inputs.get("person").unwrap();
+        let profession_input = inputs.get("profession").unwrap();
+
+        let (persons, professions) = persons_and_professions_data();
+        person_input.insert_with_same_weight(persons.iter(), 1);
+        profession_input.insert_with_same_weight(professions.iter(), 1);
+
+        circuit.step()?;
+
+        let batch = output.to_batch();
+        println!("{}", batch.as_debug_table());
+        assert_eq!(
+            batch.as_debug_zset(),
+            zset! {
+                tuple!(0_u64, "Alice", 20_u64, 0_u64, 0_u64, "Engineer") => 1,
+                tuple!(0_u64, "Alice", 20_u64, 0_u64, 1_u64, "Doctor") => 1,
+                tuple!(1_u64, "Bob", 30_u64, 1_u64, 0_u64, "Engineer") => 1,
+                tuple!(1_u64, "Bob", 30_u64, 1_u64, 1_u64, "Doctor") => 1,
+                tuple!(2_u64, "Charlie", 40_u64, 0_u64, 0_u64, "Engineer") => 1,
+                tuple!(2_u64, "Charlie", 40_u64, 0_u64, 1_u64, "Doctor") => 1,
             }
         );
 

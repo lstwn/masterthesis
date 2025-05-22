@@ -90,7 +90,7 @@ impl<'a> PickHelper<'a> {
 ///
 /// An alias requires the interpreter to be run to have variables be
 /// named according to their alias.
-fn is_pickable(expr: &Expr) -> Option<&String> {
+pub fn is_pickable(expr: &Expr) -> Option<&String> {
     match expr {
         // Unresolved variables are variables from a tuple context.
         Expr::Var(inner) => {

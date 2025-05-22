@@ -29,7 +29,6 @@ pub enum Expr {
     Projection(Box<ProjectionExpr>),
     CartesianProduct(Box<CartesianProductExpr>),
     EquiJoin(Box<EquiJoinExpr>),
-    ThetaJoin(Box<ThetaJoinExpr>),
     FixedPointIter(Box<FixedPointIterExpr>),
 }
 
@@ -52,7 +51,6 @@ impl_from_auto_box! {
     (Expr::Projection, ProjectionExpr),
     (Expr::CartesianProduct, CartesianProductExpr),
     (Expr::EquiJoin, EquiJoinExpr),
-    (Expr::ThetaJoin, ThetaJoinExpr),
     (Expr::FixedPointIter, FixedPointIterExpr)
 }
 
@@ -229,38 +227,12 @@ pub struct EquiJoinExpr {
     pub left: Expr,
     /// Must evaluate to a relation.
     pub right: Expr,
-    /// The attributes to join on. The first element is the attribute of the
-    /// left relation, and the second element is the attribute of the right
-    /// relation.
+    /// The attributes to join on. The first element of any pair belongs to the
+    /// left relation, and the second element of any pair belongs to right relation.
     /// Each attribute pair should produce the same type.
-    /// Why not use a `Vec<(Expr, Expr, String)>`?
-    pub on: Vec<(String, String)>,
+    pub on: Vec<(Expr, Expr)>,
     /// An optional projection step. See documentation of [`ProjectionExpr`].
     pub attributes: Option<Vec<(String, Expr)>>,
-}
-
-/// A theta join is a join that uses an arbitrary condition which may be more
-/// complicated than just equality of attribute(s).
-/// [More information on join classifications](https://stackoverflow.com/a/7870216).
-// TODO
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ThetaJoinExpr {
-    /// Must evaluate to a relation.
-    pub left: Expr,
-    /// Must evaluate to a relation.
-    pub right: Expr,
-    pub condition: Expr,
-    /// An optional projection step. See documentation of [`ProjectionExpr`].
-    pub attributes: Option<Vec<(String, Expr)>>,
-}
-
-/// Iteration until the condition is met. Should include fixed-point computations.
-// TODO
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct GenericIterExpr {
-    pub condition: Expr,
-    /// Must evaluate to a relation.
-    pub body: Expr,
 }
 
 /// Evaluates to a relation/stream again.
@@ -414,7 +386,6 @@ pub trait ExprVisitor<T, C> {
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
             Expr::CartesianProduct(expr) => self.visit_cartesian_product_expr(expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
-            Expr::ThetaJoin(expr) => self.visit_theta_join_expr(expr, ctx),
             Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(expr, ctx),
         }
     }
@@ -435,7 +406,6 @@ pub trait ExprVisitor<T, C> {
     fn visit_projection_expr(&mut self, expr: &ProjectionExpr, ctx: C) -> T;
     fn visit_cartesian_product_expr(&mut self, expr: &CartesianProductExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: C) -> T;
-    fn visit_theta_join_expr(&mut self, expr: &ThetaJoinExpr, ctx: C) -> T;
     fn visit_fixed_point_iter_expr(&mut self, expr: &FixedPointIterExpr, ctx: C) -> T;
 }
 
@@ -459,7 +429,6 @@ pub trait ExprVisitorMut<T, C> {
             Expr::Projection(expr) => self.visit_projection_expr(expr, ctx),
             Expr::CartesianProduct(expr) => self.visit_cartesian_product_expr(expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
-            Expr::ThetaJoin(expr) => self.visit_theta_join_expr(expr, ctx),
             Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(expr, ctx),
         }
     }
@@ -480,7 +449,6 @@ pub trait ExprVisitorMut<T, C> {
     fn visit_projection_expr(&mut self, expr: &mut ProjectionExpr, ctx: C) -> T;
     fn visit_cartesian_product_expr(&mut self, expr: &mut CartesianProductExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &mut EquiJoinExpr, ctx: C) -> T;
-    fn visit_theta_join_expr(&mut self, expr: &mut ThetaJoinExpr, ctx: C) -> T;
     fn visit_fixed_point_iter_expr(&mut self, expr: &mut FixedPointIterExpr, ctx: C) -> T;
 }
 
@@ -504,7 +472,6 @@ pub trait ExprVisitorOwn<T, C> {
             Expr::Projection(expr) => self.visit_projection_expr(*expr, ctx),
             Expr::CartesianProduct(expr) => self.visit_cartesian_product_expr(*expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(*expr, ctx),
-            Expr::ThetaJoin(expr) => self.visit_theta_join_expr(*expr, ctx),
             Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(*expr, ctx),
         }
     }
@@ -525,7 +492,6 @@ pub trait ExprVisitorOwn<T, C> {
     fn visit_projection_expr(&mut self, expr: ProjectionExpr, ctx: C) -> T;
     fn visit_cartesian_product_expr(&mut self, expr: CartesianProductExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: EquiJoinExpr, ctx: C) -> T;
-    fn visit_theta_join_expr(&mut self, expr: ThetaJoinExpr, ctx: C) -> T;
     fn visit_fixed_point_iter_expr(&mut self, expr: FixedPointIterExpr, ctx: C) -> T;
 }
 
@@ -547,6 +513,4 @@ impl MemAddr for SelectionExpr {}
 impl MemAddr for ProjectionExpr {}
 impl MemAddr for CartesianProductExpr {}
 impl MemAddr for EquiJoinExpr {}
-impl MemAddr for ThetaJoinExpr {}
-impl MemAddr for GenericIterExpr {}
 impl MemAddr for FixedPointIterExpr {}

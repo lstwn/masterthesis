@@ -485,7 +485,10 @@ mod test {
                         // required because the left attribute only operates on the left relation
                         // and the right attribute only operates on the right relation.
                         // Also, shall expressions be allowed here?
-                        on: vec![("profession_id".to_string(), "profession_id".to_string())],
+                        on: vec![(
+                            Expr::from(VarExpr::new("profession_id")),
+                            Expr::from(VarExpr::new("profession_id")),
+                        )],
                         // attributes: None,
                         attributes: Some(
                             // Here, we filter out the duplicated profession_id column.
@@ -621,7 +624,10 @@ mod test {
                             relation: Expr::from(VarExpr::new("edges")),
                             alias: "next".to_string(),
                         }),
-                        on: vec![("to".to_string(), "from".to_string())],
+                        on: vec![(
+                            Expr::from(VarExpr::new("to")),
+                            Expr::from(VarExpr::new("from")),
+                        )],
                         attributes: Some(
                             [
                                 ("start", Expr::from(VarExpr::new("cur.from"))),
@@ -662,7 +668,10 @@ mod test {
                             relation: Expr::from(VarExpr::new("edges")),
                             alias: "next".to_string(),
                         }),
-                        on: vec![("end".to_string(), "from".to_string())],
+                        on: vec![(
+                            Expr::from(VarExpr::new("end")),
+                            Expr::from(VarExpr::new("from")),
+                        )],
                         attributes: Some(
                             [
                                 ("start", Expr::from(VarExpr::new("cur.start"))),
@@ -703,7 +712,10 @@ mod test {
                             relation: Expr::from(VarExpr::new("edges")),
                             alias: "next".to_string(),
                         }),
-                        on: vec![("end".to_string(), "from".to_string())],
+                        on: vec![(
+                            Expr::from(VarExpr::new("end")),
+                            Expr::from(VarExpr::new("from")),
+                        )],
                         attributes: Some(
                             [
                                 ("start", Expr::from(VarExpr::new("cur.start"))),
@@ -872,7 +884,10 @@ mod test {
                                         relation: Expr::from(VarExpr::new("edges")),
                                         alias: "next".to_string(),
                                     }),
-                                    on: vec![("to".to_string(), "from".to_string())],
+                                    on: vec![(
+                                        Expr::from(VarExpr::new("to")),
+                                        Expr::from(VarExpr::new("from")),
+                                    )],
                                     attributes: Some(
                                         [
                                             ("start", Expr::from(VarExpr::new("cur.from"))),
@@ -1159,8 +1174,14 @@ mod test {
                                         alias: "next".to_string(),
                                     }),
                                     on: vec![
-                                        ("node_id".to_string(), "from_node_id".to_string()),
-                                        ("counter".to_string(), "from_counter".to_string()),
+                                        (
+                                            Expr::from(VarExpr::new("node_id")),
+                                            Expr::from(VarExpr::new("from_node_id")),
+                                        ),
+                                        (
+                                            Expr::from(VarExpr::new("counter")),
+                                            Expr::from(VarExpr::new("from_counter")),
+                                        ),
                                     ],
                                     attributes: Some(
                                         [
@@ -1190,8 +1211,14 @@ mod test {
                             left: Expr::from(VarExpr::new("leaf")),
                             right: Expr::from(VarExpr::new("set_op")),
                             on: vec![
-                                ("node_id".to_string(), "node_id".to_string()),
-                                ("counter".to_string(), "counter".to_string()),
+                                (
+                                    Expr::from(VarExpr::new("node_id")),
+                                    Expr::from(VarExpr::new("node_id")),
+                                ),
+                                (
+                                    Expr::from(VarExpr::new("counter")),
+                                    Expr::from(VarExpr::new("counter")),
+                                ),
                             ],
                             // With `attributes: None` the query does not work because
                             // the fields `node_id` and `counter` are both duplicated in
@@ -1212,8 +1239,14 @@ mod test {
                             ),
                         }),
                         on: vec![
-                            ("node_id".to_string(), "node_id".to_string()),
-                            ("counter".to_string(), "counter".to_string()),
+                            (
+                                Expr::from(VarExpr::new("node_id")),
+                                Expr::from(VarExpr::new("node_id")),
+                            ),
+                            (
+                                Expr::from(VarExpr::new("counter")),
+                                Expr::from(VarExpr::new("counter")),
+                            ),
                         ],
                         attributes: Some(
                             [

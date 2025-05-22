@@ -4,8 +4,8 @@ use crate::{
     expr::{
         AliasExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr, DifferenceExpr,
         DistinctExpr, EquiJoinExpr, Expr, ExprVisitorMut, FixedPointIterExpr, FunctionExpr,
-        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr,
-        UnaryExpr, UnionExpr, VarExpr,
+        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, UnaryExpr,
+        UnionExpr, VarExpr,
     },
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
     util::{Named, Resolvable},
@@ -305,17 +305,16 @@ impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
         // Implement through returning type information through `VisitorResult`.
         self.visit_expr(&mut expr.left, ctx)
             .and_then(|()| self.visit_expr(&mut expr.right, ctx))
-            .and_then(|()| self.visit_projection_attributes(expr.attributes.as_mut(), ctx))
-    }
-
-    fn visit_theta_join_expr(
-        &mut self,
-        expr: &mut ThetaJoinExpr,
-        ctx: VisitorCtx,
-    ) -> VisitorResult {
-        self.visit_expr(&mut expr.left, ctx)
-            .and_then(|()| self.visit_expr(&mut expr.right, ctx))
-            .and_then(|()| self.visit_expr(&mut expr.condition, ctx))
+            .and_then(|()| {
+                expr.on.iter_mut().try_for_each(|(left, right)| {
+                    ctx.begin_tuple_context();
+                    let ret = self
+                        .visit_expr(left, ctx)
+                        .and_then(|()| self.visit_expr(right, ctx));
+                    ctx.end_tuple_context();
+                    ret
+                })
+            })
             .and_then(|()| self.visit_projection_attributes(expr.attributes.as_mut(), ctx))
     }
 

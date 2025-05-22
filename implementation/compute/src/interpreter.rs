@@ -5,14 +5,15 @@ use crate::{
     expr::{
         AliasExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr, DifferenceExpr,
         DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixedPointIterExpr, FunctionExpr,
-        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, ThetaJoinExpr,
-        UnaryExpr, UnionExpr, VarExpr,
+        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, UnaryExpr,
+        UnionExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
     operators::{
         coalesce::coalesce_helper,
         projection::{ProjectionStrategy, projection_helper},
+        reindex::reindex_helper,
     },
     relation::{Relation, RelationRef, SchemaTuple, TupleKey, TupleValue, new_relation},
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitor, VarStmt},
@@ -457,34 +458,18 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
             .and_then(|value| assert_type!(value, Value::Relation))?;
         let right_alias = ctx.consume_alias();
 
+        let (left_key_fields, right_key_fields): (Vec<&Expr>, Vec<&Expr>) =
+            expr.on.iter().map(|(left, right)| (left, right)).unzip();
+
+        let (left_indexed, key_fields) =
+            reindex_helper(&left, left_key_fields.as_slice(), ctx.environment);
+        let (right_indexed, _) =
+            reindex_helper(&right, right_key_fields.as_slice(), ctx.environment);
+
         let left_ref = left.borrow();
         let right_ref = right.borrow();
 
-        let (left_key_fields, right_key_fields): (Vec<String>, Vec<String>) =
-            expr.on.iter().cloned().unzip();
-
-        let left_indexed = left_ref.inner.map_index({
-            let left = Rc::clone(&left);
-            let left_key_fields = left_key_fields.clone();
-            move |(_key, tuple)| {
-                let key: TupleKey = SchemaTuple::new(&left.borrow().schema.tuple, tuple)
-                    .pick(&left_key_fields)
-                    .collect();
-                (key, tuple.clone())
-            }
-        });
-        let right_indexed = right_ref.inner.map_index({
-            let right = Rc::clone(&right);
-            let key_fields = expr.on.clone();
-            move |(_key, tuple)| {
-                let key: TupleKey = SchemaTuple::new(&right.borrow().schema.tuple, tuple)
-                    .pick(&right_key_fields)
-                    .collect();
-                (key, tuple.clone())
-            }
-        });
-
-        let joined_schema = left_ref.schema.join(&right_ref.schema, left_key_fields);
+        let joined_schema = left_ref.schema.join(&right_ref.schema, key_fields);
 
         let (schema, projection) = match expr
             .attributes
@@ -526,18 +511,6 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         });
 
         Ok(Value::Relation(new_relation(schema, joined)))
-    }
-
-    fn visit_theta_join_expr(
-        &mut self,
-        expr: &ThetaJoinExpr,
-        ctx: VisitorCtx,
-    ) -> ExprVisitorResult {
-        // Unfortunately, this will be a cartesian product followed by a selection,
-        // as done by most DB systems out there.
-        // Yet, there are smarter but more involved approaches:
-        // https://hpi.de/oldsite/fileadmin/user_upload/fachgebiete/naumann/publications/PDFs/2021_weise_optimized.pdf
-        unimplemented!("Theta joins are not yet implemented. Are they actually required?")
     }
 
     fn visit_fixed_point_iter_expr(

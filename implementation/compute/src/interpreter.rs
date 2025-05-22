@@ -5,8 +5,7 @@ use crate::{
     expr::{
         AliasExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr, DifferenceExpr,
         DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixedPointIterExpr, FunctionExpr,
-        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, UnaryExpr,
-        UnionExpr, VarExpr,
+        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr, UnionExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
@@ -177,11 +176,6 @@ type VisitorCtx<'a, 'b> = &'a mut InterpreterContext<'b>;
 type ExprVisitorResult = Result<Value, RuntimeError>;
 
 impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
-    // TODO: Remove ternary expressions.
-    fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: VisitorCtx) -> ExprVisitorResult {
-        todo!()
-    }
-
     fn visit_binary_expr(&mut self, expr: &BinaryExpr, ctx: VisitorCtx) -> ExprVisitorResult {
         if let Operator::And | Operator::Or = expr.operator {
             self.visit_lazy_binary_expr(expr, ctx)

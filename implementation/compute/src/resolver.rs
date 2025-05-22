@@ -4,8 +4,7 @@ use crate::{
     expr::{
         AliasExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr, DifferenceExpr,
         DistinctExpr, EquiJoinExpr, Expr, ExprVisitorMut, FixedPointIterExpr, FunctionExpr,
-        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, TernaryExpr, UnaryExpr,
-        UnionExpr, VarExpr,
+        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr, UnionExpr, VarExpr,
     },
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
     util::{Named, Resolvable},
@@ -178,12 +177,6 @@ type VisitorResult = Result<(), SyntaxError>;
 type VisitorCtx<'a, 'b> = &'a mut ResolverContext<'b>;
 
 impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
-    fn visit_ternary_expr(&mut self, expr: &mut TernaryExpr, ctx: VisitorCtx) -> VisitorResult {
-        self.visit_expr(&mut expr.left, ctx)
-            .and_then(|()| self.visit_expr(&mut expr.mid, ctx))
-            .and_then(|()| self.visit_expr(&mut expr.right, ctx))
-    }
-
     fn visit_binary_expr(&mut self, expr: &mut BinaryExpr, ctx: VisitorCtx) -> VisitorResult {
         self.visit_expr(&mut expr.left, ctx)
             .and_then(|()| self.visit_expr(&mut expr.right, ctx))

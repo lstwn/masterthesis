@@ -12,7 +12,6 @@ use std::fmt::{self, Debug, Display};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Expr {
     // TODO: factor out LogicalExpr from BinaryExpr
-    Ternary(Box<TernaryExpr>),
     Binary(Box<BinaryExpr>),
     Unary(Box<UnaryExpr>),
     Grouping(Box<GroupingExpr>),
@@ -34,7 +33,6 @@ pub enum Expr {
 
 impl_from_auto_box! {
     Expr,
-    (Expr::Ternary, TernaryExpr),
     (Expr::Binary, BinaryExpr),
     (Expr::Unary, UnaryExpr),
     (Expr::Grouping, GroupingExpr),
@@ -52,14 +50,6 @@ impl_from_auto_box! {
     (Expr::CartesianProduct, CartesianProductExpr),
     (Expr::EquiJoin, EquiJoinExpr),
     (Expr::FixedPointIter, FixedPointIterExpr)
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TernaryExpr {
-    pub operator: Operator,
-    pub left: Expr,
-    pub mid: Expr,
-    pub right: Expr,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -378,7 +368,6 @@ impl Display for Literal {
 pub trait ExprVisitor<T, C> {
     fn visit_expr(&mut self, expr: &Expr, ctx: C) -> T {
         match expr {
-            Expr::Ternary(expr) => self.visit_ternary_expr(expr, ctx),
             Expr::Binary(expr) => self.visit_binary_expr(expr, ctx),
             Expr::Unary(expr) => self.visit_unary_expr(expr, ctx),
             Expr::Grouping(expr) => self.visit_grouping_expr(expr, ctx),
@@ -398,7 +387,6 @@ pub trait ExprVisitor<T, C> {
             Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(expr, ctx),
         }
     }
-    fn visit_ternary_expr(&mut self, expr: &TernaryExpr, ctx: C) -> T;
     fn visit_binary_expr(&mut self, expr: &BinaryExpr, ctx: C) -> T;
     fn visit_unary_expr(&mut self, expr: &UnaryExpr, ctx: C) -> T;
     fn visit_grouping_expr(&mut self, expr: &GroupingExpr, ctx: C) -> T;
@@ -421,7 +409,6 @@ pub trait ExprVisitor<T, C> {
 pub trait ExprVisitorMut<T, C> {
     fn visit_expr(&mut self, expr: &mut Expr, ctx: C) -> T {
         match expr {
-            Expr::Ternary(expr) => self.visit_ternary_expr(expr, ctx),
             Expr::Binary(expr) => self.visit_binary_expr(expr, ctx),
             Expr::Unary(expr) => self.visit_unary_expr(expr, ctx),
             Expr::Grouping(expr) => self.visit_grouping_expr(expr, ctx),
@@ -441,7 +428,6 @@ pub trait ExprVisitorMut<T, C> {
             Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(expr, ctx),
         }
     }
-    fn visit_ternary_expr(&mut self, expr: &mut TernaryExpr, ctx: C) -> T;
     fn visit_binary_expr(&mut self, expr: &mut BinaryExpr, ctx: C) -> T;
     fn visit_unary_expr(&mut self, expr: &mut UnaryExpr, ctx: C) -> T;
     fn visit_grouping_expr(&mut self, expr: &mut GroupingExpr, ctx: C) -> T;
@@ -464,7 +450,6 @@ pub trait ExprVisitorMut<T, C> {
 pub trait ExprVisitorOwn<T, C> {
     fn visit_expr(&mut self, expr: Expr, ctx: C) -> T {
         match expr {
-            Expr::Ternary(expr) => self.visit_ternary_expr(*expr, ctx),
             Expr::Binary(expr) => self.visit_binary_expr(*expr, ctx),
             Expr::Unary(expr) => self.visit_unary_expr(*expr, ctx),
             Expr::Grouping(expr) => self.visit_grouping_expr(*expr, ctx),
@@ -484,7 +469,6 @@ pub trait ExprVisitorOwn<T, C> {
             Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(*expr, ctx),
         }
     }
-    fn visit_ternary_expr(&mut self, expr: TernaryExpr, ctx: C) -> T;
     fn visit_binary_expr(&mut self, expr: BinaryExpr, ctx: C) -> T;
     fn visit_unary_expr(&mut self, expr: UnaryExpr, ctx: C) -> T;
     fn visit_grouping_expr(&mut self, expr: GroupingExpr, ctx: C) -> T;
@@ -505,7 +489,6 @@ pub trait ExprVisitorOwn<T, C> {
 }
 
 impl MemAddr for Expr {}
-impl MemAddr for TernaryExpr {}
 impl MemAddr for BinaryExpr {}
 impl MemAddr for UnaryExpr {}
 impl MemAddr for GroupingExpr {}

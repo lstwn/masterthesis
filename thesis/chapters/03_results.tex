@@ -11,9 +11,42 @@ Introduce operators.
 
 Tree-walk interpreter that delegates to DBSP. Schema tracking.
 
+Running example: Transitive closure.
+
 \subsection{Datalog Frontend}
 
 Define grammar, outline parser.
+
+\begin{figure}[htpb]
+	\centering
+	\begin{tabular}{c}
+		\begin{lstlisting}[language=EBNF]
+		program     = rule* EOF ;
+		rule        = head ":-" body "." ;
+		head        = IDENTIFIER "(" comparison ( "," comparison )* ")" ;
+		body        = ( atom ( "," atom )* )? ;
+		atom        = ( "not"? predicate ) | comparison ;
+		predicate   = IDENTIFIER "(" IDENTIFIER ( "," IDENTIFIER )* ")" ;
+
+		comparison  = term ( ( "==" | "!=" | ">" | ">=" | "<" | "<=" ) term )? ;
+		term        = factor ( ( "+" | "-" ) factor )* ;
+		factor      = unary ( ( "*" | "/" ) unary )* ;
+		unary       = ( "-" | "!" ) unary | primary ;
+		primary     = literal | IDENTIFIER | "(" comparison ")" ;
+		literal     = BOOL | UINT | IINT | STRING | NULL ;
+
+		BOOL        = "true" | "false" ;
+		UINT        = DIGIT+ ;
+		IINT        = ( "-" | "+" )? DIGIT+ ;
+		STRING      = "\""<any char except "\"">*"\"" ;
+		IDENTIFIER  = ALPHA ( ALPHA | DIGIT )* ;
+		ALPHA       = "a".."z" | "A".."Z" | "_" ;
+		DIGIT       = "0".."9" ;
+		NULL        = "null" ;
+        \end{lstlisting}
+	\end{tabular}
+	\caption[Example listing]{Datalog Grammar of our Variant.}\label{code:datalog-grammar}
+\end{figure}
 
 Finding an execution order.
 

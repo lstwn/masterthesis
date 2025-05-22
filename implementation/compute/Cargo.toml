@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 thiserror = { workspace = true }
-dbsp = "0.48.0"
+dbsp = "0.49.0"
 rkyv = { version = "0.7.45", default-features = false, features = [
     "std",
     "size_64",

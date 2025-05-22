@@ -12,35 +12,16 @@
 
 ## Work Outline
 
-### Current
+### Ideas
 
-- [x] Add distance column in example.
-- [x] Try out holding back a link tuple.
-- [x] Implement unions.
-- [x] Implement schema equality.
-- [x] Implement fixpoint iteration.
-- [ ] Allow expressions for left and right join keys.
-
-### For proof-of-concept
-
-- [x] selection
-- [x] projection
-- [x] [nice cli table output](https://crates.io/crates/cli-table)
-      for results through introduction of input/output schema?
-- [x] join
-  - [x] plain case
-  - [x] add support for projection within join
-  - [x] with same table (requires aliasing)
-  - [x] try out adding missing "link edge" incrementally
-- [x] iteration until fix point
-  - [x] union/union all support
-- [ ] test multithreaded environment
-- [ ] add Datalog parser for string representation
+- [ ] Test the multithreaded environment
+- [ ] Cleanups:
+  - [ ] Introduce a LogicalExpr instead of hijacking the BinaryExpr
+- [ ] More Expr types:
+  - [ ] Theta Join
+  - [ ] Arbitrary Iteration: How to specify the iteration stop condition?
 
 ### Advanced ideas
-
-- [ ] theta join
-- [ ] arbitrary iteration: How to specify the iteration stop condition?
 
 #### Flattened AST
 
@@ -55,7 +36,4 @@ Benefits of a type checker pass which immutably references the AST:
 
 - It can check the types of expressions and statements
 
-#### Tuple Variable Management
-
-Try to manage tuple variables within a BlockExpr and insert variables as proper
-variables.
+Implement it for the Datalog AST already for more helpful error messages?

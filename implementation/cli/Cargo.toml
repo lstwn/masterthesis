@@ -4,5 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-parser = { path = "../parser" }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
 compute = { path = "../compute" }
+parser = { path = "../parser" }
+optimizer = { path = "../optimizer" }

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["parser", "compute", "cli"]
+members = ["parser", "compute", "cli", "optimizer"]
 
 [workspace.package]
 version = "0.0.1"

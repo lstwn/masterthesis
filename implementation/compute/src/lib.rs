@@ -1,20 +1,19 @@
 #![allow(dead_code, unused_variables)]
 
-mod circuit;
 mod context;
-mod dbsp;
+pub mod dbsp;
 pub mod error;
 pub mod expr;
 mod function;
 mod interpreter;
 pub mod operator;
 mod operators;
-mod relation;
+pub mod relation;
 mod resolver;
 mod scalar;
-mod stmt;
+pub mod stmt;
 mod util;
-mod variable;
+pub mod variable;
 
 use context::{InterpreterContext, ProgramContext, ResolverContext};
 use error::IncLogError;
@@ -29,7 +28,8 @@ use variable::Value;
 // Expr: Expression
 // Ident: Identifier
 
-struct IncLog {
+#[derive(Default)]
+pub struct IncLog {
     program_context: ProgramContext,
     had_syntax_err: bool,
     had_runtime_err: bool,
@@ -209,7 +209,7 @@ mod test {
     fn new_selection_expr(
         root_circuit: &mut RootCircuit,
     ) -> Result<(DbspInputs, DbspOutput), anyhow::Error> {
-        let mut dbsp_inputs = DbspInputs::new();
+        let mut dbsp_inputs = DbspInputs::default();
 
         let code = [
             Stmt::from(VarStmt {
@@ -478,7 +478,7 @@ mod test {
     #[test]
     fn test_standard_join() -> Result<(), anyhow::Error> {
         let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
-            let mut dbsp_inputs = DbspInputs::new();
+            let mut dbsp_inputs = DbspInputs::default();
 
             let code = [
                 Stmt::from(VarStmt {
@@ -580,7 +580,7 @@ mod test {
     #[test]
     fn test_cartesian_product() -> Result<(), anyhow::Error> {
         let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
-            let mut dbsp_inputs = DbspInputs::new();
+            let mut dbsp_inputs = DbspInputs::default();
 
             let code = [
                 Stmt::from(VarStmt {
@@ -662,7 +662,7 @@ mod test {
     #[test]
     fn test_self_join() -> Result<(), anyhow::Error> {
         let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
-            let mut dbsp_inputs = DbspInputs::new();
+            let mut dbsp_inputs = DbspInputs::default();
 
             let code = [
                 Stmt::from(VarStmt {
@@ -907,7 +907,7 @@ mod test {
     #[test]
     fn test_iteration() -> Result<(), anyhow::Error> {
         let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
-            let mut dbsp_inputs = DbspInputs::new();
+            let mut dbsp_inputs = DbspInputs::default();
 
             let code = [
                 Stmt::from(VarStmt {
@@ -1156,7 +1156,7 @@ mod test {
     #[test]
     fn test_mvr_store_crdt() -> Result<(), anyhow::Error> {
         let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
-            let mut dbsp_inputs = DbspInputs::new();
+            let mut dbsp_inputs = DbspInputs::default();
 
             let code = [
                 // Inputs start.

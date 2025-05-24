@@ -23,12 +23,12 @@ use compute::error::SyntaxError;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
-struct PrecedenceGraph {
+pub struct PrecedenceGraph {
     inner: ListGraph<AggregatedRule, Precedence>,
 }
 
 impl PrecedenceGraph {
-    fn from_ast(ast: Program) -> Result<Self, SyntaxError> {
+    pub fn from_ast(ast: Program) -> Result<Self, SyntaxError> {
         let mut inner = ListGraph::<AggregatedRule, Precedence>::with_capacity(ast.rules.len());
         let mut aggregated_nodes = HashMap::<String, NodeId>::with_capacity(ast.rules.len());
 
@@ -51,7 +51,7 @@ impl PrecedenceGraph {
         let mut edges = Vec::with_capacity(aggregated_nodes.len());
 
         for (to, node) in inner.nodes() {
-            for atom in node.all_bodies() {
+            for atom in node.atoms() {
                 let undefined_predicate_error = |name: &str| {
                     SyntaxError::new(format!("Predicate {} is not defined but referenced.", name))
                 };
@@ -86,7 +86,7 @@ impl PrecedenceGraph {
 
         Ok(Self { inner })
     }
-    fn into_execution_order(self) -> Result<Vec<AggregatedRule>, SyntaxError> {
+    pub fn into_execution_order(self) -> Result<Vec<AggregatedRule>, SyntaxError> {
         let sorting = self.inner.kahn_topo_sort().ok_or_else(|| {
             SyntaxError::new("Cannot produce execution order, precedence graph has cycles.")
         })?;
@@ -102,9 +102,9 @@ impl PrecedenceGraph {
 /// An aggregated rule contains all rules that share the same head, that is,
 /// have the same name and same list of variables.
 #[derive(Clone, Debug)]
-struct AggregatedRule {
-    head: Head,
-    bodies: Vec<Body>,
+pub struct AggregatedRule {
+    pub head: Head,
+    pub bodies: Vec<Body>,
 }
 
 impl AggregatedRule {
@@ -121,14 +121,8 @@ impl AggregatedRule {
             }
         }
     }
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &String {
         self.head.name()
-    }
-    fn is_extensional(&self) -> bool {
-        self.bodies.is_empty()
-    }
-    fn is_intensional(&self) -> bool {
-        !self.is_extensional()
     }
     fn try_insert(&mut self, rule: Rule) -> Result<(), (Rule, SyntaxError)> {
         // We only allow intensional rules to be aggregated.
@@ -154,18 +148,11 @@ impl AggregatedRule {
         self.bodies.push(rule.body);
         Ok(())
     }
-    fn bodies(&self) -> impl Iterator<Item = &Body> {
+    pub fn bodies(&self) -> impl Iterator<Item = &Body> {
         self.bodies.iter()
     }
-    fn all_bodies(&self) -> impl Iterator<Item = &Atom> {
+    pub fn atoms(&self) -> impl Iterator<Item = &Atom> {
         self.bodies().flat_map(|body| body.atoms.iter())
-    }
-    fn is_self_recursive(&self) -> bool {
-        self.all_bodies().any(|atom| match atom {
-            Atom::Positive(predicate) => predicate.name == self.head.name,
-            Atom::Negative(predicate) => predicate.name == self.head.name,
-            Atom::Comparison(_) => false,
-        })
     }
 }
 

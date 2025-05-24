@@ -240,6 +240,9 @@ impl TupleSchema {
     pub fn len(&self) -> usize {
         self.fields.iter().filter(|info| info.active).count()
     }
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
     /// Includes the active and inactive fields in the count.
     pub fn full_len(&self) -> usize {
         self.fields.len()

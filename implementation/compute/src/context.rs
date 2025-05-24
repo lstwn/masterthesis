@@ -20,6 +20,12 @@ pub struct ProgramContext {
     pub scopes: ScopeStack,
 }
 
+impl Default for ProgramContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProgramContext {
     pub fn new() -> Self {
         Self {

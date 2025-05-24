@@ -2,20 +2,22 @@
 //! ```ebnf
 //! program     = rule* EOF ;
 //! rule        = head ":-" body "." ;
-//! head        = IDENTIFIER "(" comparison ( "," comparison )* ")" ;
+//! head        = IDENTIFIER "(" field ( "," field )* ")" ;
+//! field       = IDENTIFIER ( "=" comparison )? ;
 //! body        = ( atom ( "," atom )* )? ;
 //! atom        = ( "not"? predicate ) | comparison ;
-//! predicate   = IDENTIFIER "(" IDENTIFIER ( "," IDENTIFIER )* ")" ;
+//! predicate   = IDENTIFIER "(" variable ( "," variable )* ")" ;
+//! variable    = IDENTIFIER ( "=" IDENTIFIER )? ;
 //! ```
 //! An empty body is allowed to define extensional database predicates (EDBPs).
 //!
 //! All parser functions assume that there is no leading whitespace in their inputs.
 
 use crate::{
-    ast::{Atom, Body, Head, Predicate, Program, Rule},
+    ast::{Atom, Body, Head, Predicate, Program, Rule, VarStmt},
     expr,
-    helper::{lead_ws, lead_ws_cmt},
     literal::identifier,
+    parser_helper::{lead_ws, lead_ws_cmt},
 };
 use compute::expr::VarExpr;
 use nom::{
@@ -24,7 +26,7 @@ use nom::{
     character::complete::multispace1,
     combinator::{eof, map, opt, value},
     multi::{fold_many0, separated_list1},
-    sequence::{delimited, pair, terminated},
+    sequence::{delimited, pair, preceded, terminated},
     IResult, Parser,
 };
 
@@ -32,6 +34,7 @@ const DIVIDER: &str = ":-";
 const COMMA: &str = ",";
 const DOT: &str = ".";
 const NOT: &str = "not";
+const ASSIGN: &str = "=";
 
 const LEFT_PAREN: &str = "(";
 const RIGHT_PAREN: &str = ")";
@@ -58,7 +61,7 @@ fn head(input: &str) -> IResult<&str, Head> {
     identifier.parse(input).and_then(|(input, name)| {
         delimited(
             lead_ws(tag(LEFT_PAREN)),
-            separated_list1(lead_ws(tag(COMMA)), lead_ws(expr::comparison)),
+            separated_list1(lead_ws(tag(COMMA)), lead_ws(field)),
             lead_ws(tag(RIGHT_PAREN)),
         )
         .parse(input)
@@ -66,12 +69,23 @@ fn head(input: &str) -> IResult<&str, Head> {
             (
                 input,
                 Head {
-                    name: VarExpr::from(name),
+                    name: VarStmt::new(name),
                     variables,
                 },
             )
         })
     })
+}
+
+fn field(input: &str) -> IResult<&str, VarStmt> {
+    let (input, name) = identifier.parse(input)?;
+    let (input, expr) =
+        opt(preceded(lead_ws(tag(ASSIGN)), lead_ws(expr::comparison))).parse(input)?;
+    if let Some(source_name) = expr {
+        Ok((input, VarStmt::with_expr(name, source_name)))
+    } else {
+        Ok((input, VarStmt::new(name)))
+    }
 }
 
 fn body(input: &str) -> IResult<&str, Body> {
@@ -102,7 +116,7 @@ fn predicate(input: &str) -> IResult<&str, Predicate> {
     identifier.parse(input).and_then(|(input, name)| {
         delimited(
             lead_ws(tag(LEFT_PAREN)),
-            separated_list1(lead_ws(tag(COMMA)), map(lead_ws(identifier), VarExpr::from)),
+            separated_list1(lead_ws(tag(COMMA)), lead_ws(variable)),
             lead_ws(tag(RIGHT_PAREN)),
         )
         .parse(input)
@@ -116,6 +130,17 @@ fn predicate(input: &str) -> IResult<&str, Predicate> {
             )
         })
     })
+}
+
+fn variable(input: &str) -> IResult<&str, VarStmt> {
+    let (input, target_name) = identifier.parse(input)?;
+    let (input, source_name) =
+        opt(preceded(lead_ws(tag(ASSIGN)), lead_ws(identifier))).parse(input)?;
+    if let Some(source_name) = source_name {
+        Ok((input, VarStmt::with_alias(target_name, source_name)))
+    } else {
+        Ok((input, VarStmt::new(target_name)))
+    }
 }
 
 #[cfg(test)]
@@ -133,7 +158,7 @@ pub mod test {
         let result = atom(input);
         let expected = Atom::Positive(Predicate {
             name: VarExpr::new("y"),
-            variables: vec![VarExpr::new("a"), VarExpr::new("b")],
+            variables: vec![VarStmt::new("a"), VarStmt::new("b")],
         });
         assert_eq!(result, Ok(("", expected)));
 
@@ -141,7 +166,7 @@ pub mod test {
         let result = atom(input);
         let expected = Atom::Negative(Predicate {
             name: VarExpr::new("y"),
-            variables: vec![VarExpr::new("a"), VarExpr::new("b")],
+            variables: vec![VarStmt::new("a"), VarStmt::new("b")],
         });
         assert_eq!(result, Ok(("", expected)));
     }
@@ -152,15 +177,15 @@ pub mod test {
         let result = rule(input);
         let expected = Rule {
             head: Head {
-                name: VarExpr::new("notName1"),
-                variables: vec![Expr::from(VarExpr::new("a"))],
+                name: VarStmt::new("notName1"),
+                variables: vec![VarStmt::new("a")],
             },
             body: Body {
                 // We ensure that this is still a positive atom and insist
                 // that the name contains the prefix `not` keyword.
                 atoms: vec![Atom::Positive(Predicate {
                     name: VarExpr::new("notName2"),
-                    variables: vec![VarExpr::new("a")],
+                    variables: vec![VarStmt::new("a")],
                 })],
             },
         };
@@ -171,7 +196,7 @@ pub mod test {
     fn test_program() {
         let input = r#"
             // Leading eol-comment.
-            x(a, b + 1) :- y(a, b, c), c > 2.
+            x(a, b = b + 1) :- y(a, b, c), c > 2.
             // First line of eol-comment.
             // Second line of eol-comment.
             z(a, b)     :- y(a, b), not y(a, b).
@@ -182,14 +207,17 @@ pub mod test {
             rules: vec![
                 Rule {
                     head: Head {
-                        name: VarExpr::new("x"),
+                        name: VarStmt::new("x"),
                         variables: vec![
-                            Expr::from(VarExpr::new("a")),
-                            Expr::from(BinaryExpr {
-                                operator: Operator::Addition,
-                                left: Expr::from(VarExpr::new("b")),
-                                right: Expr::from(LiteralExpr::from(1_u64)),
-                            }),
+                            VarStmt::new("a"),
+                            VarStmt::with_expr(
+                                "b",
+                                Expr::from(BinaryExpr {
+                                    operator: Operator::Addition,
+                                    left: Expr::from(VarExpr::new("b")),
+                                    right: Expr::from(LiteralExpr::from(1_u64)),
+                                }),
+                            ),
                         ],
                     },
                     body: Body {
@@ -197,9 +225,9 @@ pub mod test {
                             Atom::Positive(Predicate {
                                 name: VarExpr::new("y"),
                                 variables: vec![
-                                    VarExpr::new("a"),
-                                    VarExpr::new("b"),
-                                    VarExpr::new("c"),
+                                    VarStmt::new("a"),
+                                    VarStmt::new("b"),
+                                    VarStmt::new("c"),
                                 ],
                             }),
                             Atom::Comparison(Expr::from(BinaryExpr {
@@ -212,21 +240,18 @@ pub mod test {
                 },
                 Rule {
                     head: Head {
-                        name: VarExpr::new("z"),
-                        variables: vec![
-                            Expr::from(VarExpr::new("a")),
-                            Expr::from(VarExpr::new("b")),
-                        ],
+                        name: VarStmt::new("z"),
+                        variables: vec![VarStmt::new("a"), VarStmt::new("b")],
                     },
                     body: Body {
                         atoms: vec![
                             Atom::Positive(Predicate {
                                 name: VarExpr::new("y"),
-                                variables: vec![VarExpr::new("a"), VarExpr::new("b")],
+                                variables: vec![VarStmt::new("a"), VarStmt::new("b")],
                             }),
                             Atom::Negative(Predicate {
                                 name: VarExpr::new("y"),
-                                variables: vec![VarExpr::new("a"), VarExpr::new("b")],
+                                variables: vec![VarStmt::new("a"), VarStmt::new("b")],
                             }),
                         ],
                     },
@@ -243,8 +268,8 @@ pub mod test {
             set(NodeId, Counter, Key, Value)                    :- .
 
             // These are intensional database predicates (IDBPs).
-            overwritten(NodeId, Counter)     :- pred(NodeId, Counter, _ToNodeId, _ToCounter).
-            overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId, Counter).
+            overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
+            overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
 
             isRoot(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
                                                 not overwrites(NodeId, Counter).
@@ -253,8 +278,8 @@ pub mod test {
                                                 not overwritten(NodeId, Counter).
 
             isCausallyReady(NodeId, Counter) :- isRoot(NodeId, Counter).
-            isCausallyReady(NodeId, Counter) :- isCausallyReady(FromNodeId, FromCounter),
-                                                pred(FromNodeId, FromCounter, NodeId, Counter).
+            isCausallyReady(NodeId, Counter) :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
+                                                pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
 
             mvrStore(Key, Value)             :- isLeaf(NodeId, Counter),
                                                 isCausallyReady(NodeId, Counter),

@@ -16,7 +16,7 @@ pub struct Rule {
 
 impl Rule {
     pub fn name(&self) -> &String {
-        &self.head.name.name
+        self.head.name()
     }
     pub fn is_extensional(&self) -> bool {
         // An extensional rule has no body.
@@ -30,14 +30,14 @@ impl Rule {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Head {
-    pub name: VarExpr,
+    pub name: VarStmt,
     /// Here, we allow the variables to be an expression to create new columns.
-    pub variables: Vec<Expr>,
+    pub variables: Vec<VarStmt>,
 }
 
 impl Head {
     pub fn name(&self) -> &String {
-        &self.name.name
+        &self.name.identifier.inner
     }
 }
 
@@ -56,13 +56,47 @@ pub enum Atom {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Predicate {
     pub name: VarExpr,
-    /// Here, the variables are just identifiers.
-    pub variables: Vec<VarExpr>,
+    /// Here, the variables are just identifiers or aliases.
+    pub variables: Vec<VarStmt>,
 }
 
 impl Predicate {
     pub fn name(&self) -> &String {
         &self.name.name
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VarStmt {
+    pub identifier: Identifier,
+    pub initializer: Option<Expr>,
+}
+
+impl VarStmt {
+    pub fn new<T: Into<Identifier>>(name: T) -> Self {
+        VarStmt {
+            identifier: name.into(),
+            initializer: None,
+        }
+    }
+    pub fn with_alias<T: Into<Identifier>>(target_name: T, origin: T) -> Self {
+        VarStmt {
+            identifier: target_name.into(),
+            initializer: Some(Expr::from(VarExpr::from(origin.into()))),
+        }
+    }
+    pub fn with_expr<T: Into<Identifier>>(target_name: T, origin: Expr) -> Self {
+        VarStmt {
+            identifier: target_name.into(),
+            initializer: Some(origin),
+        }
+    }
+    pub fn into_projection_attribute(self) -> (String, Expr) {
+        let name = self.identifier.inner;
+        let expr = self
+            .initializer
+            .unwrap_or_else(|| Expr::from(VarExpr::new(name.clone())));
+        (name, expr)
     }
 }
 

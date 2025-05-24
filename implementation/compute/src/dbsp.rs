@@ -3,11 +3,15 @@ use crate::{
     relation::{Relation, RelationSchema, SchemaTuple, TupleKey, TupleValue},
 };
 use cli_table::{Cell, Style, Table, format::Justify};
-use dbsp::{
-    IndexedZSetHandle, NestedCircuit, OrdIndexedZSet, OrdZSet, OutputHandle, RootCircuit, Stream,
-    ZWeight, utils::Tup2,
+pub use dbsp::{
+    CircuitHandle, DBSPHandle, Error as DbspError, NestedCircuit, RootCircuit, Runtime, ZWeight,
 };
-use std::{collections::HashMap, fmt::Display, iter};
+use dbsp::{IndexedZSetHandle, OrdIndexedZSet, OrdZSet, OutputHandle, Stream, utils::Tup2};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    iter,
+};
 
 type OrdStream = Stream<RootCircuit, OrdZSet<TupleValue>>;
 
@@ -217,16 +221,12 @@ impl IntoIterator for &'_ StreamWrapper {
     }
 }
 
+#[derive(Default, Debug, Clone)]
 pub struct DbspInputs {
     inputs: HashMap<String, DbspInput>,
 }
 
 impl DbspInputs {
-    pub fn new() -> Self {
-        Self {
-            inputs: HashMap::new(),
-        }
-    }
     fn insert(&mut self, name: String, input: DbspInput) {
         self.inputs.insert(name, input);
     }
@@ -238,6 +238,7 @@ impl DbspInputs {
     }
 }
 
+#[derive(Clone)]
 pub struct DbspInput {
     schema: RelationSchema,
     handle: OrdIndexedStreamInputHandle,
@@ -277,6 +278,14 @@ impl DbspInput {
         z_weight: ZWeight,
     ) {
         self.insert(tuples.into_iter().map(|tuple| (tuple, z_weight)));
+    }
+}
+
+impl Debug for DbspInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DbspInput")
+            .field("schema", &self.schema)
+            .finish()
     }
 }
 

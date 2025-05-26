@@ -1,3 +1,5 @@
+use std::num::{NonZero, NonZeroUsize};
+
 use compute::{
     dbsp::{DBSPHandle, DbspError, DbspInputs, DbspOutput, RootCircuit, Runtime},
     error::{RuntimeError, SyntaxError},
@@ -14,14 +16,14 @@ fn main() {
 
 #[derive(Clone)]
 pub struct IncDataLog {
-    threads: usize, // Use NonZeroUsize?
+    threads: NonZeroUsize,
     optimize: bool,
 }
 
 impl Default for IncDataLog {
     fn default() -> Self {
         Self {
-            threads: 1,
+            threads: NonZeroUsize::new(1).unwrap(),
             optimize: true,
         }
     }
@@ -75,7 +77,7 @@ impl IncDataLog {
         F: FnOnce(&mut RootCircuit) -> Result<T, anyhow::Error> + Clone + Send + 'static,
         T: Send + 'static,
     {
-        Runtime::init_circuit(self.threads, constructor)
+        Runtime::init_circuit(usize::from(self.threads), constructor)
     }
     fn init_optimizer(&self) -> Option<Optimizer> {
         if self.optimize {

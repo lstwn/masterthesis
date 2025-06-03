@@ -554,6 +554,9 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
                     .expect("Fixed point iteration body did not return a value");
                 let result = assert_type!(result, Value::Relation)
                     .expect("Fixed point iteration body did not return a relation");
+                // We have to coalesce the result here because the output is fed
+                // into a union below, which requires the schema to be coalesced.
+                let result = coalesce_helper(result);
                 Ok(result.borrow().inner.expect_nested().clone())
             })
             .expect("Recursive error");

@@ -1,5 +1,3 @@
-use std::num::NonZeroUsize;
-
 use compute::{
     dbsp::{DBSPHandle, DbspError, DbspInputs, DbspOutput, RootCircuit, Runtime},
     error::{RuntimeError, SyntaxError},
@@ -9,6 +7,7 @@ use compute::{
 };
 use optimizer::Optimizer;
 use parser::Parser;
+use std::num::NonZeroUsize;
 
 fn main() {
     println!("Hello, world!");
@@ -55,13 +54,13 @@ impl IncDataLog {
 
         Ok((circuit, inputs, output))
     }
-    pub fn build_circuit_from_datalog(
+    pub fn build_circuit_from_datalog<T: AsRef<str> + Clone + Send + 'static>(
         &self,
-        code: String,
+        code: T,
     ) -> Result<(DBSPHandle, DbspInputs, DbspOutput), anyhow::Error> {
         let optimizer = self.init_optimizer();
         let (circuit, (inputs, output)) = self.init_dbsp_runtime(move |root_circuit| {
-            let (inputs, naive_program) = Parser::new(root_circuit).parse(code.as_str())?;
+            let (inputs, naive_program) = Parser::new(root_circuit).parse(code.as_ref())?;
             let optimized_program = if let Some(optimizer) = optimizer {
                 optimizer.optimize(naive_program)?
             } else {
@@ -108,5 +107,177 @@ impl IncDataLog {
         };
 
         Ok((inputs, output))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use compute::relation::{TupleKey, TupleValue};
+
+    use super::*;
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct PredRel {
+        from_node_id: u64,
+        from_counter: u64,
+        to_node_id: u64,
+        to_counter: u64,
+    }
+
+    impl PredRel {
+        pub fn new(from_node_id: u64, from_counter: u64, to_node_id: u64, to_counter: u64) -> Self {
+            Self {
+                from_node_id,
+                from_counter,
+                to_node_id,
+                to_counter,
+            }
+        }
+    }
+
+    impl From<PredRel> for TupleKey {
+        fn from(pred_rel: PredRel) -> Self {
+            TupleKey::from_iter([
+                pred_rel.from_node_id,
+                pred_rel.from_counter,
+                pred_rel.to_node_id,
+                pred_rel.to_counter,
+            ])
+        }
+    }
+
+    impl From<PredRel> for TupleValue {
+        fn from(pred_rel: PredRel) -> Self {
+            TupleValue::from_iter([
+                pred_rel.from_node_id,
+                pred_rel.from_counter,
+                pred_rel.to_node_id,
+                pred_rel.to_counter,
+            ])
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct SetOp {
+        node_id: u64,
+        counter: u64,
+        key: u64,
+        value: u64,
+    }
+
+    impl SetOp {
+        pub fn new(node_id: u64, counter: u64, key: u64, value: u64) -> Self {
+            Self {
+                node_id,
+                counter,
+                key,
+                value,
+            }
+        }
+    }
+
+    impl From<SetOp> for TupleKey {
+        fn from(set_op: SetOp) -> Self {
+            TupleKey::from_iter([set_op.node_id, set_op.counter])
+        }
+    }
+
+    impl From<SetOp> for TupleValue {
+        fn from(set_op: SetOp) -> Self {
+            TupleValue::from_iter([set_op.node_id, set_op.counter, set_op.key, set_op.value])
+        }
+    }
+
+    #[test]
+    fn test_default_inc_data_log() -> Result<(), anyhow::Error> {
+        let inc_data_log = IncDataLog::default();
+
+        let input = r#"
+            // These are extensional database predicates (EDBPs).
+            pred(FromNodeId, FromCounter, ToNodeId, ToCounter)  :- .
+            set(NodeId, Counter, Key, Value)                    :- .
+
+            // These are intensional database predicates (IDBPs).
+            overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
+            overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+
+            isRoot(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
+                                                not overwrites(NodeId, Counter).
+
+            isLeaf(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
+                                                not overwritten(NodeId, Counter).
+
+            isCausallyReady(NodeId, Counter) :- isRoot(NodeId, Counter).
+            isCausallyReady(NodeId, Counter) :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
+                                                pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+
+            mvrStore(Key, Value)             :- set(NodeId, Counter, Key, Value),
+                                                isCausallyReady(NodeId, Counter),
+                                                isLeaf(NodeId, Counter).
+        "#;
+
+        let (mut handle, inputs, output) = inc_data_log.build_circuit_from_datalog(input)?;
+
+        let pred_rel_input = inputs.get("pred").unwrap();
+        let set_op_input = inputs.get("set").unwrap();
+
+        // The operation history is as follows:
+        // In first step (just one root operation setting register with key 1 to value 1):
+        //
+        // set_0_0(1, 1)
+        //
+        // In second step (concurrent writes by replica 0 and 1):
+        //
+        //               ---> set_0_1(1, 2)
+        // set_0_0(1, 1)
+        //               ---> set_1_0(1, 3)
+        //
+        // In third step (replica 1 does a "merge" operation overwriting the previous conflict):
+        //
+        //               ---> set_0_1(1, 2)
+        // set_0_0(1, 1)                    ---> set_1_2(1, 4)
+        //               ---> set_1_0(1, 3)
+        //
+
+        let pred_rel_data = [
+            vec![],
+            vec![PredRel::new(0, 0, 0, 1), PredRel::new(0, 0, 1, 0)],
+            vec![PredRel::new(0, 1, 1, 2), PredRel::new(1, 0, 1, 2)],
+        ];
+
+        let set_op_data = [
+            vec![SetOp::new(0, 0, 1, 1)],
+            vec![SetOp::new(0, 1, 1, 2), SetOp::new(1, 0, 1, 3)],
+            vec![SetOp::new(1, 2, 1, 4)],
+        ];
+
+        // let mut expected = [
+        //     zset! {
+        //         tuple!(1_u64, 1_u64) => 1,
+        //     },
+        //     zset! {
+        //         tuple!(1_u64, 1_u64) => -1,
+        //         tuple!(1_u64, 2_u64) => 1,
+        //         tuple!(1_u64, 3_u64) => 1,
+        //     },
+        //     zset! {
+        //         tuple!(1_u64, 2_u64) => -1,
+        //         tuple!(1_u64, 3_u64) => -1,
+        //         tuple!(1_u64, 4_u64) => 1,
+        //     },
+        // ]
+        // .into_iter();
+
+        for (pred_rel_step, set_op_step) in pred_rel_data.iter().zip(set_op_data.iter()) {
+            pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
+            set_op_input.insert_with_same_weight(set_op_step.iter(), 1);
+
+            handle.step()?;
+
+            let batch = output.to_batch();
+            println!("{}", batch.as_table());
+            // assert_eq!(batch.as_zset(), expected.next().unwrap());
+        }
+        Ok(())
     }
 }

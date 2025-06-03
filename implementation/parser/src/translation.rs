@@ -11,7 +11,7 @@ use compute::{
     dbsp::{DbspInput, DbspInputs, RootCircuit},
     error::SyntaxError,
     expr::{
-        BinaryExpr, EquiJoinExpr, Expr, ProjectionExpr, SelectionExpr, UnionExpr,
+        BinaryExpr, DistinctExpr, EquiJoinExpr, Expr, ProjectionExpr, SelectionExpr, UnionExpr,
         VarExpr as IncLogVarExpr,
     },
     operator::Operator,
@@ -49,9 +49,7 @@ impl<'a> Translator<'a> {
                 match rule {
                     rule if rule.is_extensional() => self.translate_extensional_rule(rule),
                     rule if rule.is_self_recursive() => self.translate_self_recursive_rule(rule),
-                    rule if rule.is_intensional() => {
-                        self.translate_intensional_aggregated_rule(rule)
-                    }
+                    rule if rule.is_intensional() => self.translate_intensional_rule(rule),
                     _ => unreachable!(),
                 }
             })
@@ -88,14 +86,20 @@ impl<'a> Translator<'a> {
             ))),
         }))
     }
-    fn translate_intensional_aggregated_rule(
-        &mut self,
-        rule: AggregatedRule,
-    ) -> Result<Stmt, SyntaxError> {
+    fn translate_intensional_rule(&mut self, rule: AggregatedRule) -> Result<Stmt, SyntaxError> {
         debug_assert!(rule.is_intensional() && !rule.is_self_recursive());
 
         let (head, bodies) = rule.into_head_and_bodies();
         let unionized_bodies = self.unionize_bodies(&head, bodies)?;
+
+        // TODO: Fixme, see below!
+        let unionized_bodies = if head.name() == "overwritten" || head.name() == "overwrites" {
+            Expr::from(DistinctExpr {
+                relation: unionized_bodies,
+            })
+        } else {
+            unionized_bodies
+        };
 
         Ok(Stmt::from(IncLogVarStmt {
             name: head.name.identifier.inner,
@@ -351,7 +355,13 @@ mod test {
     #[test]
     fn test_translation() -> Result<(), anyhow::Error> {
         // TODO:
-        // 5. [ ] DISTINCT expressions?!
+        // 1. [ ] How to specify DISTINCT expressions?!
+        // 2. [ ] How to specify which rule should be the result of the query?
+        //        Implicitly, the rule that is last in the topological sort order.
+        //        In case of a tie, the last rule in the input via a _stable_
+        //        topological sort.
+        // 3. [ ] Cleanup test code, possibly delete the optimizer.
+
         let input = r#"
             // These are extensional database predicates (EDBPs).
             pred(FromNodeId, FromCounter, ToNodeId, ToCounter)  :- .
@@ -371,10 +381,11 @@ mod test {
             isCausallyReady(NodeId, Counter) :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
                                                 pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
 
-            mvrStore(Key, Value)             :- isLeaf(NodeId, Counter),
-                                                set(NodeId, Counter, Key, Value),
-                                                isCausallyReady(NodeId, Counter).
+            mvrStore(Key, Value)             :- set(NodeId, Counter, Key, Value),
+                                                isCausallyReady(NodeId, Counter),
+                                                isLeaf(NodeId, Counter).
         "#;
+
         let (inputs, code) = parse_and_translate(input)?;
         println!("Inputs: {:#?}", inputs);
         println!("Code: {:#?}", code);

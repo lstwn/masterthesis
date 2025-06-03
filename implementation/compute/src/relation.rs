@@ -329,10 +329,20 @@ impl TupleSchema {
         fields.into_iter().collect()
     }
     fn join(&self, other: &Self) -> Self {
+        let self_active_field_table: HashSet<&String> =
+            self.active_fields().map(|(_, info)| &info.name).collect();
+        // We mark every active field of `other` as inactive if it is
+        // shadowed by an active field of `self` with the same name.
+        let other_fields = other.active_fields().map(|(_, info)| {
+            let mut info = info.clone();
+            if self_active_field_table.contains(&info.name) {
+                info.active = false;
+            }
+            info
+        });
         self.active_fields()
-            .chain(other.active_fields())
-            .map(|(_index, info)| info)
-            .cloned()
+            .map(|(_index, info)| info.clone())
+            .chain(other_fields)
             .collect()
     }
     fn fields_to_string<'a>(

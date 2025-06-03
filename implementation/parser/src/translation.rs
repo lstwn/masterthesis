@@ -4,55 +4,56 @@
 
 use crate::{
     analysis::AggregatedRule,
-    ast::{Atom, Body, Predicate},
+    ast::{Atom, Body, Head, Predicate, VarStmt},
+    type_resolver::TypeResolver,
 };
 use compute::{
     dbsp::{DbspInput, DbspInputs, RootCircuit},
     error::SyntaxError,
-    expr::{BinaryExpr, CartesianProductExpr, Expr, ProjectionExpr, SelectionExpr, UnionExpr},
+    expr::{
+        BinaryExpr, EquiJoinExpr, Expr, ProjectionExpr, SelectionExpr, UnionExpr,
+        VarExpr as IncLogVarExpr,
+    },
     operator::Operator,
-    relation::RelationSchema,
-    stmt::{Code, Stmt, VarStmt},
+    relation::{RelationSchema, RelationType},
+    stmt::{Code, ExprStmt, Stmt, VarStmt as IncLogVarStmt},
+};
+use compute::{
+    expr::{DifferenceExpr, FixedPointIterExpr},
+    stmt::BlockStmt,
 };
 
 pub struct Translator<'a> {
-    from: Vec<AggregatedRule>,
+    aggregated_rules: Vec<AggregatedRule>,
     inputs: DbspInputs,
     root_circuit: &'a mut RootCircuit,
-}
-
-impl AggregatedRule {
-    pub fn is_extensional(&self) -> bool {
-        self.bodies.is_empty()
-    }
-    pub fn is_intensional(&self) -> bool {
-        !self.is_extensional()
-    }
-    pub fn is_self_recursive(&self) -> bool {
-        self.atoms().any(|atom| match atom {
-            Atom::Positive(predicate) => predicate.name() == self.head.name(),
-            Atom::Negative(predicate) => predicate.name() == self.head.name(),
-            Atom::Comparison(_) => false,
-        })
-    }
+    type_resolver: TypeResolver,
 }
 
 impl<'a> Translator<'a> {
     pub fn new(root_circuit: &'a mut RootCircuit, from: Vec<AggregatedRule>) -> Self {
         Self {
-            from,
+            aggregated_rules: from,
             root_circuit,
             inputs: Default::default(),
+            type_resolver: TypeResolver::default(),
         }
     }
     pub fn translate(mut self) -> Result<(DbspInputs, Code), SyntaxError> {
-        let code: Code = std::mem::take(&mut self.from)
+        let code: Code = std::mem::take(&mut self.aggregated_rules)
             .into_iter()
-            .map(|rule| match rule {
-                rule if rule.is_extensional() => self.translate_extensional_rule(rule),
-                rule if rule.is_self_recursive() => self.translate_self_recursive_rule(rule),
-                rule if rule.is_intensional() => self.translate_intensional_rule(rule),
-                _ => unreachable!(),
+            .map(|rule| {
+                // This ensures that all predicates and variables are already
+                // known in case we later inquire about them.
+                let _rule_type = self.type_resolver.resolve_rule(&rule)?;
+                match rule {
+                    rule if rule.is_extensional() => self.translate_extensional_rule(rule),
+                    rule if rule.is_self_recursive() => self.translate_self_recursive_rule(rule),
+                    rule if rule.is_intensional() => {
+                        self.translate_intensional_aggregated_rule(rule)
+                    }
+                    _ => unreachable!(),
+                }
             })
             .collect::<Result<_, _>>()?;
         Ok((self.inputs, code))
@@ -60,9 +61,10 @@ impl<'a> Translator<'a> {
     fn translate_extensional_rule(&mut self, rule: AggregatedRule) -> Result<Stmt, SyntaxError> {
         debug_assert!(rule.is_extensional());
 
-        let name = rule.head.name.identifier.inner;
-        let tuple_fields: Vec<String> = rule
-            .head
+        let (head, bodies) = rule.into_head_and_bodies();
+
+        let name = head.name.identifier.inner;
+        let tuple_fields: Vec<String> = head
             .variables
             .into_iter()
             .map(|variable| {
@@ -77,7 +79,7 @@ impl<'a> Translator<'a> {
             .collect::<Result<_, SyntaxError>>()?;
         let key_fields = tuple_fields.clone();
 
-        Ok(Stmt::from(VarStmt {
+        Ok(Stmt::from(IncLogVarStmt {
             name: name.clone(),
             initializer: Some(Expr::from(DbspInput::add(
                 RelationSchema::new(name, tuple_fields, key_fields)?,
@@ -86,92 +88,191 @@ impl<'a> Translator<'a> {
             ))),
         }))
     }
-    fn translate_intensional_rule(&mut self, rule: AggregatedRule) -> Result<Stmt, SyntaxError> {
+    fn translate_intensional_aggregated_rule(
+        &mut self,
+        rule: AggregatedRule,
+    ) -> Result<Stmt, SyntaxError> {
         debug_assert!(rule.is_intensional() && !rule.is_self_recursive());
 
-        let mapper = |body: Body| -> Result<Expr, SyntaxError> {
-            let relation = Translator::translate_body(body)?;
-            // Each body needs to be projected to the head variables.
-            Ok(Expr::from(ProjectionExpr {
-                relation,
-                attributes: rule
-                    .head
-                    .variables
-                    .clone()
-                    .into_iter()
-                    .map(|variable| variable.into_projection_attribute())
-                    .collect(),
-            }))
-        };
+        let (head, bodies) = rule.into_head_and_bodies();
+        let unionized_bodies = self.unionize_bodies(&head, bodies)?;
 
-        let bodies_count = rule.bodies.len();
-        let unionized_bodies = Self::fold_utility(rule.bodies, mapper, |mut left, body| {
-            let right = mapper(body)?;
-            if let Expr::Union(union) = &mut left {
-                union.relations.push(right);
-                return Ok(left);
-            }
-            let mut relations = Vec::with_capacity(bodies_count);
-            relations.push(left);
-            relations.push(right);
-            Ok(Expr::from(UnionExpr { relations }))
-        })?;
-
-        Ok(Stmt::from(VarStmt {
-            name: rule.head.name.identifier.inner,
+        Ok(Stmt::from(IncLogVarStmt {
+            name: head.name.identifier.inner,
             initializer: Some(unionized_bodies),
         }))
     }
     fn translate_self_recursive_rule(&mut self, rule: AggregatedRule) -> Result<Stmt, SyntaxError> {
         debug_assert!(rule.is_intensional() && rule.is_self_recursive());
 
-        todo!("TODO: How to handle self-recursive rules?");
+        let imports: Vec<(String, Expr)> = rule
+            .recursive_atoms()
+            .flat_map(|atom| match atom {
+                Atom::Positive(predicate) | Atom::Negative(predicate) => {
+                    if predicate.name() == rule.name() {
+                        // We do not import the self-recursive predicate itself.
+                        return None;
+                    }
+                    let name = predicate.name().clone();
+                    let var_expr = Expr::from(IncLogVarExpr::new(predicate.name()));
+                    Some((name, var_expr))
+                }
+                Atom::Comparison(_) => None,
+            })
+            .collect();
+
+        let (head, non_rec_bodies, rec_bodies) = rule.into_head_and_non_rec_rec_bodies();
+
+        let accumulator: (String, Expr) = (
+            head.name().clone(),
+            self.unionize_bodies(&head, non_rec_bodies.into_iter())?,
+        );
+
+        let step = BlockStmt {
+            stmts: vec![Stmt::from(ExprStmt {
+                expr: self.unionize_bodies(&head, rec_bodies.into_iter())?,
+            })],
+        };
+
+        Ok(Stmt::from(IncLogVarStmt {
+            name: head.name.identifier.inner,
+            initializer: Some(Expr::from(FixedPointIterExpr {
+                circuit: self.root_circuit.clone(),
+                imports,
+                accumulator,
+                step,
+            })),
+        }))
     }
-    fn translate_body(body: Body) -> Result<Expr, SyntaxError> {
+    fn translate_body(&mut self, body: Body) -> Result<(RelationType, Expr), SyntaxError> {
         let (condition, positive, negative) = Self::partition_atoms(body);
 
-        if !negative.is_empty() {
-            // TODO: How to translate negative predicates?
-            return Err(SyntaxError::new(
-                "Negative predicates are not supported yet.",
-            ));
-        }
-
-        // TODO: Support at most one negative predicate.
-
-        let folded_positive_atoms = Self::fold_utility(
+        let (relation_type, folded_positive_atoms) = Self::try_fold_helper(
             positive,
-            |predicate| Ok(Self::translate_predicate(predicate)),
-            |left, predicate| {
+            |predicate| Ok(self.translate_predicate(predicate)),
+            |(left_type, left), (right_type, right)| {
                 let attributes = None; // Potential issue here with name collisions.
-                let right = Self::translate_predicate(predicate);
-                Ok(Expr::from(CartesianProductExpr::new(
-                    left, right, attributes,
-                )))
+                let join_keys = left_type
+                    .intersect(&right_type)
+                    .map(|(field, _scalar_type)| {
+                        (
+                            Expr::from(IncLogVarExpr::new(field)),
+                            Expr::from(IncLogVarExpr::new(field)),
+                        )
+                    });
+                let joined_expr = Expr::from(EquiJoinExpr {
+                    left,
+                    right,
+                    on: join_keys.collect(),
+                    attributes,
+                });
+                let joined_type = left_type.join(right_type);
+                Ok((joined_type, joined_expr))
             },
         )?;
 
-        // TODO: How to handle the variable name reuse and turn them into filters?
+        let mut negative = negative.into_iter();
 
-        let relation = match condition {
-            Some(condition) => Expr::from(SelectionExpr {
-                relation: folded_positive_atoms,
-                condition,
-            }),
-            None => folded_positive_atoms,
+        // For now we only support at most one negative predicate *and* assume
+        // that the folded positive atoms and the negative predicate are
+        // schema-compatible, so we keep the relation type as is.
+        let first_negative_as_set_diff = if let Some(predicate) = negative.next() {
+            let (_relation_type, negative_atom) = self.translate_predicate(predicate);
+            Expr::from(DifferenceExpr {
+                left: folded_positive_atoms,
+                right: negative_atom,
+            })
+        } else {
+            folded_positive_atoms
         };
 
-        Ok(relation)
+        if negative.next().is_some() {
+            return Err(SyntaxError::new("Only one negative predicate supported"));
+        }
+
+        let with_free_floating_conditions = match condition {
+            Some(condition) => Expr::from(SelectionExpr {
+                relation: first_negative_as_set_diff,
+                condition,
+            }),
+            None => first_negative_as_set_diff,
+        };
+
+        Ok((relation_type, with_free_floating_conditions))
     }
-    fn translate_predicate(predicate: Predicate) -> Expr {
-        Expr::from(ProjectionExpr {
-            relation: Expr::from(predicate.name),
-            attributes: predicate
-                .variables
-                .into_iter()
-                .map(|variable| variable.into_projection_attribute())
-                .collect(),
-        })
+    fn translate_predicate(&mut self, predicate: Predicate) -> (RelationType, Expr) {
+        // The rule type is the type of the rule the predicate is referencing.
+        let rule_type = self.get_rule_type(predicate.name());
+        let predicate_type = self.get_predicate_type(&predicate);
+        let relation = Expr::from(IncLogVarExpr::from(predicate.name));
+        let translated = self.possibly_project((rule_type, relation), predicate.variables);
+        (predicate_type, translated)
+    }
+    fn unionize_bodies(
+        &mut self,
+        head: &Head,
+        bodies: impl DoubleEndedIterator<Item = Body> + ExactSizeIterator<Item = Body>,
+    ) -> Result<Expr, SyntaxError> {
+        let bodies_count = bodies.len();
+        Self::try_fold_helper(
+            bodies,
+            |body| {
+                let typed_relation = self.translate_body(body)?;
+                // Each body needs to be projected to the rule's head's variables
+                // to be union-compatible.
+                Ok(self.possibly_project(typed_relation, head.variables.clone()))
+            },
+            |mut left, right| {
+                if let Expr::Union(union) = &mut left {
+                    union.relations.push(right);
+                    return Ok(left);
+                }
+                let mut relations = Vec::with_capacity(bodies_count);
+                relations.push(left);
+                relations.push(right);
+                Ok(Expr::from(UnionExpr { relations }))
+            },
+        )
+    }
+    fn possibly_project(
+        &mut self,
+        typed_input_relation: (RelationType, Expr),
+        attributes: Vec<VarStmt>,
+    ) -> Expr {
+        let (input_relation_type, mut relation) = typed_input_relation;
+        // The comparison below is vulnerable to duplicates in `attributes` but
+        // these things should be addressed by a (future) type checker.
+        if input_relation_type == attributes.iter().map(|var| &var.identifier.inner) {
+            // If the relation's type is the same as the attributes,
+            // we can optimize away the projection.
+            return relation;
+        }
+        let attributes: Vec<(String, Expr)> = attributes
+            .into_iter()
+            .filter_map(|variable| variable.into_projection_attribute())
+            .collect();
+        match relation {
+            Expr::EquiJoin(ref mut join_expr) => {
+                // If the relation is an EquiJoin, we can do the projection
+                // as part of the join and again optimize away the projection.
+                join_expr.attributes = Some(attributes);
+                relation
+            }
+            _ => Expr::from(ProjectionExpr {
+                relation,
+                attributes,
+            }),
+        }
+    }
+    fn get_rule_type<T: AsRef<str>>(&mut self, name: T) -> RelationType {
+        self.type_resolver.inquire_rule(name).expect(
+            "Rule has already been successfully type resolved and referenced rule must be known",
+        )
+    }
+    fn get_predicate_type(&mut self, predicate: &Predicate) -> RelationType {
+        self.type_resolver
+            .resolve_predicate(predicate)
+            .expect("Rule has already been successfully type resolved and predicate must be known")
     }
     fn partition_atoms(body: Body) -> (Option<Expr>, Vec<Predicate>, Vec<Predicate>) {
         let mut positive: Vec<Predicate> = Vec::with_capacity(body.atoms.len());
@@ -199,26 +300,33 @@ impl<'a> Translator<'a> {
 
         (condition, positive, negative)
     }
-    fn fold_utility<T, Map, Fold>(
-        mut sequence: Vec<T>,
-        map: Map,
-        fold: Fold,
-    ) -> Result<Expr, SyntaxError>
+    fn try_fold_helper<I, T, U, Map, Fold>(
+        sequence: impl IntoIterator<IntoIter = I>,
+        mut map: Map,
+        mut fold: Fold,
+    ) -> Result<U, SyntaxError>
     where
-        Map: FnMut(T) -> Result<Expr, SyntaxError>,
-        Fold: FnMut(Expr, T) -> Result<Expr, SyntaxError>,
+        I: DoubleEndedIterator<Item = T>,
+        Map: FnMut(T) -> Result<U, SyntaxError>,
+        Fold: FnMut(U, U) -> Result<U, SyntaxError>,
     {
-        // We take the last predicate and fold the rest into it.
-        // We go from right to left to avoid extra allocations and have it end
-        // up as the innermost relation expression.
-        let first = sequence
-            .pop()
+        // We start with the rightmost predicate and fold the rest into it.
+        // We go from right to left to avoid extra allocations and have the
+        // rightmost element end up as the innermost relation expression.
+        let mut iter = sequence.into_iter().rev();
+        let first = iter
+            .next()
             .ok_or_else(|| {
                 SyntaxError::new("At least one element is required to fold the sequence.")
             })
-            .and_then(map)?;
+            .and_then(&mut map)?;
 
-        let folded = sequence.into_iter().try_rfold(first, fold)?;
+        let folded = iter.try_fold(first, |acc, unmapped| {
+            let mapped = map(unmapped)?;
+            // We reverse the arguments to account for the right-to-left folding
+            // and provide the illusion of left-to-right folding for callers.
+            fold(mapped, acc)
+        })?;
 
         Ok(folded)
     }
@@ -242,6 +350,8 @@ mod test {
 
     #[test]
     fn test_translation() -> Result<(), anyhow::Error> {
+        // TODO:
+        // 5. [ ] DISTINCT expressions?!
         let input = r#"
             // These are extensional database predicates (EDBPs).
             pred(FromNodeId, FromCounter, ToNodeId, ToCounter)  :- .
@@ -250,10 +360,23 @@ mod test {
             // These are intensional database predicates (IDBPs).
             overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
             overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+
+            isRoot(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
+                                                not overwrites(NodeId, Counter).
+
+            isLeaf(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
+                                                not overwritten(NodeId, Counter).
+
+            isCausallyReady(NodeId, Counter) :- isRoot(NodeId, Counter).
+            isCausallyReady(NodeId, Counter) :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
+                                                pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+
+            mvrStore(Key, Value)             :- isLeaf(NodeId, Counter),
+                                                set(NodeId, Counter, Key, Value),
+                                                isCausallyReady(NodeId, Counter).
         "#;
         let (inputs, code) = parse_and_translate(input)?;
         println!("Inputs: {:#?}", inputs);
-        // The outermost projection could be eliminated, prevent here or in optimizer?
         println!("Code: {:#?}", code);
         Ok(())
     }

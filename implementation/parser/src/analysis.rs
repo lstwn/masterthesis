@@ -53,7 +53,11 @@ impl PrecedenceGraph {
         for (to, node) in inner.nodes() {
             for atom in node.atoms() {
                 let undefined_predicate_error = |name: &str| {
-                    SyntaxError::new(format!("Predicate {} is not defined but referenced.", name))
+                    SyntaxError::new(format!(
+                        "Predicate '{}' is not defined but referenced within rule '{}'.",
+                        name,
+                        node.name()
+                    ))
                 };
                 let edge = match atom {
                     Atom::Positive(predicate) => {
@@ -88,9 +92,12 @@ impl PrecedenceGraph {
     }
     pub fn into_execution_order(self) -> Result<Vec<AggregatedRule>, SyntaxError> {
         let sorting = self.inner.kahn_topo_sort().ok_or_else(|| {
-            SyntaxError::new("Cannot produce execution order, precedence graph has cycles.")
+            SyntaxError::new("Cannot produce execution order as precedence graph contains cycles.")
         })?;
         let (nodes, _edges) = self.inner.into_inner();
+        // Wrapping in Options here is required to allow moving nodes out of
+        // the `nodes` vector in the order given by the `sorting` vector.
+        // Rust does not offer move semantics for vectors' elements.
         let mut nodes: Vec<Option<AggregatedRule>> = nodes.into_iter().map(Some).collect();
         Ok(sorting
             .into_iter()
@@ -103,8 +110,9 @@ impl PrecedenceGraph {
 /// have the same name and same list of variables.
 #[derive(Clone, Debug)]
 pub struct AggregatedRule {
-    pub head: Head,
-    pub bodies: Vec<Body>,
+    head: Head,
+    non_recursive_bodies: Vec<Body>,
+    recursive_bodies: Vec<Body>,
 }
 
 impl AggregatedRule {
@@ -112,17 +120,69 @@ impl AggregatedRule {
         if rule.is_extensional() {
             Self {
                 head: rule.head,
-                bodies: Vec::default(),
+                non_recursive_bodies: Vec::with_capacity(0), // Does not allocate.
+                recursive_bodies: Vec::with_capacity(0),     // Does not allocate.
             }
         } else {
-            Self {
+            let mut aggregated_rule = Self {
                 head: rule.head,
-                bodies: vec![rule.body],
-            }
+                non_recursive_bodies: Vec::with_capacity(4),
+                recursive_bodies: Vec::with_capacity(1),
+            };
+            aggregated_rule.insert_body(rule.body);
+            aggregated_rule
         }
     }
     pub fn name(&self) -> &String {
         self.head.name()
+    }
+    pub fn head(&self) -> &Head {
+        &self.head
+    }
+    pub fn is_extensional(&self) -> bool {
+        self.recursive_bodies.is_empty() && self.non_recursive_bodies.is_empty()
+    }
+    pub fn is_intensional(&self) -> bool {
+        !self.is_extensional()
+    }
+    pub fn is_self_recursive(&self) -> bool {
+        !self.recursive_bodies.is_empty()
+    }
+    /// Iterates over all bodies of this aggregated rule, starting with the
+    /// non-recursive bodies, followed by the recursive bodies.
+    pub fn bodies(&self) -> impl Iterator<Item = &Body> {
+        self.non_recursive_bodies
+            .iter()
+            .chain(self.recursive_bodies.iter())
+    }
+    pub fn atoms(&self) -> impl Iterator<Item = &Atom> {
+        self.bodies().flat_map(|body| body.atoms.iter())
+    }
+    pub fn non_recursive_atoms(&self) -> impl Iterator<Item = &Atom> {
+        self.non_recursive_bodies
+            .iter()
+            .flat_map(|body| body.atoms.iter())
+    }
+    pub fn recursive_atoms(&self) -> impl Iterator<Item = &Atom> {
+        self.recursive_bodies
+            .iter()
+            .flat_map(|body| body.atoms.iter())
+    }
+    /// Returns the head and all bodies of this aggregated rule. It provides
+    /// the invariant that the bodies are sorted such that the non-recursive
+    /// bodies come first, followed by the recursive bodies.
+    pub fn into_head_and_bodies(
+        mut self,
+    ) -> (
+        Head,
+        impl DoubleEndedIterator<Item = Body> + ExactSizeIterator<Item = Body>,
+    ) {
+        // std::iter::chain destroys the double-ended and exact-size property..
+        self.non_recursive_bodies.extend(self.recursive_bodies);
+        (self.head, self.non_recursive_bodies.into_iter())
+    }
+    pub fn into_head_and_non_rec_rec_bodies(self) -> (Head, Vec<Body>, Vec<Body>) {
+        (self.head, self.non_recursive_bodies, self.recursive_bodies)
     }
     fn try_insert(&mut self, rule: Rule) -> Result<(), (Rule, SyntaxError)> {
         // We only allow intensional rules to be aggregated.
@@ -130,29 +190,36 @@ impl AggregatedRule {
             return Err((
                 rule,
                 SyntaxError::new(format!(
-                    "Rule {} is extensional but is defined multiple times.",
+                    "Rule '{}' is extensional but defined multiple times.",
                     self.head.name()
                 )),
             ));
         }
         // We only allow rules with the same head to be aggregated.
+        // Same head encompasses sharing the same name and same variables in the
+        // same order.
         if self.head != rule.head {
             return Err((
                 rule,
                 SyntaxError::new(format!(
-                    "Rule {} is defined multiple times with different heads.",
+                    "Rule '{}' is defined multiple times with different heads.",
                     self.head.name()
                 )),
             ));
         }
-        self.bodies.push(rule.body);
+        self.insert_body(rule.body);
         Ok(())
     }
-    pub fn bodies(&self) -> impl Iterator<Item = &Body> {
-        self.bodies.iter()
-    }
-    pub fn atoms(&self) -> impl Iterator<Item = &Atom> {
-        self.bodies().flat_map(|body| body.atoms.iter())
+    fn insert_body(&mut self, body: Body) {
+        if body.atoms.iter().any(|atom| match atom {
+            Atom::Positive(predicate) => predicate.name() == self.name(),
+            Atom::Negative(predicate) => predicate.name() == self.name(),
+            Atom::Comparison(_) => false,
+        }) {
+            self.recursive_bodies.push(body);
+        } else {
+            self.non_recursive_bodies.push(body);
+        }
     }
 }
 

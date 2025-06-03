@@ -1,4 +1,4 @@
-use std::num::{NonZero, NonZeroUsize};
+use std::num::NonZeroUsize;
 
 use compute::{
     dbsp::{DBSPHandle, DbspError, DbspInputs, DbspOutput, RootCircuit, Runtime},

@@ -1,0 +1,478 @@
+[
+    Var(
+        VarStmt {
+            name: "pred",
+            initializer: Some(
+                Literal(
+                    LiteralExpr {
+                        value: Relation(
+                            <relation pred>,
+                        ),
+                    },
+                ),
+            ),
+        },
+    ),
+    Var(
+        VarStmt {
+            name: "set",
+            initializer: Some(
+                Literal(
+                    LiteralExpr {
+                        value: Relation(
+                            <relation set>,
+                        ),
+                    },
+                ),
+            ),
+        },
+    ),
+    Var(
+        VarStmt {
+            name: "overwritten",
+            initializer: Some(
+                Distinct(
+                    DistinctExpr {
+                        relation: Projection(
+                            ProjectionExpr {
+                                relation: Var(
+                                    VarExpr {
+                                        name: "pred",
+                                        resolved: None,
+                                    },
+                                ),
+                                attributes: [
+                                    (
+                                        "NodeId",
+                                        Var(
+                                            VarExpr {
+                                                name: "FromNodeId",
+                                                resolved: None,
+                                            },
+                                        ),
+                                    ),
+                                    (
+                                        "Counter",
+                                        Var(
+                                            VarExpr {
+                                                name: "FromCounter",
+                                                resolved: None,
+                                            },
+                                        ),
+                                    ),
+                                ],
+                            },
+                        ),
+                    },
+                ),
+            ),
+        },
+    ),
+    Var(
+        VarStmt {
+            name: "overwrites",
+            initializer: Some(
+                Distinct(
+                    DistinctExpr {
+                        relation: Projection(
+                            ProjectionExpr {
+                                relation: Var(
+                                    VarExpr {
+                                        name: "pred",
+                                        resolved: None,
+                                    },
+                                ),
+                                attributes: [
+                                    (
+                                        "NodeId",
+                                        Var(
+                                            VarExpr {
+                                                name: "ToNodeId",
+                                                resolved: None,
+                                            },
+                                        ),
+                                    ),
+                                    (
+                                        "Counter",
+                                        Var(
+                                            VarExpr {
+                                                name: "ToCounter",
+                                                resolved: None,
+                                            },
+                                        ),
+                                    ),
+                                ],
+                            },
+                        ),
+                    },
+                ),
+            ),
+        },
+    ),
+    Var(
+        VarStmt {
+            name: "isRoot",
+            initializer: Some(
+                Difference(
+                    DifferenceExpr {
+                        left: Projection(
+                            ProjectionExpr {
+                                relation: Var(
+                                    VarExpr {
+                                        name: "set",
+                                        resolved: None,
+                                    },
+                                ),
+                                attributes: [
+                                    (
+                                        "NodeId",
+                                        Var(
+                                            VarExpr {
+                                                name: "NodeId",
+                                                resolved: None,
+                                            },
+                                        ),
+                                    ),
+                                    (
+                                        "Counter",
+                                        Var(
+                                            VarExpr {
+                                                name: "Counter",
+                                                resolved: None,
+                                            },
+                                        ),
+                                    ),
+                                ],
+                            },
+                        ),
+                        right: Var(
+                            VarExpr {
+                                name: "overwrites",
+                                resolved: None,
+                            },
+                        ),
+                    },
+                ),
+            ),
+        },
+    ),
+    Var(
+        VarStmt {
+            name: "isLeaf",
+            initializer: Some(
+                Difference(
+                    DifferenceExpr {
+                        left: Projection(
+                            ProjectionExpr {
+                                relation: Var(
+                                    VarExpr {
+                                        name: "set",
+                                        resolved: None,
+                                    },
+                                ),
+                                attributes: [
+                                    (
+                                        "NodeId",
+                                        Var(
+                                            VarExpr {
+                                                name: "NodeId",
+                                                resolved: None,
+                                            },
+                                        ),
+                                    ),
+                                    (
+                                        "Counter",
+                                        Var(
+                                            VarExpr {
+                                                name: "Counter",
+                                                resolved: None,
+                                            },
+                                        ),
+                                    ),
+                                ],
+                            },
+                        ),
+                        right: Var(
+                            VarExpr {
+                                name: "overwritten",
+                                resolved: None,
+                            },
+                        ),
+                    },
+                ),
+            ),
+        },
+    ),
+    Var(
+        VarStmt {
+            name: "isCausallyReady",
+            initializer: Some(
+                FixedPointIter(
+                    FixedPointIterationExpr {
+                        imports: [
+                            (
+                                "pred",
+                                Var(
+                                    VarExpr {
+                                        name: "pred",
+                                        resolved: None,
+                                    },
+                                ),
+                            ),
+                        ],
+                        accumulator: (
+                            "isCausallyReady",
+                            Var(
+                                VarExpr {
+                                    name: "isRoot",
+                                    resolved: None,
+                                },
+                            ),
+                        ),
+                        step: BlockStmt {
+                            stmts: [
+                                Expr(
+                                    ExprStmt {
+                                        expr: EquiJoin(
+                                            EquiJoinExpr {
+                                                left: Alias(
+                                                    AliasExpr {
+                                                        relation: Var(
+                                                            VarExpr {
+                                                                name: "isCausallyReady",
+                                                                resolved: None,
+                                                            },
+                                                        ),
+                                                        alias: "cur",
+                                                    },
+                                                ),
+                                                right: Alias(
+                                                    AliasExpr {
+                                                        relation: Var(
+                                                            VarExpr {
+                                                                name: "pred",
+                                                                resolved: None,
+                                                            },
+                                                        ),
+                                                        alias: "next",
+                                                    },
+                                                ),
+                                                on: [
+                                                    (
+                                                        Var(
+                                                            VarExpr {
+                                                                name: "NodeId",
+                                                                resolved: None,
+                                                            },
+                                                        ),
+                                                        Var(
+                                                            VarExpr {
+                                                                name: "FromNodeId",
+                                                                resolved: None,
+                                                            },
+                                                        ),
+                                                    ),
+                                                    (
+                                                        Var(
+                                                            VarExpr {
+                                                                name: "Counter",
+                                                                resolved: None,
+                                                            },
+                                                        ),
+                                                        Var(
+                                                            VarExpr {
+                                                                name: "FromCounter",
+                                                                resolved: None,
+                                                            },
+                                                        ),
+                                                    ),
+                                                ],
+                                                attributes: Some(
+                                                    [
+                                                        (
+                                                            "NodeId",
+                                                            Var(
+                                                                VarExpr {
+                                                                    name: "next.ToNodeId",
+                                                                    resolved: None,
+                                                                },
+                                                            ),
+                                                        ),
+                                                        (
+                                                            "Counter",
+                                                            Var(
+                                                                VarExpr {
+                                                                    name: "next.ToCounter",
+                                                                    resolved: None,
+                                                                },
+                                                            ),
+                                                        ),
+                                                    ],
+                                                ),
+                                            },
+                                        ),
+                                    },
+                                ),
+                            ],
+                        },
+                    },
+                ),
+            ),
+        },
+    ),
+    Var(
+        VarStmt {
+            name: "mvrStore",
+            initializer: Some(
+                EquiJoin(
+                    EquiJoinExpr {
+                        left: Var(
+                            VarExpr {
+                                name: "isCausallyReady",
+                                resolved: None,
+                            },
+                        ),
+                        right: EquiJoin(
+                            EquiJoinExpr {
+                                left: Var(
+                                    VarExpr {
+                                        name: "isLeaf",
+                                        resolved: None,
+                                    },
+                                ),
+                                right: Var(
+                                    VarExpr {
+                                        name: "set",
+                                        resolved: None,
+                                    },
+                                ),
+                                on: [
+                                    (
+                                        Var(
+                                            VarExpr {
+                                                name: "NodeId",
+                                                resolved: None,
+                                            },
+                                        ),
+                                        Var(
+                                            VarExpr {
+                                                name: "NodeId",
+                                                resolved: None,
+                                            },
+                                        ),
+                                    ),
+                                    (
+                                        Var(
+                                            VarExpr {
+                                                name: "Counter",
+                                                resolved: None,
+                                            },
+                                        ),
+                                        Var(
+                                            VarExpr {
+                                                name: "Counter",
+                                                resolved: None,
+                                            },
+                                        ),
+                                    ),
+                                ],
+                                attributes: Some(
+                                    [
+                                        (
+                                            "NodeId",
+                                            Var(
+                                                VarExpr {
+                                                    name: "NodeId",
+                                                    resolved: None,
+                                                },
+                                            ),
+                                        ),
+                                        (
+                                            "Counter",
+                                            Var(
+                                                VarExpr {
+                                                    name: "Counter",
+                                                    resolved: None,
+                                                },
+                                            ),
+                                        ),
+                                        (
+                                            "Key",
+                                            Var(
+                                                VarExpr {
+                                                    name: "Key",
+                                                    resolved: None,
+                                                },
+                                            ),
+                                        ),
+                                        (
+                                            "Value",
+                                            Var(
+                                                VarExpr {
+                                                    name: "Value",
+                                                    resolved: None,
+                                                },
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                            },
+                        ),
+                        on: [
+                            (
+                                Var(
+                                    VarExpr {
+                                        name: "NodeId",
+                                        resolved: None,
+                                    },
+                                ),
+                                Var(
+                                    VarExpr {
+                                        name: "NodeId",
+                                        resolved: None,
+                                    },
+                                ),
+                            ),
+                            (
+                                Var(
+                                    VarExpr {
+                                        name: "Counter",
+                                        resolved: None,
+                                    },
+                                ),
+                                Var(
+                                    VarExpr {
+                                        name: "Counter",
+                                        resolved: None,
+                                    },
+                                ),
+                            ),
+                        ],
+                        attributes: Some(
+                            [
+                                (
+                                    "Key",
+                                    Var(
+                                        VarExpr {
+                                            name: "Key",
+                                            resolved: None,
+                                        },
+                                    ),
+                                ),
+                                (
+                                    "Value",
+                                    Var(
+                                        VarExpr {
+                                            name: "Value",
+                                            resolved: None,
+                                        },
+                                    ),
+                                ),
+                            ],
+                        ),
+                    },
+                ),
+            ),
+        },
+    ),
+]

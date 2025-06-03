@@ -1,7 +1,6 @@
-//! This module contains a representation of an AST (Abstract Syntax Tree)
-//! for a Datalog variant.
+//! This module contains the Abstract Syntax Tree (AST) for our Datalog dialect.
 
-use compute::expr::{Expr, VarExpr};
+use compute::expr::{Expr, VarExpr as IncLogVarExpr};
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Program {
@@ -62,7 +61,7 @@ pub struct Predicate {
 
 impl Predicate {
     pub fn name(&self) -> &String {
-        &self.name.name
+        self.name.as_ref()
     }
 }
 
@@ -82,7 +81,7 @@ impl VarStmt {
     pub fn with_alias<T: Into<Identifier>>(target_name: T, origin: T) -> Self {
         VarStmt {
             identifier: target_name.into(),
-            initializer: Some(Expr::from(VarExpr::from(origin.into()))),
+            initializer: Some(Expr::from(IncLogVarExpr::new(origin.into().inner))),
         }
     }
     pub fn with_expr<T: Into<Identifier>>(target_name: T, origin: Expr) -> Self {
@@ -91,12 +90,55 @@ impl VarStmt {
             initializer: Some(origin),
         }
     }
-    pub fn into_projection_attribute(self) -> (String, Expr) {
+    pub fn is_unused(&self) -> bool {
+        self.identifier.inner.starts_with("_")
+    }
+    pub fn into_projection_attribute(self) -> Option<(String, Expr)> {
+        if self.is_unused() {
+            return None;
+        };
         let name = self.identifier.inner;
         let expr = self
             .initializer
-            .unwrap_or_else(|| Expr::from(VarExpr::new(name.clone())));
-        (name, expr)
+            .unwrap_or_else(|| Expr::from(IncLogVarExpr::new(name.clone())));
+        Some((name, expr))
+    }
+}
+
+impl AsRef<String> for VarStmt {
+    fn as_ref(&self) -> &String {
+        &self.identifier.inner
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VarExpr {
+    pub identifier: Identifier,
+}
+
+impl VarExpr {
+    pub fn new<T: Into<String>>(name: T) -> Self {
+        Self {
+            identifier: Identifier::from(name),
+        }
+    }
+}
+
+impl AsRef<String> for VarExpr {
+    fn as_ref(&self) -> &String {
+        &self.identifier.inner
+    }
+}
+
+impl From<Identifier> for VarExpr {
+    fn from(value: Identifier) -> Self {
+        Self { identifier: value }
+    }
+}
+
+impl From<VarExpr> for IncLogVarExpr {
+    fn from(value: VarExpr) -> Self {
+        IncLogVarExpr::new(value.identifier.inner)
     }
 }
 
@@ -113,8 +155,8 @@ impl<T: Into<String>> From<T> for Identifier {
     }
 }
 
-impl From<Identifier> for VarExpr {
+impl From<Identifier> for IncLogVarExpr {
     fn from(value: Identifier) -> Self {
-        VarExpr::new(value.inner)
+        IncLogVarExpr::new(value.inner)
     }
 }

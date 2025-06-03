@@ -1,8 +1,8 @@
 use super::scalar::ScalarTypedValue;
-use crate::{dbsp::StreamWrapper, error::SyntaxError};
+use crate::{dbsp::StreamWrapper, error::SyntaxError, scalar::ScalarType};
 use std::{
     cell::RefCell,
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fmt::{self, Debug, Display},
     rc::Rc,
 };
@@ -377,6 +377,8 @@ impl Display for TupleSchema {
 }
 
 /// A [`Relation`]'s schema is a set of fields and we store the index of each.
+/// Unlike [`RelationType`], this exists at runtime to, e.g., be able to index
+/// fields by name.
 #[derive(Clone, Debug)]
 pub struct RelationSchema {
     /// Not a real name to reference the relation but more like a transformation trace.
@@ -481,5 +483,85 @@ impl Display for Relation {
 impl Debug for Relation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.schema)
+    }
+}
+
+/// Unlike [`RelationSchema`], this does not exist at runtime but is only used
+/// during static analysis.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RelationType {
+    fields: HashMap<String, ScalarType>,
+}
+
+impl RelationType {
+    pub fn join(self, other: Self) -> Self {
+        // We start with other to have duplicate fields' types be taken from self.
+        let mut fields = other.fields;
+        fields.extend(self.fields);
+        Self { fields }
+    }
+    pub fn pick<T: AsRef<str>>(mut self, fields: impl IntoIterator<Item = T>) -> Self {
+        let fields = fields
+            .into_iter()
+            .filter_map(|name| self.fields.remove_entry(name.as_ref()))
+            .collect();
+        Self { fields }
+    }
+    pub fn into_tuple_vars(self) -> HashMap<String, ScalarType> {
+        self.fields
+    }
+    pub fn field_type(&self, name: &str) -> Option<&ScalarType> {
+        self.fields.get(name)
+    }
+    pub fn intersect<'a>(&'a self, other: &Self) -> impl Iterator<Item = (&'a String, ScalarType)> {
+        self.fields.iter().filter_map(|(name, self_scalar_type)| {
+            // No type checking here, that is, we don't check if
+            // `self_scalar_type` and `other_scalar_type` are the compatible.
+            other
+                .fields
+                .get(name)
+                .map(|other_scalar_type| (name, *other_scalar_type))
+        })
+    }
+}
+
+impl<T, S: AsRef<str>> PartialEq<T> for RelationType
+where
+    // Is there a way to avoid the clone here?
+    T: ExactSizeIterator<Item = S> + Clone,
+{
+    fn eq(&self, iter: &T) -> bool {
+        let iter = iter.clone();
+        if self.fields.len() != iter.len() {
+            return false;
+        }
+        for name in iter {
+            if !self.fields.contains_key(name.as_ref()) {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl<'a> FromIterator<(&'a String, ScalarType)> for RelationType {
+    fn from_iter<T: IntoIterator<Item = (&'a String, ScalarType)>>(iter: T) -> Self {
+        let fields = iter
+            .into_iter()
+            .map(|(name, scalar_type)| (name.clone(), scalar_type))
+            .collect();
+        Self { fields }
+    }
+}
+
+impl From<&RelationSchema> for RelationType {
+    fn from(value: &RelationSchema) -> Self {
+        let fields = value
+            .tuple
+            .field_names(&None)
+            // Until we have proper types in Datalog, we assign the dummy null type.
+            .map(|name| (name, ScalarType::Null))
+            .collect();
+        Self { fields }
     }
 }

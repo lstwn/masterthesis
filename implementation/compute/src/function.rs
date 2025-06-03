@@ -1,4 +1,4 @@
-use crate::{expr::FunctionExpr, variable::Environment};
+use crate::{expr::FunctionExpr, type_resolver::ExprType, variable::Environment};
 use std::{
     cell::RefCell,
     fmt::{self, Debug, Display},
@@ -58,4 +58,10 @@ impl Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.to_string_helper(f)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionType {
+    // TODO: parameters' type
+    pub return_type: Box<ExprType>,
 }

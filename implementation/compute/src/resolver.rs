@@ -13,7 +13,7 @@ use crate::{
 use std::{collections::HashMap, iter};
 
 #[derive(Clone, Copy, Debug)]
-struct VariableMeta {
+pub struct VariableMeta {
     initialized: bool,
     slot: usize,
 }
@@ -27,11 +27,17 @@ impl VariableMeta {
     }
 }
 
-pub struct ScopeStack {
-    inner: Vec<HashMap<String, VariableMeta>>,
+pub struct ScopeStack<T> {
+    inner: Vec<HashMap<String, T>>,
 }
 
-impl ScopeStack {
+impl<T> Default for ScopeStack<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> ScopeStack<T> {
     pub fn new() -> Self {
         let mut scope_stack = Self {
             inner: Vec::with_capacity(SCOPES_CAPACITY),
@@ -40,20 +46,29 @@ impl ScopeStack {
         scope_stack.begin_scope();
         scope_stack
     }
-    fn just_global(&self) -> bool {
+    pub fn just_global(&self) -> bool {
         self.inner.len() == 1
     }
-    fn begin_scope(&mut self) {
+    pub fn begin_scope(&mut self) {
         self.inner.push(HashMap::new());
     }
-    fn end_scope(&mut self) {
+    pub fn end_scope(&mut self) {
         self.inner.pop();
     }
-    fn innermost(&self) -> Option<&HashMap<String, VariableMeta>> {
+    pub fn innermost(&self) -> Option<&HashMap<String, T>> {
         self.inner.last()
     }
-    fn innermost_mut(&mut self) -> Option<&mut HashMap<String, VariableMeta>> {
+    pub fn innermost_mut(&mut self) -> Option<&mut HashMap<String, T>> {
         self.inner.last_mut()
+    }
+    /// Iterates from innermost to outermost scope.
+    pub fn iter(&self) -> impl Iterator<Item = &HashMap<String, T>> {
+        self.inner.iter().rev()
+    }
+    /// Iterates from innermost to outermost scope while returning indexes that
+    /// work from left to right.
+    pub fn indexed_iter(&self) -> impl Iterator<Item = (usize, &HashMap<String, T>)> {
+        self.inner.iter().enumerate().rev()
     }
 }
 
@@ -107,7 +122,7 @@ impl Resolver {
         expr: &mut T,
         ctx: VisitorCtx,
     ) -> Result<(), SyntaxError> {
-        for (scope_idx, scope) in ctx.scopes.inner.iter().enumerate().rev() {
+        for (scope_idx, scope) in ctx.scopes.indexed_iter() {
             if let Some(var) = scope.get(expr.name()) {
                 let slot_idx = var.slot;
                 expr.set_resolved((scope_idx, slot_idx));

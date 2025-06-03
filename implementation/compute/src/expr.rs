@@ -234,6 +234,22 @@ pub struct EquiJoinExpr {
     pub attributes: Option<Vec<(String, Expr)>>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ThetaJoinExpr {
+    /// Must evaluate to a relation.
+    pub left: Expr,
+    /// Must evaluate to a relation.
+    pub right: Expr,
+    /// An arbitrary join condition that is evaluated for each pair of tuples
+    /// (cartesian product of both relations) in the context containing
+    /// the attributes of both relations.
+    /// If the condition evaluates to false, the output does not contain that
+    /// pair. If the condition evaluates to true, the output contains the pair.
+    pub on: Expr,
+    /// An optional projection step. See documentation of [`ProjectionExpr`].
+    pub attributes: Option<Vec<(String, Expr)>>,
+}
+
 /// Evaluates to a relation/stream again.
 #[derive(Clone)]
 pub struct FixedPointIterExpr {

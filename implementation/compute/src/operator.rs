@@ -31,26 +31,4 @@ pub enum Operator {
     Multiplication,
     /// Eagerly-evaluated binary operation.
     Division,
-
-    // Operations on sets/relations.
-    /// Eagerly-evaluated binary operation.
-    Union,
-    /// Eagerly-evaluated binary operation.
-    Intersection,
-    /// Eagerly-evaluated binary operation.
-    Difference,
-
-    // Operations on relations.
-    /// Eagerly-evaluated binary operation.
-    Projection,
-    /// Eagerly-evaluated binary operation.
-    Selection,
-    /// Eagerly-evaluated binary operation.
-    CrossProduct,
-    /// Eagerly-evaluated ternary operation.
-    NaturalJoin,
-    /// Eagerly-evaluated ternary operation.
-    ThetaJoin,
-    /// Eagerly-evaluated unary operation.
-    Iteration,
 }

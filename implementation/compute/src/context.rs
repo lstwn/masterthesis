@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     relation::{SchemaTuple, Tuple, TupleSchema},
-    resolver::ScopeStack,
+    resolver::{ScopeStack, VariableMeta},
     scalar::ScalarTypedValue,
     stmt::Program,
     variable::Environment,
@@ -17,7 +17,7 @@ pub struct ProgramContext {
     pub environment: Environment,
     /// Scope stack for the resolver.
     /// Writable during resolution and not accessed during interpretation.
-    pub scopes: ScopeStack,
+    pub scopes: ScopeStack<VariableMeta>,
 }
 
 impl Default for ProgramContext {
@@ -77,12 +77,12 @@ impl InterpreterContext<'_> {
 }
 
 pub struct ResolverContext<'a> {
-    pub scopes: &'a mut ScopeStack,
+    pub scopes: &'a mut ScopeStack<VariableMeta>,
     pub is_tuple_context: bool,
 }
 
 impl ResolverContext<'_> {
-    pub fn new(scopes: &mut ScopeStack) -> ResolverContext<'_> {
+    pub fn new(scopes: &mut ScopeStack<VariableMeta>) -> ResolverContext<'_> {
         ResolverContext {
             scopes,
             is_tuple_context: false,

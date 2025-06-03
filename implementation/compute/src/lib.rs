@@ -12,6 +12,7 @@ pub mod relation;
 mod resolver;
 mod scalar;
 pub mod stmt;
+pub mod type_resolver;
 mod util;
 pub mod variable;
 
@@ -1161,24 +1162,24 @@ mod test {
             let code = [
                 // Inputs start.
                 Stmt::from(VarStmt {
-                    name: "pred_rel".to_string(),
+                    name: "pred".to_string(),
                     initializer: Some(Expr::from(DbspInput::add(
                         RelationSchema::new(
-                            "pred_rel",
-                            ["from_node_id", "from_counter", "to_node_id", "to_counter"],
-                            ["from_node_id", "from_counter", "to_node_id", "to_counter"],
+                            "pred",
+                            ["FromNodeId", "FromCounter", "ToNodeId", "ToCounter"],
+                            ["FromNodeId", "FromCounter", "ToNodeId", "ToCounter"],
                         )?,
                         root_circuit,
                         &mut dbsp_inputs,
                     ))),
                 }),
                 Stmt::from(VarStmt {
-                    name: "set_op".to_string(),
+                    name: "set".to_string(),
                     initializer: Some(Expr::from(DbspInput::add(
                         RelationSchema::new(
-                            "set_op",
-                            ["node_id", "counter", "key", "value"],
-                            ["node_id", "counter"],
+                            "set",
+                            ["NodeId", "Counter", "Key", "Value"],
+                            ["NodeId", "Counter"],
                         )?,
                         root_circuit,
                         &mut dbsp_inputs,
@@ -1189,8 +1190,8 @@ mod test {
                     name: "overwritten".to_string(),
                     initializer: Some(Expr::from(DistinctExpr {
                         relation: Expr::from(ProjectionExpr {
-                            relation: Expr::from(VarExpr::new("pred_rel")),
-                            attributes: [("node_id", "from_node_id"), ("counter", "from_counter")]
+                            relation: Expr::from(VarExpr::new("pred")),
+                            attributes: [("NodeId", "FromNodeId"), ("Counter", "FromCounter")]
                                 .into_iter()
                                 .map(|(name, origin)| {
                                     (name.to_string(), Expr::from(VarExpr::new(origin)))
@@ -1203,8 +1204,8 @@ mod test {
                     name: "overwrites".to_string(),
                     initializer: Some(Expr::from(DistinctExpr {
                         relation: Expr::from(ProjectionExpr {
-                            relation: Expr::from(VarExpr::new("pred_rel")),
-                            attributes: [("node_id", "to_node_id"), ("counter", "to_counter")]
+                            relation: Expr::from(VarExpr::new("pred")),
+                            attributes: [("NodeId", "ToNodeId"), ("Counter", "ToCounter")]
                                 .into_iter()
                                 .map(|(name, origin)| {
                                     (name.to_string(), Expr::from(VarExpr::new(origin)))
@@ -1214,11 +1215,11 @@ mod test {
                     })),
                 }),
                 Stmt::from(VarStmt {
-                    name: "root".to_string(),
+                    name: "isRoot".to_string(),
                     initializer: Some(Expr::from(DifferenceExpr {
                         left: Expr::from(ProjectionExpr {
-                            relation: Expr::from(VarExpr::new("set_op")),
-                            attributes: ["node_id", "counter"]
+                            relation: Expr::from(VarExpr::new("set")),
+                            attributes: ["NodeId", "Counter"]
                                 .into_iter()
                                 .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                                 .collect(),
@@ -1227,11 +1228,11 @@ mod test {
                     })),
                 }),
                 Stmt::from(VarStmt {
-                    name: "leaf".to_string(),
+                    name: "isLeaf".to_string(),
                     initializer: Some(Expr::from(DifferenceExpr {
                         left: Expr::from(ProjectionExpr {
-                            relation: Expr::from(VarExpr::new("set_op")),
-                            attributes: ["node_id", "counter"]
+                            relation: Expr::from(VarExpr::new("set")),
+                            attributes: ["NodeId", "Counter"]
                                 .into_iter()
                                 .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                                 .collect(),
@@ -1240,45 +1241,42 @@ mod test {
                     })),
                 }),
                 Stmt::from(VarStmt {
-                    name: "causally_ready".to_string(),
+                    name: "isCausallyReady".to_string(),
                     initializer: Some(Expr::from(FixedPointIterExpr {
                         circuit: root_circuit.clone(),
-                        imports: ["pred_rel"]
+                        imports: ["pred"]
                             .into_iter()
                             .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                             .collect(),
-                        accumulator: ("accumulator".to_string(), Expr::from(VarExpr::new("root"))),
+                        accumulator: (
+                            "isCausallyReady".to_string(),
+                            Expr::from(VarExpr::new("isRoot")),
+                        ),
                         step: BlockStmt {
                             stmts: vec![Stmt::from(ExprStmt {
                                 expr: Expr::from(EquiJoinExpr {
                                     left: Expr::from(AliasExpr {
-                                        relation: Expr::from(VarExpr::new("accumulator")),
+                                        relation: Expr::from(VarExpr::new("isCausallyReady")),
                                         alias: "cur".to_string(),
                                     }),
                                     right: Expr::from(AliasExpr {
-                                        relation: Expr::from(VarExpr::new("pred_rel")),
+                                        relation: Expr::from(VarExpr::new("pred")),
                                         alias: "next".to_string(),
                                     }),
                                     on: vec![
                                         (
-                                            Expr::from(VarExpr::new("node_id")),
-                                            Expr::from(VarExpr::new("from_node_id")),
+                                            Expr::from(VarExpr::new("NodeId")),
+                                            Expr::from(VarExpr::new("FromNodeId")),
                                         ),
                                         (
-                                            Expr::from(VarExpr::new("counter")),
-                                            Expr::from(VarExpr::new("from_counter")),
+                                            Expr::from(VarExpr::new("Counter")),
+                                            Expr::from(VarExpr::new("FromCounter")),
                                         ),
                                     ],
                                     attributes: Some(
                                         [
-                                            (
-                                                "node_id",
-                                                Expr::from(VarExpr::new("next.to_node_id")),
-                                            ),
-                                            (
-                                                "counter",
-                                                Expr::from(VarExpr::new("next.to_counter")),
-                                            ),
+                                            ("NodeId", Expr::from(VarExpr::new("next.ToNodeId"))),
+                                            ("Counter", Expr::from(VarExpr::new("next.ToCounter"))),
                                         ]
                                         .into_iter()
                                         .map(|(name, expr)| (name.to_string(), expr))
@@ -1290,20 +1288,20 @@ mod test {
                     })),
                 }),
                 Stmt::from(VarStmt {
-                    name: "mvr_store".to_string(),
+                    name: "mvrStore".to_string(),
                     initializer: Some(Expr::from(EquiJoinExpr {
-                        left: Expr::from(VarExpr::new("causally_ready")),
+                        left: Expr::from(VarExpr::new("isCausallyReady")),
                         right: Expr::from(EquiJoinExpr {
-                            left: Expr::from(VarExpr::new("leaf")),
-                            right: Expr::from(VarExpr::new("set_op")),
+                            left: Expr::from(VarExpr::new("isLeaf")),
+                            right: Expr::from(VarExpr::new("set")),
                             on: vec![
                                 (
-                                    Expr::from(VarExpr::new("node_id")),
-                                    Expr::from(VarExpr::new("node_id")),
+                                    Expr::from(VarExpr::new("NodeId")),
+                                    Expr::from(VarExpr::new("NodeId")),
                                 ),
                                 (
-                                    Expr::from(VarExpr::new("counter")),
-                                    Expr::from(VarExpr::new("counter")),
+                                    Expr::from(VarExpr::new("Counter")),
+                                    Expr::from(VarExpr::new("Counter")),
                                 ),
                             ],
                             // With `attributes: None` the query does not work because
@@ -1314,10 +1312,10 @@ mod test {
                             // Welcome to the funny world of relational algebra's semantics.
                             attributes: Some(
                                 [
-                                    ("node_id", Expr::from(VarExpr::new("node_id"))),
-                                    ("counter", Expr::from(VarExpr::new("counter"))),
-                                    ("key", Expr::from(VarExpr::new("key"))),
-                                    ("value", Expr::from(VarExpr::new("value"))),
+                                    ("NodeId", Expr::from(VarExpr::new("NodeId"))),
+                                    ("Counter", Expr::from(VarExpr::new("Counter"))),
+                                    ("Key", Expr::from(VarExpr::new("Key"))),
+                                    ("Value", Expr::from(VarExpr::new("Value"))),
                                 ]
                                 .into_iter()
                                 .map(|(name, expr)| (name.to_string(), expr))
@@ -1326,18 +1324,18 @@ mod test {
                         }),
                         on: vec![
                             (
-                                Expr::from(VarExpr::new("node_id")),
-                                Expr::from(VarExpr::new("node_id")),
+                                Expr::from(VarExpr::new("NodeId")),
+                                Expr::from(VarExpr::new("NodeId")),
                             ),
                             (
-                                Expr::from(VarExpr::new("counter")),
-                                Expr::from(VarExpr::new("counter")),
+                                Expr::from(VarExpr::new("Counter")),
+                                Expr::from(VarExpr::new("Counter")),
                             ),
                         ],
                         attributes: Some(
                             [
-                                ("key", Expr::from(VarExpr::new("key"))),
-                                ("value", Expr::from(VarExpr::new("value"))),
+                                ("Key", Expr::from(VarExpr::new("Key"))),
+                                ("Value", Expr::from(VarExpr::new("Value"))),
                             ]
                             .into_iter()
                             .map(|(name, expr)| (name.to_string(), expr))
@@ -1358,8 +1356,8 @@ mod test {
             }
         })?;
 
-        let pred_rel_input = inputs.get("pred_rel").unwrap();
-        let set_op_input = inputs.get("set_op").unwrap();
+        let pred_rel_input = inputs.get("pred").unwrap();
+        let set_op_input = inputs.get("set").unwrap();
 
         // The operation history is as follows:
         // In first step (just one root operation setting register with key 1 to value 1):

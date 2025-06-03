@@ -17,6 +17,7 @@ mod graph;
 pub mod literal;
 pub mod parser_helper;
 mod translation;
+mod type_resolver;
 
 pub struct Parser<'a> {
     root_circuit: &'a mut RootCircuit,

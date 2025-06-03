@@ -601,6 +601,7 @@ impl StmtVisitor<StmtVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
     }
 }
 
+/// Only `null` and `false` are falsy, everything else is truthy.
 fn is_truthy(value: &Value) -> bool {
     match value {
         Value::Null(()) => false,

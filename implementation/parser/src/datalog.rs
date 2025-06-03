@@ -14,12 +14,11 @@
 //! All parser functions assume that there is no leading whitespace in their inputs.
 
 use crate::{
-    ast::{Atom, Body, Head, Predicate, Program, Rule, VarStmt},
+    ast::{Atom, Body, Head, Predicate, Program, Rule, VarExpr, VarStmt},
     expr,
     literal::identifier,
     parser_helper::{lead_ws, lead_ws_cmt},
 };
-use compute::expr::VarExpr;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -145,12 +144,11 @@ fn variable(input: &str) -> IResult<&str, VarStmt> {
 
 #[cfg(test)]
 pub mod test {
+    use super::*;
     use compute::{
-        expr::{BinaryExpr, Expr, LiteralExpr},
+        expr::{BinaryExpr, Expr, LiteralExpr, VarExpr as IncLogVarExpr},
         operator::Operator,
     };
-
-    use super::*;
 
     #[test]
     fn test_atom() {
@@ -214,7 +212,7 @@ pub mod test {
                                 "b",
                                 Expr::from(BinaryExpr {
                                     operator: Operator::Addition,
-                                    left: Expr::from(VarExpr::new("b")),
+                                    left: Expr::from(IncLogVarExpr::new("b")),
                                     right: Expr::from(LiteralExpr::from(1_u64)),
                                 }),
                             ),
@@ -232,7 +230,7 @@ pub mod test {
                             }),
                             Atom::Comparison(Expr::from(BinaryExpr {
                                 operator: Operator::Greater,
-                                left: Expr::from(VarExpr::new("c")),
+                                left: Expr::from(IncLogVarExpr::new("c")),
                                 right: Expr::from(LiteralExpr::from(2_u64)),
                             })),
                         ],

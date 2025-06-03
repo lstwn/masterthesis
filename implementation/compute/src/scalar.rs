@@ -99,6 +99,15 @@ impl Display for ScalarTypedValue {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScalarType {
+    String,
+    Uint,
+    Iint,
+    Bool,
+    Null,
+}
+
 // /// An enum of all possible scalar types.
 // pub type ScalarType = Scalar<(), (), (), (), ()>;
 

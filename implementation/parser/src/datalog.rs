@@ -89,7 +89,7 @@ fn field(input: &str) -> IResult<&str, VarStmt> {
 
 fn body(input: &str) -> IResult<&str, Body> {
     map(
-        opt(separated_list1(lead_ws(tag(COMMA)), lead_ws(atom))),
+        opt(separated_list1(lead_ws(tag(COMMA)), lead_ws_cmt(atom))),
         |atoms| Body {
             atoms: atoms.unwrap_or_default(),
         },
@@ -275,13 +275,17 @@ pub mod test {
             isLeaf(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
                                                 not overwritten(NodeId, Counter).
 
-            isCausallyReady(NodeId, Counter) :- isRoot(NodeId, Counter).
+            isCausallyReady(NodeId, Counter) :- isRoot(NodeId, Counter). // Trailing comment.
             isCausallyReady(NodeId, Counter) :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
                                                 pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
 
-            mvrStore(Key, Value)             :- isLeaf(NodeId, Counter),
+            mvrStore(Key, Value)             :- // Comments before atoms are fine.
+                                                isLeaf(NodeId, Counter),
+                                                // Comments between atoms are also fine.
+                                                // Spanning multiple lines.
                                                 isCausallyReady(NodeId, Counter),
                                                 set(NodeId, Counter, Key, Value).
+            // Trailing comments are fine.
         "#
     }
 

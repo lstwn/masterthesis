@@ -5,25 +5,13 @@ use compute::{error::SyntaxError, stmt::Code};
 #[derive(Clone, Debug, Default)]
 pub struct Optimizer {}
 
-// TODO:
-// Remove redundant operators:
-// - [ ] Projections on relations which already have the requested schema.
-//       Examples: \pi_{attrs} -> \pi_{attrs}
-//                 \setminus -> \pi_{attrs}
-// - [ ] As many equi joins as possible.
-// - [ ] Predicate pushdown.
-// - [ ] Merge Join -> Projection.
-
 impl Optimizer {
+    /// For now, the optimizer does nothing but simply returns the IR as is.
+    /// This is a placeholder for future optimization logic which could perform
+    /// various transformations on the relational algebra IR such as:
+    /// - predicate pushdown
+    /// - expression simplification
     pub fn optimize(self, code: Code) -> Result<Code, SyntaxError> {
         Ok(code)
     }
-}
-
-#[cfg(test)]
-mod tests {
-    // use super::*;
-
-    #[test]
-    fn it_works() {}
 }

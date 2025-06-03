@@ -360,7 +360,7 @@ mod test {
         //        Implicitly, the rule that is last in the topological sort order.
         //        In case of a tie, the last rule in the input via a _stable_
         //        topological sort.
-        // 3. [ ] Cleanup test code, possibly delete the optimizer.
+        // 3. [ ] Cleanup and reuse test code. Rename the `cli` crate.
 
         let input = r#"
             // These are extensional database predicates (EDBPs).

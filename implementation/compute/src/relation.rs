@@ -535,6 +535,15 @@ impl RelationType {
     }
 }
 
+impl<'a> IntoIterator for &'a RelationType {
+    type Item = (&'a String, &'a ScalarType);
+    type IntoIter = std::collections::hash_map::Iter<'a, String, ScalarType>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.fields.iter()
+    }
+}
+
 impl<T, S: AsRef<str>> PartialEq<T> for RelationType
 where
     // Is there a way to avoid the clone here?

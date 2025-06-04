@@ -89,14 +89,52 @@ impl TypeResolver {
         &mut self,
         predicate: &Predicate,
     ) -> Result<RelationType, SyntaxError> {
-        let predicate_type = self.rules.get(predicate.name());
-        let is_self_recursive = self.current_rule.as_ref() == Some(predicate.name());
+        #[allow(clippy::type_complexity)]
+        let resolve_field_type: Box<
+            dyn for<'a> Fn(&'a str) -> Result<ScalarType, SyntaxError>,
+        > = {
+            let predicate_type = self.rules.get(predicate.name());
+            let is_self_recursive = self.current_rule.as_ref() == Some(predicate.name());
+
+            match predicate_type {
+                Some(predicate_type) => Box::new(move |field_name| {
+                    predicate_type
+                        .field_type(field_name)
+                        .copied()
+                        .ok_or_else(|| {
+                            SyntaxError::new(format!(
+                                "Unknown field '{}' of predicate '{}'",
+                                field_name,
+                                predicate.name()
+                            ))
+                        })
+                }),
+                None if is_self_recursive => {
+                    // If the predicate is self-recursive, we can use the previously
+                    // found body_vars to resolve the field's scalar type.
+                    Box::new(|field_name| {
+                        self.body_vars.get(field_name).copied().ok_or_else(|| {
+                            SyntaxError::new(format!(
+                                "Unknown field '{}' of self-recursive predicate '{}'",
+                                field_name,
+                                predicate.name()
+                            ))
+                        })
+                    })
+                }
+                // As the rules are topologically sorted, we can assume that all
+                // referenced predicates are already defined or self-recursive.
+                None => unreachable!("Unknown predicate '{}'", predicate.name()),
+            }
+        };
 
         let projected_type: RelationType = predicate
             .variables
             .iter()
-            .filter(|var_stmt| !var_stmt.is_unused())
-            .map(|var_stmt| {
+            .filter_map(move |var_stmt| {
+                if var_stmt.is_unused() {
+                    return None;
+                }
                 let target_name = &var_stmt.identifier.inner;
                 let source_name = var_stmt
                     .initializer
@@ -108,33 +146,14 @@ impl TypeResolver {
                         }
                     })
                     .unwrap_or(target_name);
-                let variable_type = match predicate_type {
-                    Some(predicate_type) => predicate_type.field_type(source_name).copied(),
-                    None => {
-                        if is_self_recursive {
-                            // Due to the invariant that an aggregated rule's bodies
-                            // are sorted such that all non-recursive bodies
-                            // come before the recursive bodies, we can deduce the
-                            // variable type from the previously found body_vars.
-                            // Otherwise, the query lacks a mandatory "base case" for
-                            // the recursive rule.
-                            self.body_vars.get(source_name).copied()
-                        } else {
-                            None
-                        }
-                    }
-                }
-                .ok_or_else(|| {
-                    SyntaxError::new(format!(
-                        "Unknown field '{}' of predicate '{}'",
-                        source_name,
-                        predicate.name()
-                    ))
-                })?;
-                self.body_vars.insert(target_name.clone(), variable_type);
-                Ok((target_name, variable_type))
+                Some(resolve_field_type(source_name).map(|scalar_type| (target_name, scalar_type)))
             })
             .collect::<Result<RelationType, SyntaxError>>()?;
+
+        projected_type.into_iter().for_each(|(name, scalar_type)| {
+            // Make the variables known to the rule context.
+            self.body_vars.insert(name.clone(), *scalar_type);
+        });
 
         Ok(projected_type)
     }

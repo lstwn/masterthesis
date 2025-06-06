@@ -2,7 +2,7 @@
 //! ```ebnf
 //! program     = rule* EOF ;
 //! rule        = head ":-" body "." ;
-//! head        = IDENTIFIER "(" field ( "," field )* ")" ;
+//! head        = "distinct"? IDENTIFIER "(" field ( "," field )* ")" ;
 //! field       = IDENTIFIER ( "=" comparison )? ;
 //! body        = ( atom ( "," atom )* )? ;
 //! atom        = ( "not"? predicate ) | comparison ;
@@ -34,6 +34,7 @@ const COMMA: &str = ",";
 const DOT: &str = ".";
 const NOT: &str = "not";
 const ASSIGN: &str = "=";
+const DISTINCT: &str = "distinct";
 
 const LEFT_PAREN: &str = "(";
 const RIGHT_PAREN: &str = ")";
@@ -57,23 +58,27 @@ fn rule(input: &str) -> IResult<&str, Rule> {
 }
 
 fn head(input: &str) -> IResult<&str, Head> {
-    identifier.parse(input).and_then(|(input, name)| {
-        delimited(
-            lead_ws(tag(LEFT_PAREN)),
-            separated_list1(lead_ws(tag(COMMA)), lead_ws(field)),
-            lead_ws(tag(RIGHT_PAREN)),
-        )
+    let distinct = terminated(tag(DISTINCT), multispace1);
+    pair(opt(distinct), lead_ws(identifier))
         .parse(input)
-        .map(|(input, variables)| {
-            (
-                input,
-                Head {
-                    name: VarStmt::new(name),
-                    variables,
-                },
+        .and_then(|(input, (distinct, name))| {
+            delimited(
+                lead_ws(tag(LEFT_PAREN)),
+                separated_list1(lead_ws(tag(COMMA)), lead_ws(field)),
+                lead_ws(tag(RIGHT_PAREN)),
             )
+            .parse(input)
+            .map(|(input, variables)| {
+                (
+                    input,
+                    if distinct.is_some() {
+                        Head::with_distinct(name, variables)
+                    } else {
+                        Head::new(name, variables)
+                    },
+                )
+            })
         })
-    })
 }
 
 fn field(input: &str) -> IResult<&str, VarStmt> {
@@ -174,10 +179,7 @@ pub mod test {
         let input = "notName1(a) :- notName2(a).";
         let result = rule(input);
         let expected = Rule {
-            head: Head {
-                name: VarStmt::new("notName1"),
-                variables: vec![VarStmt::new("a")],
-            },
+            head: Head::new("notName1", ["a"]),
             body: Body {
                 // We ensure that this is still a positive atom and insist
                 // that the name contains the prefix `not` keyword.
@@ -194,19 +196,19 @@ pub mod test {
     fn test_program() {
         let input = r#"
             // Leading eol-comment.
-            x(a, b = b + 1) :- y(a, b, c), c > 2.
+            x(a, b = b + 1)  :- y(a, b, c), c > 2.
             // First line of eol-comment.
             // Second line of eol-comment.
-            z(a, b)     :- y(a, b), not y(a, b).
+            distinct z(a, b) :- y(a, b), not y(a, b).
             // Trailing eol-comment.
         "#;
         let result = program(input);
         let expected = Program {
             rules: vec![
                 Rule {
-                    head: Head {
-                        name: VarStmt::new("x"),
-                        variables: vec![
+                    head: Head::new(
+                        "x",
+                        [
                             VarStmt::new("a"),
                             VarStmt::with_expr(
                                 "b",
@@ -217,7 +219,7 @@ pub mod test {
                                 }),
                             ),
                         ],
-                    },
+                    ),
                     body: Body {
                         atoms: vec![
                             Atom::Positive(Predicate {
@@ -237,10 +239,7 @@ pub mod test {
                     },
                 },
                 Rule {
-                    head: Head {
-                        name: VarStmt::new("z"),
-                        variables: vec![VarStmt::new("a"), VarStmt::new("b")],
-                    },
+                    head: Head::with_distinct("z", ["a", "b"]),
                     body: Body {
                         atoms: vec![
                             Atom::Positive(Predicate {
@@ -266,25 +265,25 @@ pub mod test {
             set(NodeId, Counter, Key, Value)                    :- .
 
             // These are intensional database predicates (IDBPs).
-            overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
-            overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+            distinct overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
+            distinct overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
 
-            isRoot(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
-                                                not overwrites(NodeId, Counter).
+            isRoot(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
+                                                         not overwrites(NodeId, Counter).
 
-            isLeaf(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
-                                                not overwritten(NodeId, Counter).
+            isLeaf(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
+                                                         not overwritten(NodeId, Counter).
 
-            isCausallyReady(NodeId, Counter) :- isRoot(NodeId, Counter). // Trailing comment.
-            isCausallyReady(NodeId, Counter) :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
-                                                pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+            isCausallyReady(NodeId, Counter)          :- isRoot(NodeId, Counter). // Trailing comment.
+            isCausallyReady(NodeId, Counter)          :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
+                                                         pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
 
-            mvrStore(Key, Value)             :- // Comments before atoms are fine.
-                                                isLeaf(NodeId, Counter),
-                                                // Comments between atoms are also fine.
-                                                // Spanning multiple lines.
-                                                isCausallyReady(NodeId, Counter),
-                                                set(NodeId, Counter, Key, Value).
+            mvrStore(Key, Value)                      :- // Comments before atoms are fine.
+                                                         isLeaf(NodeId, Counter),
+                                                         // Comments between atoms are also fine.
+                                                         // Spanning multiple lines.
+                                                         isCausallyReady(NodeId, Counter),
+                                                         set(NodeId, Counter, Key, Value).
             // Trailing comments are fine.
         "#
     }

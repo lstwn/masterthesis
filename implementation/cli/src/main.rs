@@ -189,7 +189,7 @@ mod test {
     }
 
     #[test]
-    fn test_default_inc_data_log() -> Result<(), anyhow::Error> {
+    fn test_inc_data_log_end_to_end() -> Result<(), anyhow::Error> {
         let inc_data_log = IncDataLog::default();
 
         let input = r#"
@@ -198,22 +198,22 @@ mod test {
             set(NodeId, Counter, Key, Value)                    :- .
 
             // These are intensional database predicates (IDBPs).
-            overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
-            overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+            distinct overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
+            distinct overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
 
-            isRoot(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
-                                                not overwrites(NodeId, Counter).
+            isRoot(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
+                                                         not overwrites(NodeId, Counter).
 
-            isLeaf(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
-                                                not overwritten(NodeId, Counter).
+            isLeaf(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
+                                                         not overwritten(NodeId, Counter).
 
-            isCausallyReady(NodeId, Counter) :- isRoot(NodeId, Counter).
-            isCausallyReady(NodeId, Counter) :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
-                                                pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+            isCausallyReady(NodeId, Counter)          :- isRoot(NodeId, Counter).
+            isCausallyReady(NodeId, Counter)          :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
+                                                         pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
 
-            mvrStore(Key, Value)             :- set(NodeId, Counter, Key, Value),
-                                                isCausallyReady(NodeId, Counter),
-                                                isLeaf(NodeId, Counter).
+            mvrStore(Key, Value)                      :- set(NodeId, Counter, Key, Value),
+                                                         isCausallyReady(NodeId, Counter),
+                                                         isLeaf(NodeId, Counter).
         "#;
 
         let (mut handle, inputs, output) = inc_data_log.build_circuit_from_datalog(input)?;

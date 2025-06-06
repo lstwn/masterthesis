@@ -106,13 +106,15 @@ impl PrecedenceGraph {
     }
 }
 
+pub type DistinctFlaggedBody = (bool, Body);
+
 /// An aggregated rule contains all rules that share the same head, that is,
-/// have the same name and same list of variables.
+/// have the same name and same sequence of variables.
 #[derive(Clone, Debug)]
 pub struct AggregatedRule {
     head: Head,
-    non_recursive_bodies: Vec<Body>,
-    recursive_bodies: Vec<Body>,
+    non_recursive_bodies: Vec<DistinctFlaggedBody>,
+    recursive_bodies: Vec<DistinctFlaggedBody>,
 }
 
 impl AggregatedRule {
@@ -124,12 +126,13 @@ impl AggregatedRule {
                 recursive_bodies: Vec::with_capacity(0),     // Does not allocate.
             }
         } else {
+            let distinct = rule.head.distinct;
             let mut aggregated_rule = Self {
                 head: rule.head,
                 non_recursive_bodies: Vec::with_capacity(4),
-                recursive_bodies: Vec::with_capacity(1),
+                recursive_bodies: Vec::with_capacity(2),
             };
-            aggregated_rule.insert_body(rule.body);
+            aggregated_rule.insert_body(distinct, rule.body);
             aggregated_rule
         }
     }
@@ -153,7 +156,8 @@ impl AggregatedRule {
     pub fn bodies(&self) -> impl Iterator<Item = &Body> {
         self.non_recursive_bodies
             .iter()
-            .chain(self.recursive_bodies.iter())
+            .map(|(_distinct, body)| body)
+            .chain(self.recursive_bodies.iter().map(|(_distinct, body)| body))
     }
     pub fn atoms(&self) -> impl Iterator<Item = &Atom> {
         self.bodies().flat_map(|body| body.atoms.iter())
@@ -161,12 +165,12 @@ impl AggregatedRule {
     pub fn non_recursive_atoms(&self) -> impl Iterator<Item = &Atom> {
         self.non_recursive_bodies
             .iter()
-            .flat_map(|body| body.atoms.iter())
+            .flat_map(|body| body.1.atoms.iter())
     }
     pub fn recursive_atoms(&self) -> impl Iterator<Item = &Atom> {
         self.recursive_bodies
             .iter()
-            .flat_map(|body| body.atoms.iter())
+            .flat_map(|body| body.1.atoms.iter())
     }
     /// Returns the head and all bodies of this aggregated rule. It provides
     /// the invariant that the bodies are sorted such that the non-recursive
@@ -175,50 +179,51 @@ impl AggregatedRule {
         mut self,
     ) -> (
         Head,
-        impl DoubleEndedIterator<Item = Body> + ExactSizeIterator<Item = Body>,
+        impl DoubleEndedIterator<Item = DistinctFlaggedBody>
+            + ExactSizeIterator<Item = DistinctFlaggedBody>,
     ) {
         // std::iter::chain destroys the double-ended and exact-size property..
         self.non_recursive_bodies.extend(self.recursive_bodies);
         (self.head, self.non_recursive_bodies.into_iter())
     }
-    pub fn into_head_and_non_rec_rec_bodies(self) -> (Head, Vec<Body>, Vec<Body>) {
+    pub fn into_head_and_non_rec_rec_bodies(
+        self,
+    ) -> (Head, Vec<DistinctFlaggedBody>, Vec<DistinctFlaggedBody>) {
         (self.head, self.non_recursive_bodies, self.recursive_bodies)
     }
-    fn try_insert(&mut self, rule: Rule) -> Result<(), (Rule, SyntaxError)> {
+    fn try_insert(&mut self, candidate: Rule) -> Result<(), (Rule, SyntaxError)> {
         // We only allow intensional rules to be aggregated.
         if self.is_extensional() {
             return Err((
-                rule,
+                candidate,
                 SyntaxError::new(format!(
                     "Rule '{}' is extensional but defined multiple times.",
                     self.head.name()
                 )),
             ));
         }
-        // We only allow rules with the same head to be aggregated.
-        // Same head encompasses sharing the same name and same variables in the
-        // same order.
-        if self.head != rule.head {
+        // We only allow rules with a compatible head to be aggregated.
+        if self.head.aggregatable_with(&candidate.head) {
             return Err((
-                rule,
+                candidate,
                 SyntaxError::new(format!(
-                    "Rule '{}' is defined multiple times with different heads.",
+                    "Rule '{}' is defined multiple times with incompatible heads.",
                     self.head.name()
                 )),
             ));
         }
-        self.insert_body(rule.body);
+        self.insert_body(candidate.head.distinct, candidate.body);
         Ok(())
     }
-    fn insert_body(&mut self, body: Body) {
+    fn insert_body(&mut self, distinct: bool, body: Body) {
         if body.atoms.iter().any(|atom| match atom {
             Atom::Positive(predicate) => predicate.name() == self.name(),
             Atom::Negative(predicate) => predicate.name() == self.name(),
             Atom::Comparison(_) => false,
         }) {
-            self.recursive_bodies.push(body);
+            self.recursive_bodies.push((distinct, body));
         } else {
-            self.non_recursive_bodies.push(body);
+            self.non_recursive_bodies.push((distinct, body));
         }
     }
 }

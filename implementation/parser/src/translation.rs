@@ -3,7 +3,7 @@
 //! list of [`Stmts`](compute::stmt::Stmt) that can be executed incrementally.
 
 use crate::{
-    analysis::AggregatedRule,
+    analysis::{AggregatedRule, DistinctFlaggedBody},
     ast::{Atom, Body, Head, Predicate, VarStmt},
     type_resolver::TypeResolver,
 };
@@ -92,15 +92,6 @@ impl<'a> Translator<'a> {
         let (head, bodies) = rule.into_head_and_bodies();
         let unionized_bodies = self.unionize_bodies(&head, bodies)?;
 
-        // TODO: Fixme, see below!
-        let unionized_bodies = if head.name() == "overwritten" || head.name() == "overwrites" {
-            Expr::from(DistinctExpr {
-                relation: unionized_bodies,
-            })
-        } else {
-            unionized_bodies
-        };
-
         Ok(Stmt::from(IncLogVarStmt {
             name: head.name.identifier.inner,
             initializer: Some(unionized_bodies),
@@ -148,7 +139,11 @@ impl<'a> Translator<'a> {
             })),
         }))
     }
-    fn translate_body(&mut self, body: Body) -> Result<(RelationType, Expr), SyntaxError> {
+    fn translate_body(
+        &mut self,
+        body: DistinctFlaggedBody,
+    ) -> Result<(RelationType, Expr), SyntaxError> {
+        let (distinct, body) = body;
         let (condition, positive, negative) = Self::partition_atoms(body);
 
         let (relation_type, folded_positive_atoms) = Self::try_fold_helper(
@@ -202,7 +197,15 @@ impl<'a> Translator<'a> {
             None => first_negative_as_set_diff,
         };
 
-        Ok((relation_type, with_free_floating_conditions))
+        let with_distinct = if distinct {
+            Expr::from(DistinctExpr {
+                relation: with_free_floating_conditions,
+            })
+        } else {
+            with_free_floating_conditions
+        };
+
+        Ok((relation_type, with_distinct))
     }
     fn translate_predicate(&mut self, predicate: Predicate) -> (RelationType, Expr) {
         // The rule type is the type of the rule the predicate is referencing.
@@ -215,7 +218,8 @@ impl<'a> Translator<'a> {
     fn unionize_bodies(
         &mut self,
         head: &Head,
-        bodies: impl DoubleEndedIterator<Item = Body> + ExactSizeIterator<Item = Body>,
+        bodies: impl DoubleEndedIterator<Item = DistinctFlaggedBody>
+            + ExactSizeIterator<Item = DistinctFlaggedBody>,
     ) -> Result<Expr, SyntaxError> {
         let bodies_count = bodies.len();
         Self::try_fold_helper(
@@ -355,12 +359,11 @@ mod test {
     #[test]
     fn test_translation() -> Result<(), anyhow::Error> {
         // TODO:
-        // 1. [ ] How to specify DISTINCT expressions?!
-        // 2. [ ] How to specify which rule should be the result of the query?
+        // 1. [ ] How to specify which rule should be the result of the query?
         //        Implicitly, the rule that is last in the topological sort order.
         //        In case of a tie, the last rule in the input via a _stable_
-        //        topological sort.
-        // 3. [ ] Cleanup and reuse test code. Rename the `cli` crate.
+        //        topological sort. Add this to thesis!
+        // 2. [ ] Cleanup and reuse test code. Rename the `cli` crate.
 
         let input = r#"
             // These are extensional database predicates (EDBPs).
@@ -368,22 +371,22 @@ mod test {
             set(NodeId, Counter, Key, Value)                    :- .
 
             // These are intensional database predicates (IDBPs).
-            overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
-            overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+            distinct overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
+            distinct overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
 
-            isRoot(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
-                                                not overwrites(NodeId, Counter).
+            isRoot(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
+                                                         not overwrites(NodeId, Counter).
 
-            isLeaf(NodeId, Counter)          :- set(NodeId, Counter, _Key, _Value),
-                                                not overwritten(NodeId, Counter).
+            isLeaf(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
+                                                         not overwritten(NodeId, Counter).
 
-            isCausallyReady(NodeId, Counter) :- isRoot(NodeId, Counter).
-            isCausallyReady(NodeId, Counter) :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
-                                                pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+            isCausallyReady(NodeId, Counter)          :- isRoot(NodeId, Counter).
+            isCausallyReady(NodeId, Counter)          :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
+                                                         pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
 
-            mvrStore(Key, Value)             :- set(NodeId, Counter, Key, Value),
-                                                isCausallyReady(NodeId, Counter),
-                                                isLeaf(NodeId, Counter).
+            mvrStore(Key, Value)                      :- set(NodeId, Counter, Key, Value),
+                                                         isCausallyReady(NodeId, Counter),
+                                                         isLeaf(NodeId, Counter).
         "#;
 
         let (inputs, code) = parse_and_translate(input)?;

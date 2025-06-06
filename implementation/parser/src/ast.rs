@@ -30,13 +30,44 @@ impl Rule {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Head {
     pub name: VarStmt,
-    /// Here, we allow the variables to be an expression to create new columns.
+    /// Here, we allow the variables to be an expression (which may reference
+    /// other variables from the body) to create new fields.
     pub variables: Vec<VarStmt>,
+    pub distinct: bool,
 }
 
 impl Head {
+    pub fn new<T: Into<VarStmt>, U: Into<VarStmt>>(
+        name: T,
+        variables: impl IntoIterator<Item = U>,
+    ) -> Self {
+        Head {
+            name: name.into(),
+            variables: variables.into_iter().map(U::into).collect(),
+            distinct: false,
+        }
+    }
+    pub fn with_distinct<T: Into<VarStmt>, U: Into<VarStmt>>(
+        name: T,
+        variables: impl IntoIterator<Item = U>,
+    ) -> Self {
+        Head {
+            name: name.into(),
+            variables: variables.into_iter().map(U::into).collect(),
+            distinct: true,
+        }
+    }
     pub fn name(&self) -> &String {
         &self.name.identifier.inner
+    }
+    /// Two heads are aggregatable if they share the same name and the sequence
+    /// of variables.
+    /// This is used to determine if two rules can be collapsed into an
+    /// [`crate::analysis::AggregatedRule`].
+    /// If the heads carry a distinct or not, does not matter for aggregation purposes.
+    pub fn aggregatable_with(&self, other: &Self) -> bool {
+        // Two heads are aggregatable if they have the same name and the same variables.
+        self.name == other.name && self.variables == other.variables
     }
 }
 
@@ -108,6 +139,12 @@ impl VarStmt {
 impl AsRef<String> for VarStmt {
     fn as_ref(&self) -> &String {
         &self.identifier.inner
+    }
+}
+
+impl<T: Into<Identifier>> From<T> for VarStmt {
+    fn from(value: T) -> Self {
+        Self::new(value)
     }
 }
 

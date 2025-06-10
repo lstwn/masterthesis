@@ -203,7 +203,7 @@ impl AggregatedRule {
             ));
         }
         // We only allow rules with a compatible head to be aggregated.
-        if self.head.aggregatable_with(&candidate.head) {
+        if !self.head.aggregatable_with(&candidate.head) {
             return Err((
                 candidate,
                 SyntaxError::new(format!(

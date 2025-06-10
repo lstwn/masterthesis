@@ -8,7 +8,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f7b0a21988c1bf877cf4759ef5ddaac04c1c9fe808c9142ecb78ba97d97a28a"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "bytes",
  "futures-core",
  "futures-sink",
@@ -31,7 +31,7 @@ dependencies = [
  "actix-utils",
  "ahash 0.8.11",
  "base64",
- "bitflags 2.6.0",
+ "bitflags",
  "brotli",
  "bytes",
  "bytestring",
@@ -450,12 +450,6 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
-
-[[package]]
-name = "bitflags"
-version = "1.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
@@ -923,9 +917,9 @@ dependencies = [
 
 [[package]]
 name = "dbsp"
-version = "0.56.0"
+version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87017ec8034c5be83e4132a7aef83cfb2d9afe93c259827c65b175b8257b18b4"
+checksum = "176d430c58c14489c13463c7b05cf9ee67fdba7cf6691c059498e974cca607b0"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -950,13 +944,11 @@ dependencies = [
  "impl-trait-for-tuples",
  "indexmap 2.7.1",
  "inventory",
- "io-uring",
  "itertools 0.14.0",
  "libc",
  "metrics",
  "mimalloc-rust-sys",
  "minitrace",
- "nix",
  "num",
  "num-derive",
  "num-format",
@@ -972,6 +964,7 @@ dependencies = [
  "rkyv",
  "serde",
  "serde_json",
+ "smallvec",
  "snap",
  "static_assertions",
  "tarpc",
@@ -1174,9 +1167,9 @@ dependencies = [
 
 [[package]]
 name = "feldera-ir"
-version = "0.56.0"
+version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e769350feb92e2a126b2e82c0dd2d58c3a84235497d364f61ba299f32aa8e624"
+checksum = "b46e813b025a868d1f3160ff61fa8e1caa46615935d52488df4b31a8a017310c"
 dependencies = [
  "feldera-types",
  "serde",
@@ -1201,9 +1194,9 @@ dependencies = [
 
 [[package]]
 name = "feldera-storage"
-version = "0.56.0"
+version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c91b684f9c81197f28db1103636dc8765962a0d13efca1cbc02e66a417968dd3"
+checksum = "c3eff16d588059164e36fc7416f41294fd112777dabbc547da0ce83f717e49c2"
 dependencies = [
  "feldera-types",
  "inventory",
@@ -1213,6 +1206,7 @@ dependencies = [
  "once_cell",
  "rkyv",
  "serde",
+ "serde_json",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
@@ -1221,9 +1215,9 @@ dependencies = [
 
 [[package]]
 name = "feldera-types"
-version = "0.56.0"
+version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61506235908b9cf91e316f7195a881bda65ef597530b8e0f3f4fdde80165d37d"
+checksum = "7dbaa9a16ab3617f694b4befa68908e4285a0402cae9782f4cf529eb9026f26c"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -1845,16 +1839,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "io-uring"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "595a0399f411a508feb2ec1e970a4a30c249351e30208960d58298de8660b0e5"
-dependencies = [
- "bitflags 1.3.2",
- "libc",
-]
-
-[[package]]
 name = "ipnet"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2093,7 +2077,7 @@ version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2eb04e9c688eff1c89d72b407f168cf79bb9e867a9d3323ed6c01519eb9cc053"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "cfg-if",
  "libc",
 ]
@@ -2711,7 +2695,7 @@ version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03a862b389f93e68874fbf580b9de08dd02facb9a788ebadaf4a3fd33cf58834"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
 ]
 
 [[package]]
@@ -2883,7 +2867,7 @@ version = "0.38.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f93dc38ecbab2eb790ff964bb77fa94faf256fd3e73285fd7ba0903b76bedb85"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "errno",
  "libc",
  "linux-raw-sys 0.4.14",
@@ -2896,7 +2880,7 @@ version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d97817398dd4bb2e6da002002db259209759911da105da92bec29ccb12cf58bf"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "errno",
  "libc",
  "linux-raw-sys 0.9.4",
@@ -3015,7 +2999,7 @@ version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "271720403f46ca04f7ba6f55d438f8bd878d6b8ca0a1046e8228c4145bcbb316"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "core-foundation",
  "core-foundation-sys",
  "libc",
@@ -3175,9 +3159,12 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.13.2"
+version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
+checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "smawk"
@@ -4138,7 +4125,7 @@ version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3268f3d866458b787f390cf61f4bbb563b922d091359f9608842999eaee3943c"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
 ]
 
 [[package]]

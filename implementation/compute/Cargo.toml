@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 thiserror = { workspace = true }
-dbsp = "0.61.0"
+dbsp = "0.62.0"
 rkyv = { version = "0.7.45", default-features = false, features = [
     "std",
     "size_64",
@@ -22,5 +22,3 @@ size-of = { version = "0.1.5", package = "feldera-size-of", features = [
     "ordered-float",
 ] }
 cli-table = "0.4.9"
-# by_address = "1.2.1"
-# rpds = "1.1.0"

@@ -9,10 +9,12 @@
 ```ebnf
 program     = rule* EOF ;
 rule        = head ":-" body "." ;
-head        = IDENTIFIER "(" comparison ( "," comparison )* ")" ;
+head        = "distinct"? IDENTIFIER "(" field ( "," field )* ")" ;
+field       = IDENTIFIER ( "=" comparison )? ;
 body        = ( atom ( "," atom )* )? ;
 atom        = ( "not"? predicate ) | comparison ;
-predicate   = IDENTIFIER "(" IDENTIFIER ( "," IDENTIFIER )* ")" ;
+predicate   = IDENTIFIER "(" variable ( "," variable )* ")" ;
+variable    = IDENTIFIER ( "=" IDENTIFIER )? ;
 
 comparison  = term ( ( "==" | "!=" | ">" | ">=" | "<" | "<=" ) term )? ;
 term        = factor ( ( "+" | "-" ) factor )* ;

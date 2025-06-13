@@ -1,0 +1,355 @@
+% !TeX root = ../main.tex
+% Add the above to each chapter to make compiling the PDF easier in some editors.
+
+\chapter{Background}\label{ch:background}
+
+\section{Datalog}
+
+Datalog~\cite{green2013datalog} is a declarative logic programming language
+invented in the 80s which is primarily used for expressing queries to retrieve
+data in database systems.
+A Datalog program (or query) consists of a set of rules, which are used to
+derive new facts from existing ones.
+
+\subsection{Syntax and Semantics}
+
+Rules define \emph{predicates} and are syntactially expressed in the form of
+Horn clauses, which are logical implications adhering to this structure:
+
+\begin{equation}
+	\underbrace{
+	\underbrace{r}_{\text{head}}
+	\text{ :- }
+	\underbrace{
+	\underbrace{a_1}_{\text{atom}},
+	\underbrace{a_2}_{\text{atom}},
+	\ldots,
+	\underbrace{a_n}_{\text{atom}}.
+	}_{\text{body}}
+	}_{\text{rule}}
+\end{equation}
+
+The left-hand side of a rule is called \emph{head} and the right-hand side \emph{body}.
+A head consists of an identifier, which also defines the name of the predicate
+the rule defines, as well as a comma-separated list of expressions
+which may reference variables defined in the rule's body.
+A body is a comma-separated sequence of \emph{atoms} followed by a trailing ``.'' (dot).
+An atom is either referencing another \emph{predicate} to bring some of its
+variables into scope or imposing a boolean condition.
+A condition can either restrict a variable's value range (e.g. \(x = 3\))
+or specify a relationship with another variable (e.g. \(x = y\)).
+
+A rule (a predicate) is said to be \emph{self-recursive}
+if it references itself in its (one of its) body (bodies).
+Moreover, it is allowed to have multiple rules sharing the same head, that is,
+they have the same identifier and list of expressions.
+
+\ref{code:trans-closure-datalog} illustrates the concepts for the
+computation of a graph's transitive closure with Datalog.
+It contains three rules which define the two predicates, ``edge'' and ``closure''.
+The ``edge'' predicate contains just the expression ``true''.
+This denotes an empty body and some Datalog variants allow to omit it,
+leaving just the dot on the rule's right-hand side.
+The ``closure'' predicate is defined through the latter two rules which share
+the same head.
+The last rule consists of three atoms: The first one references itself, rendering
+the rule self-recursive, the second one references the ``edge'' predicate,
+and the last atom defines a condition, restricting the value range of the
+``active'' variable.
+The first two atoms bring the variables ``from'', ``via'', ``to'', and ``active''
+into scope.
+The appearance of the same variable ``via'' in both atoms implies that their
+values must be equal, i.e.,
+\(a_1(x), a_2(x)\) is a shorthand for \(a_1(x_1), a_2(x_2), x_1 = x_2\).
+Next to defining the name of the predicate, the head specifies that the ``from''
+and ``to'' variables are exposed for the ``closure'' predicate.
+
+\begin{figure}[htpb]
+	\centering
+	\begin{tabular}{c}
+		\begin{lstlisting}[keepspaces]
+edge(from, to, active) :- .
+closure(from, to)      :- edge(from, to, active), active = true.
+closure(from, to)      :- closure(from, via), edge(via, to, active),
+                          active = true.\end{lstlisting}
+	\end{tabular}
+	\caption{An exemplary computation of a graph's transitive closure with Datalog.}\label{code:trans-closure-datalog}
+\end{figure}
+
+Semantically, a rule can be read from right to left: The body's atoms are
+connected with conjunctions and all variable assignments that satisfy that term
+form a new \emph{fact} of the predicate which the rule defines.
+Mathematically, this can be read as
+``$a_1$ and $a_2$ and \ldots\ and $a_n$ imply $r$'', and expressed as:
+
+\begin{equation}
+	\begin{aligned}
+		                & r \Leftarrow a_1 \land a_2 \land \ldots \land a_n          \\
+		\Leftrightarrow & r \lor \lnot a_1 \lor \lnot a_2 \lor \ldots \lor \lnot a_n
+	\end{aligned}
+\end{equation}
+
+If there are multiple rules with the same head, their bodies' conjunctions
+are connected through a disjunction~\cite{abo2024convergence}.
+\emph{Fact rules} are special rules without a body (with $n=0$), e.g.
+\( r \text{ :- } .\), and they are assumed to be unconditionally true.
+Unlike \emph{derived facts}, \emph{base facts} of fact rules are externally
+given and not derived from other rules.
+Hence, the predicates defined by fact rules and the predicates defined by regular
+rules (those with a body) can be partioned into two disjoint sets,
+\emph{\acp{EDBP}} and \emph{\acp{IDBP}}. Only \acp{IDBP} may reference \acp{EDBP}
+but not vice-versa.
+Facts contain \emph{fields} that can assume basic scalar types such as strings,
+number types, or booleans.
+Moreover, for a regular rule to be valid the \emph{range-restriction property}
+must be satisfied~\cite{green2013datalog}.
+It demands that every variable occuring in the head of a rule must also occur
+at least once in a predicate atom of its body.
+
+Allowing rules to be self-recursive equips Datalog with the ability to express
+repeated computations, therefore requiring a termination condition.
+Datalog uses least-fixpoint semantics, under which the computation terminates
+if an additional iteration of the repeated computation does not alter the result
+anymore \emph{for the first time}.
+This has some consequences but before discussing them we are now in position
+to illustrate the semantics of the example query in \ref{code:trans-closure-datalog}.
+
+The ``edge'' \ac{EDBP} contains all edges of a graph and these are given
+externally, e.g., through an insertion into the database.
+The predicate defines the fields ``from'', ``to'', and ``active''.
+The former two specify \emph{from which node to which other node} an edge points to.
+The latter field can be used to enable or disable an edge but this is just
+a contrived example to demonstrate a condition on a variable.
+The ``closure'' \ac{IDBP} specifies the actual computation of the graph's
+transitive closure.
+The first rule of its definition specifies the computation's starting point,
+that is, all pairs of nodes which (1) are reachable through a path length of 1
+and (2) are marked as ``active''.
+The second rule takes all node pairs identified so far, which are reachable
+through paths of length \(n\), and discovers new node pairs connected
+through a path of length \(n + 1\),
+again while restricting the edges to be marked as ``active''.
+The computation terminates if a (re)application of the rules on top of the
+currently discovered facts does not produce more facts,
+upon which the least-fixpoint is attained.
+
+Least-fixpoint computations can only solve problems whose solutions
+are monotonically growing, as otherwise the least-fixpoint solution may not
+terminate at the optimal solution.
+This can be thought of being stuck at a local minimum instead of finding
+a global optimum in non-convex optimization.
+Another issue, not necessarily tied to least-fixpoint computations but shared
+with all termination criteria, is that it is impossible to prevent
+non-terminating computations in general.
+Consider a small variation on the computation in \ref{code:trans-closure-datalog}.
+If every edge carried a non-negative weight and we wanted to keep track of the
+cumulated weight for each node pair of the transitive closure,
+the computation's termination hinges on the graph being cycle-free.
+With cycles, the computation would walk cycles endlessly and constantly discover
+higher cumulated weights for node pairs which are part of a cycle.
+A discussion of alternatives to fixpoints in the context of SQL
+can be found in \cite{hirn2023fix}.
+
+% TODO:
+% - mention PR on DBSP (maybe later?)
+
+Traditionally, Datalog has set semantics and does not support multisets.
+Moreover, it does not use name-based-indexing but positional-indexing.
+As Datalog lacks a formal specification, there are many flavours of it,
+and later we define our own dialect of it which supports multisets and
+uses name-based-indexing.
+
+Due to the use of relational algebra as an \ac{IR} in \ref{ch:results},
+we point out some connections to it as well as to SQL
+because the latter is the predominant frontend to relational algebra.
+The equivalent of a \emph{relation} in Datalog is a predicate:
+They both define a name under which \emph{tuples} (facts in Datalog; rows in SQL)
+are made available. SQL calls this construct a \emph{table}.
+Yet, relational algebra does not distinguish between base facts and derived facts
+the same way Datalog does.
+The closest counterpart to derived facts are the tuples of a materialized view
+in SQL.
+We suspect that this is due to the little emphasis on composition in SQL.
+
+\subsection{Negation Extension}
+
+The Datalog semantics presented so far is not sufficient to express
+(among other things) relational algebra's set difference operator
+and the advanced example in \ref{fig:mvr-crdt} from \ref{ch:intro}
+due to its lack of negation.
+However, introducing negation without any restrictions to Datalog causes two issues.
+First, every variable occuring in the body of a rule must occur in at least one
+positive (non-negated) predicate atom, which is referred to as
+\emph{safety condition}~\cite{green2013datalog}.
+If it was not satisfied, the result of a query would not just depend on the
+actual content of a database, and may be infinite.
+Second, if negation is combined with recursion its semantics can become undefined
+as \ref{code:negated-datalog-issue} demonstrates.
+
+\begin{figure}[htpb]
+	\centering
+	\begin{tabular}{c}
+		\begin{lstlisting}[keepspaces]
+// TODO: Is there a better example? Maybe with some real-world semantics?
+r_1 :- not r_2.
+r_2 :- not r_1.\end{lstlisting}
+	\end{tabular}
+	\caption{A negated Datalog program with unclear semantics~\cite{green2013datalog}.}\label{code:negated-datalog-issue}
+\end{figure}
+
+The most common resolution to reimpart clear semantics to negative Datalog
+is called \emph{stratified negation}.
+
+Introduce semipositive Datalog.
+
+To compute a stratification of a negative Datalog program \(P\),
+its \emph{precedence graph} \(G_P\) can be utilized.
+It is a directed graph whose nodes are the predicates of \(P\) and there is
+a \emph{positive} edge from predicate \(p_i\) to predicate \(p_j\)
+if \(p_i\) occurs in the body of a rule defining \(p_j\).
+Similarly, there is a \emph{negative} edge from \(p_i\) to \(p_j\)
+if \(p_i\) occurs \emph{negatedly} in the body of a rule defining \(p_j\).
+
+\ref{fig:precedence-graph-mvr} shows the precedence graph of \ref{fig:mvr-crdt}.
+
+\section{\acsp{CRDT} and Coordination-Free Environments}
+
+\acp{CRDT}\footnotemark{} try to solve the problems arising from asynchronous
+collaboration over message-passing networks on the data structure level.
+In these coordination-free environments, in which replicas can be offline
+for extended periods of time but are still permitted to write (and read)
+to (from) their local state at any time,
+the naive delivery of messages allows messages to be arbitrarily delayed,
+to be reordered, and the same message may be delivered multiple times.
+\acp{CRDT} address these challenges by augmenting messages (hereafter updates
+to the \ac{CRDT}) with additional metadata (1) to preserve the user's intention
+in the ``best'' possible manner and (2) to ensure the convergence of replicas,
+even after temporary divergence.
+
+\footnotetext{
+	Although \acp{CRDT} are often referred to as \emph{Conflict-free} Replicated
+	Data Types, we use the term \emph{convergent} here because the former term
+	may be a bit misleading, as conflicts can still occur, e.g., in case of
+	concurrent writes to the same ``location'' of a the data type.
+	We think that CRDTs are better characterized by their property that diverging
+	replicas eventually \emph{converge} to the same state, given the delivery of
+	the same set of updates.
+	While that state may comprise conflicts, replicas uniformly agree upon them
+	(and their order).
+}
+
+Compared to distributed systems that require coordination,
+this model is great for two reasons.
+First, it offers excellent availability and latency for writes because
+they do not have to coordinate over the network with other replicas.
+Second, reads also offer excellent latency but may be stale insofar that they
+do not always reflect the full global state.
+As a consequence of allowing offline writes,
+application specific invariants (beyond the ones guaranteed by the concrete \ac{CRDT})
+may be violated on the aggregate level after convergence,
+even though each write individually respected the invariants (based on their
+respective replica's state at write creation time).
+However, this issue sometimes even affects the ``guarantees'' provided by a \ac{CRDT}:
+Their correct definition is complex and error-prone,
+let alone proving their convergence, even for people familiar with distributed
+systems~\cite{kleppmann2022assessing, gomes2017verifying}.
+Hence, we want to explore defining CRDTs through deterministic queries over
+relational data.
+This ensures that the convergence property is always satisfied by construction,
+thereby allowing application developers with little background in eventual
+consistency to formulate their own, application-specific \acp{CRDT} without
+having to worry about convergence.
+
+We provide a system overview of the approach in \autoref{fig:system-arch}.
+The \emph{database layer} incrementally updates the views \deltaO{},
+as defined by the CRDT Datalog queries formulated on the \emph{application layer},
+in response to updates from both the local \deltaI{local} and remote replicas
+\deltaI{remote}.
+In this model the application layer is responsible for forwarding updates
+to the database layer but forwarding could equally well happen exclusively
+on the latter.
+The database layer must be capable of atomically updating all relations
+of a write to safeguard the CRDT queries against reading inconsistent
+state, i.e., queries must read from a consistent snapshot of the database.
+The next section demonstrates the importance of atomic writes.
+
+\autoref{fig:system-arch} illustrates a peer to peer architecture
+but, due to the lack of hierarchy, different network topologies are also possible,
+e.g., a star network topology with a central server for more efficient update
+gossiping.
+Yet, the issue of update propagation (and update integrity) is not the focus
+of this research and various approaches exist in the literature~\cite{
+	auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
+	kleppmann2022making}.
+This also excludes the question of how to efficiently send just the minimum
+set of missing updates to each replica.
+We only make the basic assumption of some network topology and protocol
+which ensures that each update will eventually be delivered to all replicas.
+Replicas are assumed to be non-byzantine.
+
+\input{figures/system_architecture}
+
+% \subsection{Connecting the Dots: CRDTs and Datalog}\label{sec:crdts-datalog}
+
+The literature defines two classes of CRDTs: state-based and operation-based
+which both have different requirements for correctness.
+Let \( S \) be the set of all possible states of a CRDT.
+State-based CRDTs require a merge function \( \sqcup: S \times S \to S \)
+which must be commutative, associative, and idempotent.
+Operation-based CRDTs require that the operation functions \( op_i: S \to S \)
+are commutative and applied exactly once.
+Both models must adhere to these properties under the strong eventual consistency
+model which demands three properties~\cite{shapiro2011comprehensive}:
+
+\begin{enumerate}
+	\item \textbf{Eventual Delivery}: All updates are eventually delivered to
+	      all replicas.
+	\item \textbf{Termination}: All method executions terminate.
+	\item \textbf{Convergence}: All replicas that have delivered the same set of
+	      updates are in an equivalent state.
+\end{enumerate}
+
+Verifying the correctness for a CRDT is a complex,
+error-prone task~\cite{gomes2017verifying, kleppmann2022assessing},
+and currently has to be done for each CRDT individually.
+If, however, the set of operations on a CRDT \emph{is} the state,
+the merge function can be defined as the set union,
+for which the properties of commutativity, associativity, and idempotency hold.
+The critical convergence property demanded by the strong eventual consistency
+model is then also trivially satisfied because the state is by definition
+the set of all (delivered) operations.
+Moreover, applying any \emph{pure}\footnote{
+	That is, the function is deterministic and side-effect-free.
+}
+function \( f: S \to T \) on the state does not impede the convergence property,
+as the function is applied on all replicas in the same deterministic way.
+\( T \) is an arbitrary set of all possible derived states \( f \) can map to.
+This approach to CRDTs is known in the literature as
+\emph{pure operation-based replicated data types}~\cite{baquero2017pure, stewen2024undo},
+and is used in practice in the Automerge CRDT~\cite{automerge}.
+
+The pure function \( f \) can be expressed in a Datalog query.
+As Datalog evaluation is deterministic, the convergence property is satisfied.
+This gives application developers the power to define their own, custom CRDTs
+without worrying about the complex aspect of convergence.
+Furthermore, the query engine running the Datalog program is responsible
+for finding an efficient algorithm to execute the query and application developers
+can focus on the CRDT at a declarative level and get the implementation ``for free''.
+
+A common pattern of collaboration is near-real-time collaboration on a shared
+document and CRDTs can be used to power this form of collaboration.
+In this scenario, updates are usually frequent but small and therefore it
+may make sense to reuse the result of a previous query along with the input
+delta in hope of saving computation time over recomputing the query from scratch
+based on the whole input with every update.
+Ideally, the computation time is only proportional to the size of the input
+change but not to the whole input size anymore.
+As older, causally overwritten updates to a CRDT are often not contributing
+to the current state of the CRDT anymore, incremental view
+maintenance (IVM)~\cite{mcsherry2013differential, budiu2022dbsp, budiu2024dbsp}
+can turn out to be an essential aspect to make CRDTs expressed as
+queries over relations feasible.
+
+\section{Incremental View Maintenance}
+
+Introduce DBSP's concepts: Circuits, operators, handles.

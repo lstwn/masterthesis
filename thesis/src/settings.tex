@@ -1,0 +1,201 @@
+\PassOptionsToPackage{table,svgnames,dvipsnames}{xcolor}
+
+\usepackage[a-2u]{pdfx} % Generate PDF/A: archival compliant, self-contained pdf.
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[sc]{mathpazo}
+\usepackage[ngerman,american]{babel}
+\usepackage[autostyle]{csquotes}
+\usepackage[%
+	backend=biber,
+	url=false,
+	style=ieee,
+	maxnames=4,
+	minnames=3,
+	maxbibnames=99,
+	giveninits,
+	uniquename=init]{biblatex}
+\usepackage{graphicx}
+\usepackage{scrhack} % Necessary for listings package.
+\usepackage{listings}
+\usepackage{lstautogobble}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\usepackage{booktabs}
+\usepackage[final]{microtype}
+\usepackage{caption}
+\usepackage[printonlyused]{acronym}
+\usepackage{ifthen}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{subcaption}
+\usepackage[nameinlink,noabbrev]{cleveref}
+
+\hypersetup{
+	hidelinks, % Remove colored boxes around references and links.
+}
+
+% Without \AtBeginDocument it does not persist.
+\AtBeginDocument{\renewcommand{\ref}[1]{\Cref{#1}}}
+
+% for fachschaft_print.pdf
+\makeatletter
+\if@twoside
+	\typeout{TUM-Dev LaTeX-Thesis-Template: twoside}
+\else
+	\typeout{TUM-Dev LaTeX-Thesis-Template: oneside}
+\fi
+\makeatother
+
+\addto\extrasamerican{
+	\def\lstnumberautorefname{Line}
+	\def\chapterautorefname{Chapter}
+	\def\sectionautorefname{Section}
+	\def\subsectionautorefname{Subsection}
+	\def\subsubsectionautorefname{Subsubsection}
+}
+
+\addto\extrasngerman{
+	\def\lstnumberautorefname{Zeile}
+}
+
+% Themes
+\ifthenelse{\equal{\detokenize{dark}}{\jobname}}{%
+	% Dark theme
+	\newcommand{\bg}{black} % background
+	\newcommand{\fg}{white} % foreground
+	\usepackage[pagecolor=\bg]{pagecolor}
+	\color{\fg}
+}{%
+	% Light theme
+	\newcommand{\bg}{white} % background
+	\newcommand{\fg}{black} % foreground
+}
+
+\bibliography{bibliography}
+
+\setkomafont{disposition}{\normalfont\bfseries} % Use serif font for headings.
+\linespread{1.05} % Adjust line spread for mathpazo font.
+
+% Add table of contents to PDF bookmarks.
+\BeforeTOCHead[toc]{{\cleardoublepage\pdfbookmark[0]{\contentsname}{toc}}}
+
+% Define TUM corporate design colors.
+% Taken from http://portal.mytum.de/corporatedesign/index_print/vorlagen/index_farben
+\definecolor{TUMBlue}{HTML}{0065BD}
+\definecolor{TUMSecondaryBlue}{HTML}{005293}
+\definecolor{TUMSecondaryBlue2}{HTML}{003359}
+\definecolor{TUMBlack}{HTML}{000000}
+\definecolor{TUMWhite}{HTML}{FFFFFF}
+\definecolor{TUMDarkGray}{HTML}{333333}
+\definecolor{TUMGray}{HTML}{808080}
+\definecolor{TUMLightGray}{HTML}{CCCCC6}
+\definecolor{TUMAccentGray}{HTML}{DAD7CB}
+\definecolor{TUMAccentOrange}{HTML}{E37222}
+\definecolor{TUMAccentGreen}{HTML}{A2AD00}
+\definecolor{TUMAccentLightBlue}{HTML}{98C6EA}
+\definecolor{TUMAccentBlue}{HTML}{64A0C8}
+
+% Settings for pgfplots.
+\pgfplotsset{compat=newest}
+\pgfplotsset{
+	% For available color names, see http://www.latextemplates.com/svgnames-colors
+	cycle list={TUMBlue\\TUMAccentOrange\\TUMAccentGreen\\TUMSecondaryBlue2\\TUMDarkGray\\},
+}
+
+% Settings for lstlistings.
+\lstset{%
+	basicstyle=\ttfamily\small,
+	columns=fullflexible,
+	autogobble,
+	keywordstyle=\bfseries\color{TUMBlue},
+	stringstyle=\color{TUMAccentGreen},
+	captionpos=b
+}
+
+% verbatim does not work here, use some alternative like listing or minted?
+\newenvironment{codeblock}{
+	\begin{small}
+		\begin{verbatim}
+}{
+    \end{verbatim}
+	\end{small}
+}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\setop}[5][set]{$\mathit{#1}_{#2}^{#3}(#4, #5)$}
+\newcommand{\var}[1]{\mathit{#1}}
+\newcommand{\deltaI}[1]{\(\delta I_{\text{#1}}\)}
+\newcommand{\deltaO}[1][]{\(\delta O_{\text{#1}}\)}
+
+% Settings for TikZ.
+\usetikzlibrary{
+	automata,
+	positioning,
+	arrows, arrows.meta,
+	calc, backgrounds, quotes,
+	patterns, fit
+}
+\tikzset{
+op/.style={
+		font=\footnotesize,
+		state,
+		minimum size=56.0pt,
+		fill=white,
+		scale=0.9,
+	},
+head/.style={
+		op,
+		accepting,
+	},
+edge/.style={
+->,
+>={Stealth[round]},
+},
+pred/.style={
+		edge,
+	},
+anchorref/.style={
+		edge,
+		blue,
+		densely dashed,
+	},
+stepmarker/.style={
+		font=\footnotesize,
+		fill=black!10,
+	},
+stepline/.style={
+		edge,
+		black!70,
+		dotted,
+		semithick,
+		-,
+	},
+}
+
+\newcommand{\replica}{
+	\begin{tikzpicture}
+		\tikzset{
+		layer/.style={
+				rectangle, draw, minimum height=1.5cm, minimum width=2.3cm,
+				rounded corners=1mm,
+				font=\footnotesize, align=center,
+			},
+		rel/.style={
+		->, >={Stealth[round]}, },
+		}
+		\node[layer] (app) {\textbf{Application}\\ \textbf{Layer}};
+		\node[layer,right=of app] (db) {
+			\textbf{Database Layer}\\
+			Maintains Datalog\\
+			Queries \(\delta I \to \delta O\)
+		};
+		\node[layer,above=2.0cm of app] (user) {\textbf{User}};
+
+		\draw[rel] (user) to["issues \deltaI{local}", bend left, near start] (app);
+		\draw[rel] (app) to["sees \deltaO", bend left,auto=right] (user);
+
+		\draw[rel] (app) to["forwards \deltaI{local} and \deltaI{remote}", bend right=45, auto=right] (db);
+		\draw[rel] (db) to["provides \deltaO", bend right=45, auto=right,near start] (app);
+	\end{tikzpicture}
+}

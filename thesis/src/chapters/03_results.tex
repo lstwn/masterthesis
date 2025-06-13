@@ -1,0 +1,121 @@
+% !TeX root = ../main.tex
+% Add the above to each chapter to make compiling the PDF easier in some editors.
+
+\chapter{Results}\label{ch:results}
+
+\section{Incremental Query Engine}
+
+Tree-walk interpreter that delegates to DBSP. Schema tracking.
+
+Compile-time vs run-time.
+Compile-time: Query plan build time.
+Run-time: Query plan execution time.
+
+The interpreter is invoked at different stages of the query execution.
+First, it is invoked to construct a DBSP circuit, i.e., a query plan in
+Database speak, which can then be executed by DBSP.
+Second, while DBSP executes the circuit, the interpreter is invoked to
+evaluate expressions and to access the values of variables. For instance,
+this happens when a selection's predicate or a projection's expression
+is evaluated.
+
+Running example: Transitive closure.
+
+\subsection{Intermediate Representation Relational Algebra}
+
+We built an intermediate representation (IR) that supports both operations
+on scalars and relations. Moreover, the IR supports a variety of programming
+language constructs, such as variables, functions, and lexical scopes.
+
+Introduce operators on relations.
+
+\subsection{Datalog Frontend}
+
+Define grammar, outline parser.
+
+\begin{figure}[htpb]
+	\centering
+	\begin{tabular}{c}
+		\begin{lstlisting}[]
+		program     = rule* EOF ;
+		rule        = head ":-" body "." ;
+		head        = IDENTIFIER "(" comparison ( "," comparison )* ")" ;
+		body        = ( atom ( "," atom )* )? ;
+		atom        = ( "not"? predicate ) | comparison ;
+		predicate   = IDENTIFIER "(" IDENTIFIER ( "," IDENTIFIER )* ")" ;
+
+		comparison  = term ( ( "==" | "!=" | ">" | ">=" | "<" | "<=" ) term )? ;
+		term        = factor ( ( "+" | "-" ) factor )* ;
+		factor      = unary ( ( "*" | "/" ) unary )* ;
+		unary       = ( "-" | "!" ) unary | primary ;
+		primary     = literal | IDENTIFIER | "(" comparison ")" ;
+		literal     = BOOL | UINT | IINT | STRING | NULL ;
+
+		BOOL        = "true" | "false" ;
+		UINT        = DIGIT+ ;
+		IINT        = ( "-" | "+" )? DIGIT+ ;
+		STRING      = "\""<any char except "\"">*"\"" ;
+		IDENTIFIER  = ALPHA ( ALPHA | DIGIT )* ;
+		ALPHA       = "a".."z" | "A".."Z" | "_" ;
+		DIGIT       = "0".."9" ;
+		NULL        = "null" ;
+        \end{lstlisting}
+	\end{tabular}
+	\caption[Example listing]{Grammar of our Datalog Variant.}\label{code:datalog-grammar}
+\end{figure}
+
+\subsubsection{Important Characteristics of our Datalog Variant}
+
+- No mutual recursion, only self-recursion (precludes issues arising from
+stratified negation, it is even stricter than it).
+- At most one negative atom per rule. Also, the relation's type of the
+positive atoms must match the relation's type of the negative atom.
+
+Datalog is frequently using positional indexing to access variables from a
+predicate. We decided to use nominal indexing for two reasons:
+First, it aligns better with our relational algebra IR,
+as relational algebra uses names to refer to relations' variables.
+Second, positional indexing is not really a viable option in practice because
+predicates (or relations) with lots of columns occur in many database schemas,
+rendering positional indexing cumbersome.
+Finally, variables starting with an underscore are ignored but can be used
+to make things more explicit.
+
+Datalog is a declarative language. Hence, it does not specify how to execute
+a query and leaves finding a valid execution order to the query engine.
+Therefore, we construct a precedence graph from the rules of a Datalog program.
+
+TODO Define precedence graph.
+
+Datalog and distinct operator? Set semantics is the default in Datalog but don't
+we rather want bag semantics?
+
+\subsection{Translating Datalog to Relational Algebra}
+
+% Includes "soft" query optimization.
+
+Completely naive query translation with cartesian product and subsequent filter.
+
+Define semi-naive query translation.
+
+\(n \in \mathbb{N}\) number of rules with the same name with index \(i \in [n]\).
+\(m \in \mathbb{N}\) number of a single rule's atoms with index \(j \in [m]\).
+\(p \in \mathbb{N}\) number of the rule's head's variables with index \(k \in [p]\).
+\(p_m \in \mathbb{N}\) number of the \(m\)-th atom's variables with index \(k_m \in [p_m]\).
+
+% \[
+% 	output(v_1, \ldots, v_p) \leftarrow
+% 	input_1(v_1_1, \ldots, v_v_p_1),
+% 	input_2(v_2_1, \ldots, v_2_p_2),
+% 	\ldots
+% 	input_m(v_m_1, \ldots, v_m_p_m),
+% 	filters.
+% \]
+
+% \[
+% 	output(v_1, \ldots, v_p) \leftarrow \ldots .
+% 	\ldots
+% 	output(v_1, \ldots, v_p) \leftarrow \ldots .
+% \]
+
+\section{\acp{CRDT} as Queries}

@@ -10,7 +10,7 @@ build_dir="$source_dir/build"
 echo $source_dir $build_dir
 
 function build() {
-  /usr/local/bin/tectonic -X compile $file.tex \
+  /opt/homebrew/bin/tectonic -X compile $file.tex \
     --untrusted --synctex --keep-logs --keep-intermediates \
     --outdir "$build_dir"
 }

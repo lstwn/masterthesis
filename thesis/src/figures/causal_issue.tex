@@ -1,0 +1,37 @@
+\begin{figure}[tpb]
+	\centering
+	\begin{tikzpicture}
+		\small
+		\def\dist{15pt}
+		\def\shift{+20pt}
+
+		\tikzset{
+			tx/.style={draw=gray, dashed},
+			tx_label/.style={text=gray, align=left, anchor=north}
+		}
+
+		% nodes and edges
+		\node[op] (k10) {\setop{1}{r_1}{k_1}{x}};
+
+		\node[op,above right=\dist of k10,xshift=\shift] (k11) {\setop{2}{r_1}{k_1}{y_1}}
+		edge [pred] (k10);
+		\node[op,below right=\dist of k10,xshift=\shift] (k12) {\setop{2}{r_2}{k_1}{z}}
+		edge [pred] (k10);
+
+		\node[op, below right=\dist of k11,xshift=\shift] (k13) {\setop{3}{r_1}{k_1}{y_2}}
+		edge [pred] (k11) edge [pred] (k12);
+		\node[op, right=of k13] (k14) {\setop{4}{r_1}{k_1}{y_3}}
+		edge [pred] (k13);
+
+		\node[tx,fit=(k10) (k11) (k12)] (tx0) {};
+		\node[tx_label] at (tx0.south) {state of origin};
+		\node[tx,draw=red,fit=(k13)] (tx1) {};
+		\node[tx_label,text=red] at (tx1.south) {\(w_1\) (delayed)};
+		\node[tx,fit=(k14)] (tx2) {};
+		\node[tx_label] at (tx2.south) {\(w_2\)};
+
+	\end{tikzpicture}
+	\caption{
+		Example of a causality issue with the naive queries from \autoref{sec:motivating-example}.
+	}\label{fig:causal_issue}
+\end{figure}

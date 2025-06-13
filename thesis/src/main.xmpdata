@@ -1,6 +1,6 @@
-% Metadata for PDF
-\Author{\getAuthor}
 \Title{\getTitle}
+\Author{\getAuthor}
+\Language{en-US}
 \Keywords{\getKeywords}
+\Publisher{\getUniversity}
 \Subject{\getDoctype}
-

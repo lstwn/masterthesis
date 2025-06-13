@@ -3,6 +3,9 @@ use std::rc::Rc;
 
 /// If the schema is not coalesced, this helper will compact the tuple key and
 /// tuple value of the relation to _only_ carry the active fields of the schema.
+///
+/// This is important for set operations like union, intersection, and difference,
+/// which require equality of schemas to function correctly.
 pub fn coalesce_helper(relation: RelationRef) -> RelationRef {
     let relation_ref = relation.borrow();
 

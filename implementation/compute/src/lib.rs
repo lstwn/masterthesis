@@ -8,6 +8,7 @@ mod function;
 mod interpreter;
 pub mod operator;
 mod operators;
+mod optimizer;
 pub mod relation;
 mod resolver;
 mod scalar;
@@ -16,11 +17,19 @@ pub mod type_resolver;
 mod util;
 pub mod variable;
 
+use crate::{
+    dbsp::{DbspInputs, DbspOutput},
+    error::{RuntimeError, SyntaxError},
+    optimizer::optimizer::Optimizer,
+    stmt::Code,
+};
 use context::{InterpreterContext, ProgramContext, ResolverContext};
+use dbsp::{DBSPHandle, DbspError, RootCircuit, Runtime};
 use error::IncLogError;
 use interpreter::Interpreter;
 use resolver::Resolver;
-use stmt::{Code, Stmt};
+use std::num::NonZeroUsize;
+use stmt::Stmt;
 use variable::Value;
 
 // Var: Variable
@@ -43,21 +52,6 @@ impl IncLog {
             had_syntax_err: false,
             had_runtime_err: false,
         }
-    }
-    pub fn run_and_print(&mut self, source: String) {
-        match self.run(source) {
-            Ok(Some(val)) => println!("{}", val),
-            Ok(None) => (),
-            Err(err) => eprintln!("{}", err),
-        }
-    }
-    pub fn run(&mut self, source: String) -> Result<Option<Value>, IncLogError> {
-        self.parse(source).and_then(|stmts| self.execute(stmts))
-    }
-    pub fn parse(&mut self, source: String) -> Result<Code, IncLogError> {
-        // Should actually parse the input string and create an expression
-        // or a list of statements.
-        todo!()
     }
     pub fn execute(
         &mut self,
@@ -94,11 +88,111 @@ impl IncLog {
     }
 }
 
+#[derive(Clone)]
+pub struct IncDataLog {
+    threads: NonZeroUsize,
+    optimize: bool,
+}
+
+impl Default for IncDataLog {
+    fn default() -> Self {
+        Self {
+            threads: NonZeroUsize::new(1).unwrap(),
+            optimize: true,
+        }
+    }
+}
+
+impl IncDataLog {
+    pub fn build_circuit_from_ir<F, Code>(
+        &self,
+        intermediate_representation: F,
+    ) -> Result<(DBSPHandle, DbspInputs, DbspOutput), anyhow::Error>
+    where
+        Code: IntoIterator<Item = Stmt>,
+        F: Fn(&mut RootCircuit, &mut DbspInputs) -> Result<Code, SyntaxError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+    {
+        let optimizer = self.init_optimizer();
+        let (circuit, (inputs, output)) = self.init_dbsp_runtime(move |root_circuit| {
+            let mut inputs = DbspInputs::default();
+            let naive_program = intermediate_representation(root_circuit, &mut inputs)?
+                .into_iter()
+                .collect();
+            let optimized_program = if let Some(optimizer) = optimizer {
+                optimizer.optimize(naive_program)?
+            } else {
+                naive_program
+            };
+            Self::build_circuit(inputs, optimized_program).map_err(anyhow::Error::from)
+        })?;
+
+        Ok((circuit, inputs, output))
+    }
+    // pub fn build_circuit_from_datalog<T: AsRef<str> + Clone + Send + 'static>(
+    //     &self,
+    //     code: T,
+    // ) -> Result<(DBSPHandle, DbspInputs, DbspOutput), anyhow::Error> {
+    //     let optimizer = self.init_optimizer();
+    //     let (circuit, (inputs, output)) = self.init_dbsp_runtime(move |root_circuit| {
+    //         let (inputs, naive_program) = Parser::new(root_circuit).parse(code.as_ref())?;
+    //         let optimized_program = if let Some(optimizer) = optimizer {
+    //             optimizer.optimize(naive_program)?
+    //         } else {
+    //             naive_program
+    //         };
+    //         Self::build_circuit(inputs, optimized_program).map_err(anyhow::Error::from)
+    //     })?;
+
+    //     Ok((circuit, inputs, output))
+    // }
+    fn init_dbsp_runtime<F, T>(&self, constructor: F) -> Result<(DBSPHandle, T), DbspError>
+    where
+        F: FnOnce(&mut RootCircuit) -> Result<T, anyhow::Error> + Clone + Send + 'static,
+        T: Send + 'static,
+    {
+        Runtime::init_circuit(usize::from(self.threads), constructor)
+    }
+    fn init_optimizer(&self) -> Option<Optimizer> {
+        if self.optimize {
+            Some(Optimizer::default())
+        } else {
+            None
+        }
+    }
+    fn build_circuit(
+        inputs: DbspInputs,
+        program: Code,
+    ) -> Result<(DbspInputs, DbspOutput), RuntimeError> {
+        let output = IncLog::default().execute(program);
+
+        let output = match output {
+            Ok(Some(Value::Relation(relation))) => {
+                let relation = relation.borrow();
+                let output_handle = relation.inner.output();
+                let output_schema = relation.schema.clone();
+                DbspOutput::new(output_schema, output_handle)
+            }
+            result => {
+                return Err(RuntimeError::new(format!(
+                    "Expected a relation as program's output, got {:?}",
+                    result
+                )));
+            }
+        };
+
+        Ok((inputs, output))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::{
-        dbsp::{DbspInput, DbspInputs, DbspOutput},
+        dbsp::{DbspInput, DbspInputs, DbspOutput, RootCircuit, zset},
         expr::{
             AliasExpr, CartesianProductExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr,
             FixedPointIterExpr, ProjectionExpr, SelectionExpr, UnionExpr,
@@ -107,7 +201,6 @@ mod test {
         scalar::ScalarTypedValue,
         stmt::BlockStmt,
     };
-    use ::dbsp::{RootCircuit, zset};
     use expr::{AssignExpr, BinaryExpr, CallExpr, Expr, Literal, LiteralExpr, VarExpr};
     use operator::Operator;
     use stmt::{ExprStmt, Stmt, VarStmt};
@@ -300,6 +393,10 @@ mod test {
                 active: true,
             }
         }
+        fn schema() -> RelationSchema {
+            RelationSchema::new("edges", ["from", "to", "weight", "active"], ["from", "to"])
+                .expect("Correct schema definition")
+        }
     }
 
     impl From<Edge> for TupleKey {
@@ -326,14 +423,75 @@ mod test {
         }
     }
 
+    // TODO: test multithreaded runtime
+    fn setup_inc_data_log() -> IncDataLog {
+        IncDataLog::default()
+    }
+
     #[test]
     fn test_selection_and_projection() -> Result<(), anyhow::Error> {
-        // TODO: test multithreaded runtime
-        let (circuit, (inputs, output)) = RootCircuit::build(new_selection_expr)?;
+        let (mut circuit, inputs, output) =
+            setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
+                Ok([
+                    Stmt::from(VarStmt {
+                        name: "add".to_string(),
+                        initializer: Some(new_add_function_expr()),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "constant".to_string(),
+                        initializer: Some(Expr::from(LiteralExpr {
+                            value: Literal::Uint(1),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "selected".to_string(),
+                        initializer: Some(Expr::from(SelectionExpr {
+                            condition: Expr::from(BinaryExpr {
+                                operator: Operator::GreaterEqual,
+                                // TODO: Try more complex logical expression with and/or.
+                                left: Expr::from(VarExpr::new("weight")),
+                                right: Expr::from(CallExpr {
+                                    callee: Expr::from(VarExpr::new("add")),
+                                    arguments: vec![
+                                        Expr::from(VarExpr::new("constant")),
+                                        Expr::from(LiteralExpr {
+                                            value: Literal::Uint(1),
+                                        }),
+                                    ],
+                                }),
+                            }),
+                            relation: Expr::from(DbspInput::add(
+                                Edge::schema(),
+                                root_circuit,
+                                dbsp_inputs,
+                            )),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "projected".to_string(),
+                        initializer: Some(Expr::from(ProjectionExpr {
+                            relation: Expr::from(VarExpr::new("selected")),
+                            attributes: ["from", "to", "weight"]
+                                .into_iter()
+                                .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
+                                .chain([(
+                                    // Here we create an entirely new column.
+                                    "product_from_to".to_string(),
+                                    Expr::from(BinaryExpr {
+                                        operator: Operator::Multiplication,
+                                        left: Expr::from(VarExpr::new("from")),
+                                        right: Expr::from(VarExpr::new("to")),
+                                    }),
+                                )])
+                                .collect(),
+                        })),
+                    }),
+                ])
+            })?;
+
         let edges_input = inputs.get("edges").unwrap();
 
         let data1 = [Edge::new(0, 1, 1), Edge::new(1, 2, 2), Edge::new(2, 3, 3)];
-
         let data2 = [Edge::new(3, 4, 1), Edge::new(4, 5, 2), Edge::new(5, 6, 3)];
 
         println!("Insert of data1:");

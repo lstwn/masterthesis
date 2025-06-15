@@ -20,7 +20,7 @@ pub mod variable;
 use crate::{
     dbsp::{DbspInputs, DbspOutput},
     error::{RuntimeError, SyntaxError},
-    optimizer::optimizer::Optimizer,
+    optimizer::Optimizer,
     stmt::Code,
 };
 use context::{InterpreterContext, ProgramContext, ResolverContext};
@@ -132,23 +132,26 @@ impl IncDataLog {
 
         Ok((circuit, inputs, output))
     }
-    // pub fn build_circuit_from_datalog<T: AsRef<str> + Clone + Send + 'static>(
-    //     &self,
-    //     code: T,
-    // ) -> Result<(DBSPHandle, DbspInputs, DbspOutput), anyhow::Error> {
-    //     let optimizer = self.init_optimizer();
-    //     let (circuit, (inputs, output)) = self.init_dbsp_runtime(move |root_circuit| {
-    //         let (inputs, naive_program) = Parser::new(root_circuit).parse(code.as_ref())?;
-    //         let optimized_program = if let Some(optimizer) = optimizer {
-    //             optimizer.optimize(naive_program)?
-    //         } else {
-    //             naive_program
-    //         };
-    //         Self::build_circuit(inputs, optimized_program).map_err(anyhow::Error::from)
-    //     })?;
+    pub fn build_circuit_from_parser<F>(
+        &self,
+        parser: F,
+    ) -> Result<(DBSPHandle, DbspInputs, DbspOutput), anyhow::Error>
+    where
+        F: Fn(&mut RootCircuit) -> Result<(DbspInputs, Code), SyntaxError> + Clone + Send + 'static,
+    {
+        let optimizer = self.init_optimizer();
+        let (circuit, (inputs, output)) = self.init_dbsp_runtime(move |root_circuit| {
+            let (inputs, naive_program) = parser(root_circuit)?;
+            let optimized_program = if let Some(optimizer) = optimizer {
+                optimizer.optimize(naive_program)?
+            } else {
+                naive_program
+            };
+            Self::build_circuit(inputs, optimized_program).map_err(anyhow::Error::from)
+        })?;
 
-    //     Ok((circuit, inputs, output))
-    // }
+        Ok((circuit, inputs, output))
+    }
     fn init_dbsp_runtime<F, T>(&self, constructor: F) -> Result<(DBSPHandle, T), DbspError>
     where
         F: FnOnce(&mut RootCircuit) -> Result<T, anyhow::Error> + Clone + Send + 'static,
@@ -192,7 +195,7 @@ impl IncDataLog {
 mod test {
     use super::*;
     use crate::{
-        dbsp::{DbspInput, DbspInputs, DbspOutput, RootCircuit, zset},
+        dbsp::{DbspInput, zset},
         expr::{
             AliasExpr, CartesianProductExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr,
             FixedPointIterExpr, ProjectionExpr, SelectionExpr, UnionExpr,
@@ -298,129 +301,6 @@ mod test {
         assert_eq!(Value::Uint(3), result);
 
         Ok(())
-    }
-
-    fn new_selection_expr(
-        root_circuit: &mut RootCircuit,
-    ) -> Result<(DbspInputs, DbspOutput), anyhow::Error> {
-        let mut dbsp_inputs = DbspInputs::default();
-
-        let code = [
-            Stmt::from(VarStmt {
-                name: "add".to_string(),
-                initializer: Some(new_add_function_expr()),
-            }),
-            Stmt::from(VarStmt {
-                name: "constant".to_string(),
-                initializer: Some(Expr::from(LiteralExpr {
-                    value: Literal::Uint(1),
-                })),
-            }),
-            Stmt::from(VarStmt {
-                name: "selected".to_string(),
-                initializer: Some(Expr::from(SelectionExpr {
-                    condition: Expr::from(BinaryExpr {
-                        operator: Operator::GreaterEqual,
-                        // TODO: Try more complex logical expression with and/or.
-                        left: Expr::from(VarExpr::new("weight")),
-                        right: Expr::from(CallExpr {
-                            callee: Expr::from(VarExpr::new("add")),
-                            arguments: vec![
-                                Expr::from(VarExpr::new("constant")),
-                                Expr::from(LiteralExpr {
-                                    value: Literal::Uint(1),
-                                }),
-                            ],
-                        }),
-                    }),
-                    relation: Expr::from(DbspInput::add(
-                        RelationSchema::new(
-                            "edges",
-                            ["from", "to", "weight", "active"],
-                            ["from", "to"],
-                        )?,
-                        root_circuit,
-                        &mut dbsp_inputs,
-                    )),
-                })),
-            }),
-            Stmt::from(VarStmt {
-                name: "projected".to_string(),
-                initializer: Some(Expr::from(ProjectionExpr {
-                    relation: Expr::from(VarExpr::new("selected")),
-                    attributes: ["from", "to", "weight"]
-                        .into_iter()
-                        .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
-                        .chain([(
-                            // Here we create an entirely new column.
-                            "product_from_to".to_string(),
-                            Expr::from(BinaryExpr {
-                                operator: Operator::Multiplication,
-                                left: Expr::from(VarExpr::new("from")),
-                                right: Expr::from(VarExpr::new("to")),
-                            }),
-                        )])
-                        .collect(),
-                })),
-            }),
-        ];
-
-        match IncLog::new().execute(code) {
-            Ok(Some(Value::Relation(relation))) => {
-                let relation = relation.borrow();
-                let output_handle = relation.inner.output();
-                let output_schema = relation.schema.clone();
-                Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
-            }
-            result => panic!("Expected a relation, got {:?}", result),
-        }
-    }
-
-    #[derive(Copy, Clone, Debug)]
-    struct Edge {
-        from: u64,
-        to: u64,
-        weight: u64,
-        active: bool,
-    }
-
-    impl Edge {
-        fn new(from: u64, to: u64, weight: u64) -> Self {
-            Self {
-                from,
-                to,
-                weight,
-                active: true,
-            }
-        }
-        fn schema() -> RelationSchema {
-            RelationSchema::new("edges", ["from", "to", "weight", "active"], ["from", "to"])
-                .expect("Correct schema definition")
-        }
-    }
-
-    impl From<Edge> for TupleKey {
-        fn from(edge: Edge) -> Self {
-            TupleKey {
-                data: vec![
-                    ScalarTypedValue::Uint(edge.from),
-                    ScalarTypedValue::Uint(edge.to),
-                ],
-            }
-        }
-    }
-
-    impl From<Edge> for TupleValue {
-        fn from(edge: Edge) -> Self {
-            TupleValue {
-                data: vec![
-                    ScalarTypedValue::Uint(edge.from),
-                    ScalarTypedValue::Uint(edge.to),
-                    ScalarTypedValue::Uint(edge.weight),
-                    ScalarTypedValue::Bool(edge.active),
-                ],
-            }
-        }
     }
 
     // TODO: test multithreaded runtime
@@ -545,12 +425,70 @@ mod test {
         Ok(())
     }
 
+    #[derive(Copy, Clone, Debug)]
+    struct Edge {
+        from: u64,
+        to: u64,
+        weight: u64,
+        active: bool,
+    }
+
+    impl Edge {
+        fn new(from: u64, to: u64, weight: u64) -> Self {
+            Self {
+                from,
+                to,
+                weight,
+                active: true,
+            }
+        }
+        fn schema() -> RelationSchema {
+            RelationSchema::new("edges", ["from", "to", "weight", "active"], ["from", "to"])
+                .expect("Correct schema definition")
+        }
+    }
+
+    impl From<Edge> for TupleKey {
+        fn from(edge: Edge) -> Self {
+            TupleKey {
+                data: vec![
+                    ScalarTypedValue::Uint(edge.from),
+                    ScalarTypedValue::Uint(edge.to),
+                ],
+            }
+        }
+    }
+
+    impl From<Edge> for TupleValue {
+        fn from(edge: Edge) -> Self {
+            TupleValue {
+                data: vec![
+                    ScalarTypedValue::Uint(edge.from),
+                    ScalarTypedValue::Uint(edge.to),
+                    ScalarTypedValue::Uint(edge.weight),
+                    ScalarTypedValue::Bool(edge.active),
+                ],
+            }
+        }
+    }
+
     #[derive(Clone, Debug)]
     struct Person {
         person_id: u64,
         name: String,
         age: u64,
         profession_id: u64,
+    }
+
+    impl Person {
+        fn schema() -> RelationSchema {
+            RelationSchema::new(
+                "person",
+                ["person_id", "name", "age", "profession_id"],
+                ["person_id"],
+            )
+            .expect("Correct schema definition")
+        }
     }
 
     impl From<Person> for TupleKey {
@@ -578,6 +516,13 @@ mod test {
     struct Profession {
         profession_id: u64,
         name: String,
+    }
+
+    impl Profession {
+        fn schema() -> RelationSchema {
+            RelationSchema::new("profession", ["profession_id", "name"], ["profession_id"])
+                .expect("Correct schema definition")
+        }
     }
 
     impl From<Profession> for TupleKey {
@@ -634,85 +579,181 @@ mod test {
         (persons, professions)
     }
 
+    #[derive(Copy, Clone, Debug)]
+    struct PredRel {
+        from_node_id: u64,
+        from_counter: u64,
+        to_node_id: u64,
+        to_counter: u64,
+    }
+
+    impl PredRel {
+        fn new(from_node_id: u64, from_counter: u64, to_node_id: u64, to_counter: u64) -> Self {
+            Self {
+                from_node_id,
+                from_counter,
+                to_node_id,
+                to_counter,
+            }
+        }
+        fn schema() -> RelationSchema {
+            RelationSchema::new(
+                "pred",
+                ["FromNodeId", "FromCounter", "ToNodeId", "ToCounter"],
+                ["FromNodeId", "FromCounter", "ToNodeId", "ToCounter"],
+            )
+            .expect("Correct schema definition")
+        }
+    }
+
+    impl From<PredRel> for TupleKey {
+        fn from(pred_rel: PredRel) -> Self {
+            TupleKey::from_iter([
+                pred_rel.from_node_id,
+                pred_rel.from_counter,
+                pred_rel.to_node_id,
+                pred_rel.to_counter,
+            ])
+        }
+    }
+
+    impl From<PredRel> for TupleValue {
+        fn from(pred_rel: PredRel) -> Self {
+            TupleValue::from_iter([
+                pred_rel.from_node_id,
+                pred_rel.from_counter,
+                pred_rel.to_node_id,
+                pred_rel.to_counter,
+            ])
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    struct SetOp {
+        node_id: u64,
+        counter: u64,
+        key: u64,
+        value: u64,
+    }
+
+    impl SetOp {
+        fn new(node_id: u64, counter: u64, key: u64, value: u64) -> Self {
+            Self {
+                node_id,
+                counter,
+                key,
+                value,
+            }
+        }
+        fn schema() -> RelationSchema {
+            RelationSchema::new(
+                "set",
+                ["NodeId", "Counter", "Key", "Value"],
+                ["NodeId", "Counter"],
+            )
+            .expect("Correct schema definition")
+        }
+    }
+
+    impl From<SetOp> for TupleKey {
+        fn from(set_op: SetOp) -> Self {
+            TupleKey::from_iter([set_op.node_id, set_op.counter])
+        }
+    }
+
+    impl From<SetOp> for TupleValue {
+        fn from(set_op: SetOp) -> Self {
+            TupleValue::from_iter([set_op.node_id, set_op.counter, set_op.key, set_op.value])
+        }
+    }
+
+    struct Replica {
+        node_id: u64,
+        counter: u64,
+    }
+
+    impl Replica {
+        fn new(node_id: u64) -> Self {
+            Self {
+                node_id,
+                counter: 0,
+            }
+        }
+        fn generate_set(&mut self, key: u64, value: u64) -> SetOp {
+            // TODO: pred op
+            let result = SetOp {
+                node_id: self.node_id,
+                counter: self.counter,
+                key,
+                value,
+            };
+            self.counter += 1;
+            result
+        }
+    }
+
     #[test]
     fn test_standard_join() -> Result<(), anyhow::Error> {
-        let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
-            let mut dbsp_inputs = DbspInputs::default();
+        let (mut circuit, inputs, output) =
+            setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
+                let code = [
+                    Stmt::from(VarStmt {
+                        name: "person".to_string(),
+                        initializer: Some(Expr::from(DbspInput::add(
+                            Person::schema(),
+                            root_circuit,
+                            dbsp_inputs,
+                        ))),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "profession".to_string(),
+                        initializer: Some(Expr::from(DbspInput::add(
+                            Profession::schema(),
+                            root_circuit,
+                            dbsp_inputs,
+                        ))),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "joined".to_string(),
+                        initializer: Some(Expr::from(EquiJoinExpr {
+                            left: Expr::from(AliasExpr {
+                                relation: Expr::from(VarExpr::new("person")),
+                                alias: "pers".to_string(),
+                            }),
+                            right: Expr::from(AliasExpr {
+                                relation: Expr::from(VarExpr::new("profession")),
+                                alias: "prof".to_string(),
+                            }),
+                            // TODO: Shall we force aliasing here? Technically, it isn't
+                            // required because the left attribute only operates on the left relation
+                            // and the right attribute only operates on the right relation.
+                            on: vec![(
+                                Expr::from(VarExpr::new("profession_id")),
+                                Expr::from(VarExpr::new("profession_id")),
+                            )],
+                            // attributes: None,
+                            attributes: Some(
+                                // Here, we filter out the duplicated profession_id column
+                                // that occurs after the join.
+                                [
+                                    ("person_id", "pers.person_id"),
+                                    ("person_name", "pers.name"),
+                                    ("age", "pers.age"),
+                                    ("profession_id", "prof.profession_id"),
+                                    ("profession_name", "prof.name"),
+                                ]
+                                .into_iter()
+                                .map(|(name, identifier)| {
+                                    (name.to_string(), Expr::from(VarExpr::new(identifier)))
+                                })
+                                .collect(),
+                            ),
+                        })),
+                    }),
+                ];
+                Ok(code)
+            })?;
 
-            let code = [
-                Stmt::from(VarStmt {
-                    name: "person".to_string(),
-                    initializer: Some(Expr::from(DbspInput::add(
-                        RelationSchema::new(
-                            "person",
-                            ["person_id", "name", "age", "profession_id"],
-                            ["person_id"],
-                        )?,
-                        root_circuit,
-                        &mut dbsp_inputs,
-                    ))),
-                }),
-                Stmt::from(VarStmt {
-                    name: "profession".to_string(),
-                    initializer: Some(Expr::from(DbspInput::add(
-                        RelationSchema::new(
-                            "profession",
-                            ["profession_id", "name"],
-                            ["profession_id"],
-                        )?,
-                        root_circuit,
-                        &mut dbsp_inputs,
-                    ))),
-                }),
-                Stmt::from(VarStmt {
-                    name: "joined".to_string(),
-                    initializer: Some(Expr::from(EquiJoinExpr {
-                        left: Expr::from(AliasExpr {
-                            relation: Expr::from(VarExpr::new("person")),
-                            alias: "pers".to_string(),
-                        }),
-                        right: Expr::from(AliasExpr {
-                            relation: Expr::from(VarExpr::new("profession")),
-                            alias: "prof".to_string(),
-                        }),
-                        // TODO: Shall we force aliasing here? Technically, it isn't
-                        // required because the left attribute only operates on the left relation
-                        // and the right attribute only operates on the right relation.
-                        // Also, shall expressions be allowed here?
-                        on: vec![(
-                            Expr::from(VarExpr::new("profession_id")),
-                            Expr::from(VarExpr::new("profession_id")),
-                        )],
-                        // attributes: None,
-                        attributes: Some(
-                            // Here, we filter out the duplicated profession_id column.
-                            [
-                                ("person_id", "pers.person_id"),
-                                ("person_name", "pers.name"),
-                                ("age", "pers.age"),
-                                ("profession_id", "prof.profession_id"),
-                                ("profession_name", "prof.name"),
-                            ]
-                            .into_iter()
-                            .map(|(name, identifier)| {
-                                (name.to_string(), Expr::from(VarExpr::new(identifier)))
-                            })
-                            .collect(),
-                        ),
-                    })),
-                }),
-            ];
-
-            match IncLog::new().execute(code) {
-                Ok(Some(Value::Relation(relation))) => {
-                    let relation = relation.borrow();
-                    let output_handle = relation.inner.output();
-                    let output_schema = relation.schema.clone();
-                    Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
-                }
-                result => panic!("Expected a relation, got {:?}", result),
-            }
-        })?;
         let person_input = inputs.get("person").unwrap();
         let profession_input = inputs.get("profession").unwrap();
 
@@ -738,60 +779,44 @@ mod test {
 
     #[test]
     fn test_cartesian_product() -> Result<(), anyhow::Error> {
-        let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
-            let mut dbsp_inputs = DbspInputs::default();
+        let (mut circuit, inputs, output) =
+            setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
+                let code = [
+                    Stmt::from(VarStmt {
+                        name: "person".to_string(),
+                        initializer: Some(Expr::from(DbspInput::add(
+                            Person::schema(),
+                            root_circuit,
+                            dbsp_inputs,
+                        ))),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "profession".to_string(),
+                        initializer: Some(Expr::from(DbspInput::add(
+                            Profession::schema(),
+                            root_circuit,
+                            dbsp_inputs,
+                        ))),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "joined".to_string(),
+                        initializer: Some(Expr::from(CartesianProductExpr::new(
+                            Expr::from(AliasExpr {
+                                relation: Expr::from(VarExpr::new("person")),
+                                alias: "pers".to_string(),
+                            }),
+                            Expr::from(AliasExpr {
+                                relation: Expr::from(VarExpr::new("profession")),
+                                alias: "prof".to_string(),
+                            }),
+                            None,
+                        ))),
+                    }),
+                ];
 
-            let code = [
-                Stmt::from(VarStmt {
-                    name: "person".to_string(),
-                    initializer: Some(Expr::from(DbspInput::add(
-                        RelationSchema::new(
-                            "person",
-                            ["person_id", "name", "age", "profession_id"],
-                            ["person_id"],
-                        )?,
-                        root_circuit,
-                        &mut dbsp_inputs,
-                    ))),
-                }),
-                Stmt::from(VarStmt {
-                    name: "profession".to_string(),
-                    initializer: Some(Expr::from(DbspInput::add(
-                        RelationSchema::new(
-                            "profession",
-                            ["profession_id", "name"],
-                            ["profession_id"],
-                        )?,
-                        root_circuit,
-                        &mut dbsp_inputs,
-                    ))),
-                }),
-                Stmt::from(VarStmt {
-                    name: "joined".to_string(),
-                    initializer: Some(Expr::from(CartesianProductExpr::new(
-                        Expr::from(AliasExpr {
-                            relation: Expr::from(VarExpr::new("person")),
-                            alias: "pers".to_string(),
-                        }),
-                        Expr::from(AliasExpr {
-                            relation: Expr::from(VarExpr::new("profession")),
-                            alias: "prof".to_string(),
-                        }),
-                        None,
-                    ))),
-                }),
-            ];
+                Ok(code)
+            })?;
 
-            match IncLog::new().execute(code) {
-                Ok(Some(Value::Relation(relation))) => {
-                    let relation = relation.borrow();
-                    let output_handle = relation.inner.output();
-                    let output_schema = relation.schema.clone();
-                    Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
-                }
-                result => panic!("Expected a relation, got {:?}", result),
-            }
-        })?;
         let person_input = inputs.get("person").unwrap();
         let profession_input = inputs.get("profession").unwrap();
 
@@ -820,197 +845,183 @@ mod test {
 
     #[test]
     fn test_self_join() -> Result<(), anyhow::Error> {
-        let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
-            let mut dbsp_inputs = DbspInputs::default();
-
-            let code = [
-                Stmt::from(VarStmt {
-                    name: "edges".to_string(),
-                    initializer: Some(Expr::from(DbspInput::add(
-                        RelationSchema::new(
-                            "edges",
-                            ["from", "to", "weight", "active"],
-                            ["from", "to"],
-                        )?,
-                        root_circuit,
-                        &mut dbsp_inputs,
-                    ))),
-                }),
-                Stmt::from(VarStmt {
-                    name: "len_1".to_string(),
-                    initializer: Some(Expr::from(ProjectionExpr {
-                        relation: Expr::from(VarExpr::new("edges")),
-                        attributes: ["from", "to"]
-                            .into_iter()
-                            .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
-                            .chain(
+        let (mut circuit, inputs, output) =
+            setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
+                let code = [
+                    Stmt::from(VarStmt {
+                        name: "edges".to_string(),
+                        initializer: Some(Expr::from(DbspInput::add(
+                            Edge::schema(),
+                            root_circuit,
+                            dbsp_inputs,
+                        ))),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "len_1".to_string(),
+                        initializer: Some(Expr::from(ProjectionExpr {
+                            relation: Expr::from(VarExpr::new("edges")),
+                            attributes: ["from", "to"]
+                                .into_iter()
+                                .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
+                                .chain(
+                                    [
+                                        ("cumulated_weight", Expr::from(VarExpr::new("weight"))),
+                                        (
+                                            "hopcount",
+                                            Expr::from(LiteralExpr {
+                                                value: Literal::Uint(1),
+                                            }),
+                                        ),
+                                    ]
+                                    .map(|(name, expr)| (name.to_string(), expr)),
+                                )
+                                .collect(),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "len_2".to_string(),
+                        initializer: Some(Expr::from(EquiJoinExpr {
+                            left: Expr::from(AliasExpr {
+                                relation: Expr::from(VarExpr::new("len_1")),
+                                alias: "cur".to_string(),
+                            }),
+                            right: Expr::from(AliasExpr {
+                                relation: Expr::from(VarExpr::new("edges")),
+                                alias: "next".to_string(),
+                            }),
+                            on: vec![(
+                                Expr::from(VarExpr::new("to")),
+                                Expr::from(VarExpr::new("from")),
+                            )],
+                            attributes: Some(
                                 [
-                                    ("cumulated_weight", Expr::from(VarExpr::new("weight"))),
+                                    ("start", Expr::from(VarExpr::new("cur.from"))),
+                                    ("end", Expr::from(VarExpr::new("next.to"))),
+                                    (
+                                        "cumulated_weight",
+                                        Expr::from(BinaryExpr {
+                                            operator: Operator::Addition,
+                                            left: Expr::from(VarExpr::new("cur.cumulated_weight")),
+                                            right: Expr::from(VarExpr::new("next.weight")),
+                                        }),
+                                    ),
                                     (
                                         "hopcount",
-                                        Expr::from(LiteralExpr {
-                                            value: Literal::Uint(1),
+                                        Expr::from(BinaryExpr {
+                                            operator: Operator::Addition,
+                                            left: Expr::from(VarExpr::new("cur.hopcount")),
+                                            right: Expr::from(LiteralExpr {
+                                                value: Literal::Uint(1),
+                                            }),
                                         }),
                                     ),
                                 ]
-                                .map(|(name, expr)| (name.to_string(), expr)),
-                            )
-                            .collect(),
-                    })),
-                }),
-                Stmt::from(VarStmt {
-                    name: "len_2".to_string(),
-                    initializer: Some(Expr::from(EquiJoinExpr {
-                        left: Expr::from(AliasExpr {
-                            relation: Expr::from(VarExpr::new("len_1")),
-                            alias: "cur".to_string(),
-                        }),
-                        right: Expr::from(AliasExpr {
-                            relation: Expr::from(VarExpr::new("edges")),
-                            alias: "next".to_string(),
-                        }),
-                        on: vec![(
-                            Expr::from(VarExpr::new("to")),
-                            Expr::from(VarExpr::new("from")),
-                        )],
-                        attributes: Some(
-                            [
-                                ("start", Expr::from(VarExpr::new("cur.from"))),
-                                ("end", Expr::from(VarExpr::new("next.to"))),
-                                (
-                                    "cumulated_weight",
-                                    Expr::from(BinaryExpr {
-                                        operator: Operator::Addition,
-                                        left: Expr::from(VarExpr::new("cur.cumulated_weight")),
-                                        right: Expr::from(VarExpr::new("next.weight")),
-                                    }),
-                                ),
-                                (
-                                    "hopcount",
-                                    Expr::from(BinaryExpr {
-                                        operator: Operator::Addition,
-                                        left: Expr::from(VarExpr::new("cur.hopcount")),
-                                        right: Expr::from(LiteralExpr {
-                                            value: Literal::Uint(1),
+                                .into_iter()
+                                .map(|(name, expr)| (name.to_string(), expr))
+                                .collect(),
+                            ),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "len_3".to_string(),
+                        initializer: Some(Expr::from(EquiJoinExpr {
+                            left: Expr::from(AliasExpr {
+                                relation: Expr::from(VarExpr::new("len_2")),
+                                alias: "cur".to_string(),
+                            }),
+                            right: Expr::from(AliasExpr {
+                                relation: Expr::from(VarExpr::new("edges")),
+                                alias: "next".to_string(),
+                            }),
+                            on: vec![(
+                                Expr::from(VarExpr::new("end")),
+                                Expr::from(VarExpr::new("from")),
+                            )],
+                            attributes: Some(
+                                [
+                                    ("start", Expr::from(VarExpr::new("cur.start"))),
+                                    ("end", Expr::from(VarExpr::new("next.to"))),
+                                    (
+                                        "cumulated_weight",
+                                        Expr::from(BinaryExpr {
+                                            operator: Operator::Addition,
+                                            left: Expr::from(VarExpr::new("cur.cumulated_weight")),
+                                            right: Expr::from(VarExpr::new("next.weight")),
                                         }),
-                                    }),
-                                ),
-                            ]
-                            .into_iter()
-                            .map(|(name, expr)| (name.to_string(), expr))
-                            .collect(),
-                        ),
-                    })),
-                }),
-                Stmt::from(VarStmt {
-                    name: "len_3".to_string(),
-                    initializer: Some(Expr::from(EquiJoinExpr {
-                        left: Expr::from(AliasExpr {
-                            relation: Expr::from(VarExpr::new("len_2")),
-                            alias: "cur".to_string(),
-                        }),
-                        right: Expr::from(AliasExpr {
-                            relation: Expr::from(VarExpr::new("edges")),
-                            alias: "next".to_string(),
-                        }),
-                        on: vec![(
-                            Expr::from(VarExpr::new("end")),
-                            Expr::from(VarExpr::new("from")),
-                        )],
-                        attributes: Some(
-                            [
-                                ("start", Expr::from(VarExpr::new("cur.start"))),
-                                ("end", Expr::from(VarExpr::new("next.to"))),
-                                (
-                                    "cumulated_weight",
-                                    Expr::from(BinaryExpr {
-                                        operator: Operator::Addition,
-                                        left: Expr::from(VarExpr::new("cur.cumulated_weight")),
-                                        right: Expr::from(VarExpr::new("next.weight")),
-                                    }),
-                                ),
-                                (
-                                    "hopcount",
-                                    Expr::from(BinaryExpr {
-                                        operator: Operator::Addition,
-                                        left: Expr::from(VarExpr::new("cur.hopcount")),
-                                        right: Expr::from(LiteralExpr {
-                                            value: Literal::Uint(1),
+                                    ),
+                                    (
+                                        "hopcount",
+                                        Expr::from(BinaryExpr {
+                                            operator: Operator::Addition,
+                                            left: Expr::from(VarExpr::new("cur.hopcount")),
+                                            right: Expr::from(LiteralExpr {
+                                                value: Literal::Uint(1),
+                                            }),
                                         }),
-                                    }),
-                                ),
-                            ]
-                            .into_iter()
-                            .map(|(name, expr)| (name.to_string(), expr))
-                            .collect(),
-                        ),
-                    })),
-                }),
-                Stmt::from(VarStmt {
-                    name: "len_4".to_string(),
-                    initializer: Some(Expr::from(EquiJoinExpr {
-                        left: Expr::from(AliasExpr {
-                            relation: Expr::from(VarExpr::new("len_3")),
-                            alias: "cur".to_string(),
-                        }),
-                        right: Expr::from(AliasExpr {
-                            relation: Expr::from(VarExpr::new("edges")),
-                            alias: "next".to_string(),
-                        }),
-                        on: vec![(
-                            Expr::from(VarExpr::new("end")),
-                            Expr::from(VarExpr::new("from")),
-                        )],
-                        attributes: Some(
-                            [
-                                ("start", Expr::from(VarExpr::new("cur.start"))),
-                                ("end", Expr::from(VarExpr::new("next.to"))),
-                                (
-                                    "cumulated_weight",
-                                    Expr::from(BinaryExpr {
-                                        operator: Operator::Addition,
-                                        left: Expr::from(VarExpr::new("cur.cumulated_weight")),
-                                        right: Expr::from(VarExpr::new("next.weight")),
-                                    }),
-                                ),
-                                (
-                                    "hopcount",
-                                    Expr::from(BinaryExpr {
-                                        operator: Operator::Addition,
-                                        left: Expr::from(VarExpr::new("cur.hopcount")),
-                                        right: Expr::from(LiteralExpr {
-                                            value: Literal::Uint(1),
+                                    ),
+                                ]
+                                .into_iter()
+                                .map(|(name, expr)| (name.to_string(), expr))
+                                .collect(),
+                            ),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "len_4".to_string(),
+                        initializer: Some(Expr::from(EquiJoinExpr {
+                            left: Expr::from(AliasExpr {
+                                relation: Expr::from(VarExpr::new("len_3")),
+                                alias: "cur".to_string(),
+                            }),
+                            right: Expr::from(AliasExpr {
+                                relation: Expr::from(VarExpr::new("edges")),
+                                alias: "next".to_string(),
+                            }),
+                            on: vec![(
+                                Expr::from(VarExpr::new("end")),
+                                Expr::from(VarExpr::new("from")),
+                            )],
+                            attributes: Some(
+                                [
+                                    ("start", Expr::from(VarExpr::new("cur.start"))),
+                                    ("end", Expr::from(VarExpr::new("next.to"))),
+                                    (
+                                        "cumulated_weight",
+                                        Expr::from(BinaryExpr {
+                                            operator: Operator::Addition,
+                                            left: Expr::from(VarExpr::new("cur.cumulated_weight")),
+                                            right: Expr::from(VarExpr::new("next.weight")),
                                         }),
-                                    }),
-                                ),
-                            ]
-                            .into_iter()
-                            .map(|(name, expr)| (name.to_string(), expr))
-                            .collect(),
-                        ),
-                    })),
-                }),
-                Stmt::from(VarStmt {
-                    name: "full_closure".to_string(),
-                    initializer: Some(Expr::from(UnionExpr {
-                        relations: ["len_1", "len_2", "len_3", "len_4"]
-                            .into_iter()
-                            .map(|name| Expr::from(VarExpr::new(name)))
-                            .collect(),
-                    })),
-                }),
-            ];
-
-            match IncLog::new().execute(code) {
-                Ok(Some(Value::Relation(relation))) => {
-                    let relation = relation.borrow();
-                    let output_handle = relation.inner.output();
-                    let output_schema = relation.schema.clone();
-                    Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
-                }
-                result => panic!("Expected a relation, got {:?}", result),
-            }
-        })?;
+                                    ),
+                                    (
+                                        "hopcount",
+                                        Expr::from(BinaryExpr {
+                                            operator: Operator::Addition,
+                                            left: Expr::from(VarExpr::new("cur.hopcount")),
+                                            right: Expr::from(LiteralExpr {
+                                                value: Literal::Uint(1),
+                                            }),
+                                        }),
+                                    ),
+                                ]
+                                .into_iter()
+                                .map(|(name, expr)| (name.to_string(), expr))
+                                .collect(),
+                            ),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "full_closure".to_string(),
+                        initializer: Some(Expr::from(UnionExpr {
+                            relations: ["len_1", "len_2", "len_3", "len_4"]
+                                .into_iter()
+                                .map(|name| Expr::from(VarExpr::new(name)))
+                                .collect(),
+                        })),
+                    }),
+                ];
+                Ok(code)
+            })?;
         let edges_input = inputs.get("edges").unwrap();
 
         let init_data = [
@@ -1065,120 +1076,113 @@ mod test {
 
     #[test]
     fn test_iteration() -> Result<(), anyhow::Error> {
-        let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
-            let mut dbsp_inputs = DbspInputs::default();
-
-            let code = [
-                Stmt::from(VarStmt {
-                    name: "edges".to_string(),
-                    initializer: Some(Expr::from(ProjectionExpr {
-                        relation: Expr::from(DbspInput::add(
-                            RelationSchema::new(
-                                "edges",
-                                ["from", "to", "weight", "active"],
-                                ["from", "to"],
-                            )?,
-                            root_circuit,
-                            &mut dbsp_inputs,
-                        )),
-                        attributes: ["from", "to", "weight"]
-                            .into_iter()
-                            .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
-                            .collect(),
-                    })),
-                }),
-                Stmt::from(VarStmt {
-                    name: "base".to_string(),
-                    initializer: Some(Expr::from(ProjectionExpr {
-                        relation: Expr::from(VarExpr::new("edges")),
-                        attributes: ["from", "to"]
-                            .into_iter()
-                            .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
-                            .chain(
-                                [
-                                    ("cumulated_weight", Expr::from(VarExpr::new("weight"))),
-                                    (
-                                        "hopcount",
-                                        Expr::from(LiteralExpr {
-                                            value: Literal::Uint(1),
+        let (mut circuit, inputs, output) =
+            setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
+                let code = [
+                    Stmt::from(VarStmt {
+                        name: "edges".to_string(),
+                        initializer: Some(Expr::from(ProjectionExpr {
+                            relation: Expr::from(DbspInput::add(
+                                Edge::schema(),
+                                root_circuit,
+                                dbsp_inputs,
+                            )),
+                            attributes: ["from", "to", "weight"]
+                                .into_iter()
+                                .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
+                                .collect(),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "base".to_string(),
+                        initializer: Some(Expr::from(ProjectionExpr {
+                            relation: Expr::from(VarExpr::new("edges")),
+                            attributes: ["from", "to"]
+                                .into_iter()
+                                .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
+                                .chain(
+                                    [
+                                        ("cumulated_weight", Expr::from(VarExpr::new("weight"))),
+                                        (
+                                            "hopcount",
+                                            Expr::from(LiteralExpr {
+                                                value: Literal::Uint(1),
+                                            }),
+                                        ),
+                                    ]
+                                    .map(|(name, expr)| (name.to_string(), expr)),
+                                )
+                                .collect(),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "closure".to_string(),
+                        initializer: Some(Expr::from(FixedPointIterExpr {
+                            circuit: root_circuit.clone(),
+                            imports: ["edges"]
+                                .into_iter()
+                                .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
+                                .collect(),
+                            accumulator: (
+                                "accumulator".to_string(),
+                                Expr::from(VarExpr::new("base")),
+                            ),
+                            step: BlockStmt {
+                                stmts: vec![Stmt::from(ExprStmt {
+                                    expr: Expr::from(EquiJoinExpr {
+                                        left: Expr::from(AliasExpr {
+                                            relation: Expr::from(VarExpr::new("accumulator")),
+                                            alias: "cur".to_string(),
                                         }),
-                                    ),
-                                ]
-                                .map(|(name, expr)| (name.to_string(), expr)),
-                            )
-                            .collect(),
-                    })),
-                }),
-                Stmt::from(VarStmt {
-                    name: "closure".to_string(),
-                    initializer: Some(Expr::from(FixedPointIterExpr {
-                        circuit: root_circuit.clone(),
-                        imports: ["edges"]
-                            .into_iter()
-                            .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
-                            .collect(),
-                        accumulator: ("accumulator".to_string(), Expr::from(VarExpr::new("base"))),
-                        step: BlockStmt {
-                            stmts: vec![Stmt::from(ExprStmt {
-                                expr: Expr::from(EquiJoinExpr {
-                                    left: Expr::from(AliasExpr {
-                                        relation: Expr::from(VarExpr::new("accumulator")),
-                                        alias: "cur".to_string(),
-                                    }),
-                                    right: Expr::from(AliasExpr {
-                                        relation: Expr::from(VarExpr::new("edges")),
-                                        alias: "next".to_string(),
-                                    }),
-                                    on: vec![(
-                                        Expr::from(VarExpr::new("to")),
-                                        Expr::from(VarExpr::new("from")),
-                                    )],
-                                    attributes: Some(
-                                        [
-                                            ("start", Expr::from(VarExpr::new("cur.from"))),
-                                            ("end", Expr::from(VarExpr::new("next.to"))),
-                                            (
-                                                "cumulated_weight",
-                                                Expr::from(BinaryExpr {
-                                                    operator: Operator::Addition,
-                                                    left: Expr::from(VarExpr::new(
-                                                        "cur.cumulated_weight",
-                                                    )),
-                                                    right: Expr::from(VarExpr::new("next.weight")),
-                                                }),
-                                            ),
-                                            (
-                                                "hopcount",
-                                                Expr::from(BinaryExpr {
-                                                    operator: Operator::Addition,
-                                                    left: Expr::from(VarExpr::new("cur.hopcount")),
-                                                    right: Expr::from(LiteralExpr {
-                                                        value: Literal::Uint(1),
+                                        right: Expr::from(AliasExpr {
+                                            relation: Expr::from(VarExpr::new("edges")),
+                                            alias: "next".to_string(),
+                                        }),
+                                        on: vec![(
+                                            Expr::from(VarExpr::new("to")),
+                                            Expr::from(VarExpr::new("from")),
+                                        )],
+                                        attributes: Some(
+                                            [
+                                                ("start", Expr::from(VarExpr::new("cur.from"))),
+                                                ("end", Expr::from(VarExpr::new("next.to"))),
+                                                (
+                                                    "cumulated_weight",
+                                                    Expr::from(BinaryExpr {
+                                                        operator: Operator::Addition,
+                                                        left: Expr::from(VarExpr::new(
+                                                            "cur.cumulated_weight",
+                                                        )),
+                                                        right: Expr::from(VarExpr::new(
+                                                            "next.weight",
+                                                        )),
                                                     }),
-                                                }),
-                                            ),
-                                        ]
-                                        .into_iter()
-                                        .map(|(name, expr)| (name.to_string(), expr))
-                                        .collect(),
-                                    ),
-                                }),
-                            })],
-                        },
-                    })),
-                }),
-            ];
-
-            match IncLog::new().execute(code) {
-                Ok(Some(Value::Relation(relation))) => {
-                    let relation = relation.borrow();
-                    let output_handle = relation.inner.output();
-                    let output_schema = relation.schema.clone();
-                    Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
-                }
-                result => panic!("Expected a relation, got {:?}", result),
-            }
-        })?;
+                                                ),
+                                                (
+                                                    "hopcount",
+                                                    Expr::from(BinaryExpr {
+                                                        operator: Operator::Addition,
+                                                        left: Expr::from(VarExpr::new(
+                                                            "cur.hopcount",
+                                                        )),
+                                                        right: Expr::from(LiteralExpr {
+                                                            value: Literal::Uint(1),
+                                                        }),
+                                                    }),
+                                                ),
+                                            ]
+                                            .into_iter()
+                                            .map(|(name, expr)| (name.to_string(), expr))
+                                            .collect(),
+                                        ),
+                                    }),
+                                })],
+                            },
+                        })),
+                    }),
+                ];
+                Ok(code)
+            })?;
         let edges_input = inputs.get("edges").unwrap();
 
         let init_data = [
@@ -1215,243 +1219,171 @@ mod test {
         Ok(())
     }
 
-    #[derive(Copy, Clone, Debug)]
-    struct PredRel {
-        from_node_id: u64,
-        from_counter: u64,
-        to_node_id: u64,
-        to_counter: u64,
-    }
-
-    impl PredRel {
-        fn new(from_node_id: u64, from_counter: u64, to_node_id: u64, to_counter: u64) -> Self {
-            Self {
-                from_node_id,
-                from_counter,
-                to_node_id,
-                to_counter,
-            }
-        }
-    }
-
-    impl From<PredRel> for TupleKey {
-        fn from(pred_rel: PredRel) -> Self {
-            TupleKey::from_iter([
-                pred_rel.from_node_id,
-                pred_rel.from_counter,
-                pred_rel.to_node_id,
-                pred_rel.to_counter,
-            ])
-        }
-    }
-
-    impl From<PredRel> for TupleValue {
-        fn from(pred_rel: PredRel) -> Self {
-            TupleValue::from_iter([
-                pred_rel.from_node_id,
-                pred_rel.from_counter,
-                pred_rel.to_node_id,
-                pred_rel.to_counter,
-            ])
-        }
-    }
-
-    #[derive(Copy, Clone, Debug)]
-    struct SetOp {
-        node_id: u64,
-        counter: u64,
-        key: u64,
-        value: u64,
-    }
-
-    impl SetOp {
-        fn new(node_id: u64, counter: u64, key: u64, value: u64) -> Self {
-            Self {
-                node_id,
-                counter,
-                key,
-                value,
-            }
-        }
-    }
-
-    impl From<SetOp> for TupleKey {
-        fn from(set_op: SetOp) -> Self {
-            TupleKey::from_iter([set_op.node_id, set_op.counter])
-        }
-    }
-
-    impl From<SetOp> for TupleValue {
-        fn from(set_op: SetOp) -> Self {
-            TupleValue::from_iter([set_op.node_id, set_op.counter, set_op.key, set_op.value])
-        }
-    }
-
-    struct Replica {
-        node_id: u64,
-        counter: u64,
-    }
-
-    impl Replica {
-        fn new(node_id: u64) -> Self {
-            Self {
-                node_id,
-                counter: 0,
-            }
-        }
-        fn generate_set(&mut self, key: u64, value: u64) -> SetOp {
-            // TODO: pred op
-            let result = SetOp {
-                node_id: self.node_id,
-                counter: self.counter,
-                key,
-                value,
-            };
-            self.counter += 1;
-            result
-        }
-    }
-
     #[test]
     fn test_mvr_store_crdt() -> Result<(), anyhow::Error> {
-        let (circuit, (inputs, output)) = RootCircuit::build(|root_circuit| {
-            let mut dbsp_inputs = DbspInputs::default();
-
-            let code = [
-                // Inputs start.
-                Stmt::from(VarStmt {
-                    name: "pred".to_string(),
-                    initializer: Some(Expr::from(DbspInput::add(
-                        RelationSchema::new(
-                            "pred",
-                            ["FromNodeId", "FromCounter", "ToNodeId", "ToCounter"],
-                            ["FromNodeId", "FromCounter", "ToNodeId", "ToCounter"],
-                        )?,
-                        root_circuit,
-                        &mut dbsp_inputs,
-                    ))),
-                }),
-                Stmt::from(VarStmt {
-                    name: "set".to_string(),
-                    initializer: Some(Expr::from(DbspInput::add(
-                        RelationSchema::new(
-                            "set",
-                            ["NodeId", "Counter", "Key", "Value"],
-                            ["NodeId", "Counter"],
-                        )?,
-                        root_circuit,
-                        &mut dbsp_inputs,
-                    ))),
-                }),
-                // Inputs end.
-                Stmt::from(VarStmt {
-                    name: "overwritten".to_string(),
-                    initializer: Some(Expr::from(DistinctExpr {
-                        relation: Expr::from(ProjectionExpr {
-                            relation: Expr::from(VarExpr::new("pred")),
-                            attributes: [("NodeId", "FromNodeId"), ("Counter", "FromCounter")]
-                                .into_iter()
-                                .map(|(name, origin)| {
-                                    (name.to_string(), Expr::from(VarExpr::new(origin)))
-                                })
-                                .collect(),
-                        }),
-                    })),
-                }),
-                Stmt::from(VarStmt {
-                    name: "overwrites".to_string(),
-                    initializer: Some(Expr::from(DistinctExpr {
-                        relation: Expr::from(ProjectionExpr {
-                            relation: Expr::from(VarExpr::new("pred")),
-                            attributes: [("NodeId", "ToNodeId"), ("Counter", "ToCounter")]
-                                .into_iter()
-                                .map(|(name, origin)| {
-                                    (name.to_string(), Expr::from(VarExpr::new(origin)))
-                                })
-                                .collect(),
-                        }),
-                    })),
-                }),
-                Stmt::from(VarStmt {
-                    name: "isRoot".to_string(),
-                    initializer: Some(Expr::from(DifferenceExpr {
-                        left: Expr::from(ProjectionExpr {
-                            relation: Expr::from(VarExpr::new("set")),
-                            attributes: ["NodeId", "Counter"]
+        let (mut circuit, inputs, output) =
+            setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
+                let code = [
+                    // Inputs start.
+                    Stmt::from(VarStmt {
+                        name: "pred".to_string(),
+                        initializer: Some(Expr::from(DbspInput::add(
+                            PredRel::schema(),
+                            root_circuit,
+                            dbsp_inputs,
+                        ))),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "set".to_string(),
+                        initializer: Some(Expr::from(DbspInput::add(
+                            SetOp::schema(),
+                            root_circuit,
+                            dbsp_inputs,
+                        ))),
+                    }),
+                    // Inputs end.
+                    Stmt::from(VarStmt {
+                        name: "overwritten".to_string(),
+                        initializer: Some(Expr::from(DistinctExpr {
+                            relation: Expr::from(ProjectionExpr {
+                                relation: Expr::from(VarExpr::new("pred")),
+                                attributes: [("NodeId", "FromNodeId"), ("Counter", "FromCounter")]
+                                    .into_iter()
+                                    .map(|(name, origin)| {
+                                        (name.to_string(), Expr::from(VarExpr::new(origin)))
+                                    })
+                                    .collect(),
+                            }),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "overwrites".to_string(),
+                        initializer: Some(Expr::from(DistinctExpr {
+                            relation: Expr::from(ProjectionExpr {
+                                relation: Expr::from(VarExpr::new("pred")),
+                                attributes: [("NodeId", "ToNodeId"), ("Counter", "ToCounter")]
+                                    .into_iter()
+                                    .map(|(name, origin)| {
+                                        (name.to_string(), Expr::from(VarExpr::new(origin)))
+                                    })
+                                    .collect(),
+                            }),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "isRoot".to_string(),
+                        initializer: Some(Expr::from(DifferenceExpr {
+                            left: Expr::from(ProjectionExpr {
+                                relation: Expr::from(VarExpr::new("set")),
+                                attributes: ["NodeId", "Counter"]
+                                    .into_iter()
+                                    .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
+                                    .collect(),
+                            }),
+                            right: Expr::from(VarExpr::new("overwrites")),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "isLeaf".to_string(),
+                        initializer: Some(Expr::from(DifferenceExpr {
+                            left: Expr::from(ProjectionExpr {
+                                relation: Expr::from(VarExpr::new("set")),
+                                attributes: ["NodeId", "Counter"]
+                                    .into_iter()
+                                    .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
+                                    .collect(),
+                            }),
+                            right: Expr::from(VarExpr::new("overwritten")),
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "isCausallyReady".to_string(),
+                        initializer: Some(Expr::from(FixedPointIterExpr {
+                            circuit: root_circuit.clone(),
+                            imports: ["pred"]
                                 .into_iter()
                                 .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                                 .collect(),
-                        }),
-                        right: Expr::from(VarExpr::new("overwrites")),
-                    })),
-                }),
-                Stmt::from(VarStmt {
-                    name: "isLeaf".to_string(),
-                    initializer: Some(Expr::from(DifferenceExpr {
-                        left: Expr::from(ProjectionExpr {
-                            relation: Expr::from(VarExpr::new("set")),
-                            attributes: ["NodeId", "Counter"]
-                                .into_iter()
-                                .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
-                                .collect(),
-                        }),
-                        right: Expr::from(VarExpr::new("overwritten")),
-                    })),
-                }),
-                Stmt::from(VarStmt {
-                    name: "isCausallyReady".to_string(),
-                    initializer: Some(Expr::from(FixedPointIterExpr {
-                        circuit: root_circuit.clone(),
-                        imports: ["pred"]
-                            .into_iter()
-                            .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
-                            .collect(),
-                        accumulator: (
-                            "isCausallyReady".to_string(),
-                            Expr::from(VarExpr::new("isRoot")),
-                        ),
-                        step: BlockStmt {
-                            stmts: vec![Stmt::from(ExprStmt {
-                                expr: Expr::from(EquiJoinExpr {
-                                    left: Expr::from(AliasExpr {
-                                        relation: Expr::from(VarExpr::new("isCausallyReady")),
-                                        alias: "cur".to_string(),
-                                    }),
-                                    right: Expr::from(AliasExpr {
-                                        relation: Expr::from(VarExpr::new("pred")),
-                                        alias: "next".to_string(),
-                                    }),
-                                    on: vec![
-                                        (
-                                            Expr::from(VarExpr::new("NodeId")),
-                                            Expr::from(VarExpr::new("FromNodeId")),
+                            accumulator: (
+                                "isCausallyReady".to_string(),
+                                Expr::from(VarExpr::new("isRoot")),
+                            ),
+                            step: BlockStmt {
+                                stmts: vec![Stmt::from(ExprStmt {
+                                    expr: Expr::from(EquiJoinExpr {
+                                        left: Expr::from(AliasExpr {
+                                            relation: Expr::from(VarExpr::new("isCausallyReady")),
+                                            alias: "cur".to_string(),
+                                        }),
+                                        right: Expr::from(AliasExpr {
+                                            relation: Expr::from(VarExpr::new("pred")),
+                                            alias: "next".to_string(),
+                                        }),
+                                        on: vec![
+                                            (
+                                                Expr::from(VarExpr::new("NodeId")),
+                                                Expr::from(VarExpr::new("FromNodeId")),
+                                            ),
+                                            (
+                                                Expr::from(VarExpr::new("Counter")),
+                                                Expr::from(VarExpr::new("FromCounter")),
+                                            ),
+                                        ],
+                                        attributes: Some(
+                                            [
+                                                (
+                                                    "NodeId",
+                                                    Expr::from(VarExpr::new("next.ToNodeId")),
+                                                ),
+                                                (
+                                                    "Counter",
+                                                    Expr::from(VarExpr::new("next.ToCounter")),
+                                                ),
+                                            ]
+                                            .into_iter()
+                                            .map(|(name, expr)| (name.to_string(), expr))
+                                            .collect(),
                                         ),
-                                        (
-                                            Expr::from(VarExpr::new("Counter")),
-                                            Expr::from(VarExpr::new("FromCounter")),
-                                        ),
-                                    ],
-                                    attributes: Some(
-                                        [
-                                            ("NodeId", Expr::from(VarExpr::new("next.ToNodeId"))),
-                                            ("Counter", Expr::from(VarExpr::new("next.ToCounter"))),
-                                        ]
-                                        .into_iter()
-                                        .map(|(name, expr)| (name.to_string(), expr))
-                                        .collect(),
+                                    }),
+                                })],
+                            },
+                        })),
+                    }),
+                    Stmt::from(VarStmt {
+                        name: "mvrStore".to_string(),
+                        initializer: Some(Expr::from(EquiJoinExpr {
+                            left: Expr::from(VarExpr::new("isCausallyReady")),
+                            right: Expr::from(EquiJoinExpr {
+                                left: Expr::from(VarExpr::new("isLeaf")),
+                                right: Expr::from(VarExpr::new("set")),
+                                on: vec![
+                                    (
+                                        Expr::from(VarExpr::new("NodeId")),
+                                        Expr::from(VarExpr::new("NodeId")),
                                     ),
-                                }),
-                            })],
-                        },
-                    })),
-                }),
-                Stmt::from(VarStmt {
-                    name: "mvrStore".to_string(),
-                    initializer: Some(Expr::from(EquiJoinExpr {
-                        left: Expr::from(VarExpr::new("isCausallyReady")),
-                        right: Expr::from(EquiJoinExpr {
-                            left: Expr::from(VarExpr::new("isLeaf")),
-                            right: Expr::from(VarExpr::new("set")),
+                                    (
+                                        Expr::from(VarExpr::new("Counter")),
+                                        Expr::from(VarExpr::new("Counter")),
+                                    ),
+                                ],
+                                // With `attributes: None` the query does not work because
+                                // the fields `node_id` and `counter` are both duplicated in
+                                // the tuple output. The EquiJoin below then indexes upon
+                                // both duplicated fields for its `right` operand
+                                // and no join match is found with its `left` operand.
+                                // Welcome to the funny world of relational algebra's semantics.
+                                attributes: Some(
+                                    [
+                                        ("NodeId", Expr::from(VarExpr::new("NodeId"))),
+                                        ("Counter", Expr::from(VarExpr::new("Counter"))),
+                                        ("Key", Expr::from(VarExpr::new("Key"))),
+                                        ("Value", Expr::from(VarExpr::new("Value"))),
+                                    ]
+                                    .into_iter()
+                                    .map(|(name, expr)| (name.to_string(), expr))
+                                    .collect(),
+                                ),
+                            }),
                             on: vec![
                                 (
                                     Expr::from(VarExpr::new("NodeId")),
@@ -1462,16 +1394,8 @@ mod test {
                                     Expr::from(VarExpr::new("Counter")),
                                 ),
                             ],
-                            // With `attributes: None` the query does not work because
-                            // the fields `node_id` and `counter` are both duplicated in
-                            // the tuple output. The EquiJoin below then indexes upon
-                            // both duplicated fields for its `right` operand
-                            // and no join match is found with its `left` operand.
-                            // Welcome to the funny world of relational algebra's semantics.
                             attributes: Some(
                                 [
-                                    ("NodeId", Expr::from(VarExpr::new("NodeId"))),
-                                    ("Counter", Expr::from(VarExpr::new("Counter"))),
                                     ("Key", Expr::from(VarExpr::new("Key"))),
                                     ("Value", Expr::from(VarExpr::new("Value"))),
                                 ]
@@ -1479,40 +1403,11 @@ mod test {
                                 .map(|(name, expr)| (name.to_string(), expr))
                                 .collect(),
                             ),
-                        }),
-                        on: vec![
-                            (
-                                Expr::from(VarExpr::new("NodeId")),
-                                Expr::from(VarExpr::new("NodeId")),
-                            ),
-                            (
-                                Expr::from(VarExpr::new("Counter")),
-                                Expr::from(VarExpr::new("Counter")),
-                            ),
-                        ],
-                        attributes: Some(
-                            [
-                                ("Key", Expr::from(VarExpr::new("Key"))),
-                                ("Value", Expr::from(VarExpr::new("Value"))),
-                            ]
-                            .into_iter()
-                            .map(|(name, expr)| (name.to_string(), expr))
-                            .collect(),
-                        ),
-                    })),
-                }),
-            ];
-
-            match IncLog::new().execute(code) {
-                Ok(Some(Value::Relation(relation))) => {
-                    let relation = relation.borrow();
-                    let output_handle = relation.inner.output();
-                    let output_schema = relation.schema.clone();
-                    Ok((dbsp_inputs, DbspOutput::new(output_schema, output_handle)))
-                }
-                result => panic!("Expected a relation, got {:?}", result),
-            }
-        })?;
+                        })),
+                    }),
+                ];
+                Ok(code)
+            })?;
 
         let pred_rel_input = inputs.get("pred").unwrap();
         let set_op_input = inputs.get("set").unwrap();

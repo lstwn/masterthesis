@@ -12,3 +12,4 @@ repository = "https://github.com/lstwn/masterthesis"
 [workspace.dependencies]
 anyhow = "1.0.95"
 thiserror = "2.0.9"
+criterion = "0.6.0"

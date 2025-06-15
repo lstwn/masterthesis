@@ -112,81 +112,8 @@ impl IncDataLog {
 
 #[cfg(test)]
 mod test {
-    use compute::relation::{TupleKey, TupleValue};
-
     use super::*;
-
-    #[derive(Copy, Clone, Debug)]
-    pub struct PredRel {
-        from_node_id: u64,
-        from_counter: u64,
-        to_node_id: u64,
-        to_counter: u64,
-    }
-
-    impl PredRel {
-        pub fn new(from_node_id: u64, from_counter: u64, to_node_id: u64, to_counter: u64) -> Self {
-            Self {
-                from_node_id,
-                from_counter,
-                to_node_id,
-                to_counter,
-            }
-        }
-    }
-
-    impl From<PredRel> for TupleKey {
-        fn from(pred_rel: PredRel) -> Self {
-            TupleKey::from_iter([
-                pred_rel.from_node_id,
-                pred_rel.from_counter,
-                pred_rel.to_node_id,
-                pred_rel.to_counter,
-            ])
-        }
-    }
-
-    impl From<PredRel> for TupleValue {
-        fn from(pred_rel: PredRel) -> Self {
-            TupleValue::from_iter([
-                pred_rel.from_node_id,
-                pred_rel.from_counter,
-                pred_rel.to_node_id,
-                pred_rel.to_counter,
-            ])
-        }
-    }
-
-    #[derive(Copy, Clone, Debug)]
-    pub struct SetOp {
-        node_id: u64,
-        counter: u64,
-        key: u64,
-        value: u64,
-    }
-
-    impl SetOp {
-        pub fn new(node_id: u64, counter: u64, key: u64, value: u64) -> Self {
-            Self {
-                node_id,
-                counter,
-                key,
-                value,
-            }
-        }
-    }
-
-    impl From<SetOp> for TupleKey {
-        fn from(set_op: SetOp) -> Self {
-            TupleKey::from_iter([set_op.node_id, set_op.counter])
-        }
-    }
-
-    impl From<SetOp> for TupleValue {
-        fn from(set_op: SetOp) -> Self {
-            TupleValue::from_iter([set_op.node_id, set_op.counter, set_op.key, set_op.value])
-        }
-    }
+    use compute::test_helper::{PredRel, SetOp};
 
     #[test]
     fn test_inc_data_log_end_to_end() -> Result<(), anyhow::Error> {

@@ -13,6 +13,8 @@ pub mod relation;
 mod resolver;
 mod scalar;
 pub mod stmt;
+#[cfg(feature = "test")]
+pub mod test_helper;
 pub mod type_resolver;
 mod util;
 pub mod variable;
@@ -200,13 +202,14 @@ mod test {
             AliasExpr, CartesianProductExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr,
             FixedPointIterExpr, ProjectionExpr, SelectionExpr, UnionExpr,
         },
-        relation::{RelationSchema, TupleKey, TupleValue},
+        relation::TupleValue,
         scalar::ScalarTypedValue,
         stmt::BlockStmt,
     };
     use expr::{AssignExpr, BinaryExpr, CallExpr, Expr, Literal, LiteralExpr, VarExpr};
     use operator::Operator;
     use stmt::{ExprStmt, Stmt, VarStmt};
+    use test_helper::{Edge, InputEntity, Person, PredRel, Profession, SetOp};
 
     #[test]
     fn test_variable_init_assign() -> Result<(), IncLogError> {
@@ -425,273 +428,6 @@ mod test {
         Ok(())
     }
 
-    #[derive(Copy, Clone, Debug)]
-    struct Edge {
-        from: u64,
-        to: u64,
-        weight: u64,
-        active: bool,
-    }
-
-    impl Edge {
-        fn new(from: u64, to: u64, weight: u64) -> Self {
-            Self {
-                from,
-                to,
-                weight,
-                active: true,
-            }
-        }
-        fn schema() -> RelationSchema {
-            RelationSchema::new("edges", ["from", "to", "weight", "active"], ["from", "to"])
-                .expect("Correct schema definition")
-        }
-    }
-
-    impl From<Edge> for TupleKey {
-        fn from(edge: Edge) -> Self {
-            TupleKey {
-                data: vec![
-                    ScalarTypedValue::Uint(edge.from),
-                    ScalarTypedValue::Uint(edge.to),
-                ],
-            }
-        }
-    }
-
-    impl From<Edge> for TupleValue {
-        fn from(edge: Edge) -> Self {
-            TupleValue {
-                data: vec![
-                    ScalarTypedValue::Uint(edge.from),
-                    ScalarTypedValue::Uint(edge.to),
-                    ScalarTypedValue::Uint(edge.weight),
-                    ScalarTypedValue::Bool(edge.active),
-                ],
-            }
-        }
-    }
-
-    #[derive(Clone, Debug)]
-    struct Person {
-        person_id: u64,
-        name: String,
-        age: u64,
-        profession_id: u64,
-    }
-
-    impl Person {
-        fn schema() -> RelationSchema {
-            RelationSchema::new(
-                "person",
-                ["person_id", "name", "age", "profession_id"],
-                ["person_id"],
-            )
-            .expect("Correct schema definition")
-        }
-    }
-
-    impl From<Person> for TupleKey {
-        fn from(person: Person) -> Self {
-            TupleKey {
-                data: vec![ScalarTypedValue::Uint(person.person_id)],
-            }
-        }
-    }
-
-    impl From<Person> for TupleValue {
-        fn from(person: Person) -> Self {
-            TupleValue {
-                data: vec![
-                    ScalarTypedValue::Uint(person.person_id),
-                    ScalarTypedValue::String(person.name),
-                    ScalarTypedValue::Uint(person.age),
-                    ScalarTypedValue::Uint(person.profession_id),
-                ],
-            }
-        }
-    }
-
-    #[derive(Clone, Debug)]
-    struct Profession {
-        profession_id: u64,
-        name: String,
-    }
-
-    impl Profession {
-        fn schema() -> RelationSchema {
-            RelationSchema::new("profession", ["profession_id", "name"], ["profession_id"])
-                .expect("Correct schema definition")
-        }
-    }
-
-    impl From<Profession> for TupleKey {
-        fn from(profession: Profession) -> Self {
-            TupleKey {
-                data: vec![ScalarTypedValue::Uint(profession.profession_id)],
-            }
-        }
-    }
-
-    impl From<Profession> for TupleValue {
-        fn from(profession: Profession) -> Self {
-            TupleValue {
-                data: vec![
-                    ScalarTypedValue::Uint(profession.profession_id),
-                    ScalarTypedValue::String(profession.name),
-                ],
-            }
-        }
-    }
-
-    fn persons_and_professions_data() -> (Vec<Person>, Vec<Profession>) {
-        let persons: Vec<Person> = vec![
-            Person {
-                person_id: 0,
-                name: "Alice".to_string(),
-                age: 20,
-                profession_id: 0,
-            },
-            Person {
-                person_id: 1,
-                name: "Bob".to_string(),
-                age: 30,
-                profession_id: 1,
-            },
-            Person {
-                person_id: 2,
-                name: "Charlie".to_string(),
-                age: 40,
-                profession_id: 0,
-            },
-        ];
-
-        let professions: Vec<Profession> = vec![
-            Profession {
-                profession_id: 0,
-                name: "Engineer".to_string(),
-            },
-            Profession {
-                profession_id: 1,
-                name: "Doctor".to_string(),
-            },
-        ];
-        (persons, professions)
-    }
-
-    #[derive(Copy, Clone, Debug)]
-    struct PredRel {
-        from_node_id: u64,
-        from_counter: u64,
-        to_node_id: u64,
-        to_counter: u64,
-    }
-
-    impl PredRel {
-        fn new(from_node_id: u64, from_counter: u64, to_node_id: u64, to_counter: u64) -> Self {
-            Self {
-                from_node_id,
-                from_counter,
-                to_node_id,
-                to_counter,
-            }
-        }
-        fn schema() -> RelationSchema {
-            RelationSchema::new(
-                "pred",
-                ["FromNodeId", "FromCounter", "ToNodeId", "ToCounter"],
-                ["FromNodeId", "FromCounter", "ToNodeId", "ToCounter"],
-            )
-            .expect("Correct schema definition")
-        }
-    }
-
-    impl From<PredRel> for TupleKey {
-        fn from(pred_rel: PredRel) -> Self {
-            TupleKey::from_iter([
-                pred_rel.from_node_id,
-                pred_rel.from_counter,
-                pred_rel.to_node_id,
-                pred_rel.to_counter,
-            ])
-        }
-    }
-
-    impl From<PredRel> for TupleValue {
-        fn from(pred_rel: PredRel) -> Self {
-            TupleValue::from_iter([
-                pred_rel.from_node_id,
-                pred_rel.from_counter,
-                pred_rel.to_node_id,
-                pred_rel.to_counter,
-            ])
-        }
-    }
-
-    #[derive(Copy, Clone, Debug)]
-    struct SetOp {
-        node_id: u64,
-        counter: u64,
-        key: u64,
-        value: u64,
-    }
-
-    impl SetOp {
-        fn new(node_id: u64, counter: u64, key: u64, value: u64) -> Self {
-            Self {
-                node_id,
-                counter,
-                key,
-                value,
-            }
-        }
-        fn schema() -> RelationSchema {
-            RelationSchema::new(
-                "set",
-                ["NodeId", "Counter", "Key", "Value"],
-                ["NodeId", "Counter"],
-            )
-            .expect("Correct schema definition")
-        }
-    }
-
-    impl From<SetOp> for TupleKey {
-        fn from(set_op: SetOp) -> Self {
-            TupleKey::from_iter([set_op.node_id, set_op.counter])
-        }
-    }
-
-    impl From<SetOp> for TupleValue {
-        fn from(set_op: SetOp) -> Self {
-            TupleValue::from_iter([set_op.node_id, set_op.counter, set_op.key, set_op.value])
-        }
-    }
-
-    struct Replica {
-        node_id: u64,
-        counter: u64,
-    }
-
-    impl Replica {
-        fn new(node_id: u64) -> Self {
-            Self {
-                node_id,
-                counter: 0,
-            }
-        }
-        fn generate_set(&mut self, key: u64, value: u64) -> SetOp {
-            // TODO: pred op
-            let result = SetOp {
-                node_id: self.node_id,
-                counter: self.counter,
-                key,
-                value,
-            };
-            self.counter += 1;
-            result
-        }
-    }
-
     #[test]
     fn test_standard_join() -> Result<(), anyhow::Error> {
         let (mut circuit, inputs, output) =
@@ -757,9 +493,8 @@ mod test {
         let person_input = inputs.get("person").unwrap();
         let profession_input = inputs.get("profession").unwrap();
 
-        let (persons, professions) = persons_and_professions_data();
-        person_input.insert_with_same_weight(persons.iter(), 1);
-        profession_input.insert_with_same_weight(professions.iter(), 1);
+        person_input.insert_with_same_weight(&Vec::from_iter(Person::data()), 1);
+        profession_input.insert_with_same_weight(&Vec::from_iter(Profession::data()), 1);
 
         circuit.step()?;
 
@@ -820,9 +555,8 @@ mod test {
         let person_input = inputs.get("person").unwrap();
         let profession_input = inputs.get("profession").unwrap();
 
-        let (persons, professions) = persons_and_professions_data();
-        person_input.insert_with_same_weight(persons.iter(), 1);
-        profession_input.insert_with_same_weight(professions.iter(), 1);
+        person_input.insert_with_same_weight(&Vec::from_iter(Person::data()), 1);
+        profession_input.insert_with_same_weight(&Vec::from_iter(Profession::data()), 1);
 
         circuit.step()?;
 

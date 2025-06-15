@@ -3,10 +3,13 @@ name = "compute"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+test = []
+
 [dependencies]
 anyhow = { workspace = true }
 thiserror = { workspace = true }
-dbsp = "0.62.0"
+dbsp = "0.63.0"
 rkyv = { version = "0.7.45", default-features = false, features = [
     "std",
     "size_64",
@@ -22,3 +25,6 @@ size-of = { version = "0.1.5", package = "feldera-size-of", features = [
     "ordered-float",
 ] }
 cli-table = "0.4.9"
+
+[dev-dependencies]
+criterion = { workspace = true }

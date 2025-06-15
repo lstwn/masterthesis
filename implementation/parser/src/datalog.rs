@@ -149,6 +149,8 @@ fn variable(input: &str) -> IResult<&str, VarStmt> {
 
 #[cfg(test)]
 pub mod test {
+    use crate::crdts::mvr_crdt_store_datalog;
+
     use super::*;
     use compute::{
         expr::{BinaryExpr, Expr, LiteralExpr, VarExpr as IncLogVarExpr},
@@ -258,45 +260,10 @@ pub mod test {
         assert_eq!(result, Ok(("", expected)));
     }
 
-    fn mvr_store_crdt_program() -> &'static str {
-        r#"
-            // These are extensional database predicates (EDBPs).
-            pred(FromNodeId, FromCounter, ToNodeId, ToCounter)  :- .
-            set(NodeId, Counter, Key, Value)                    :- .
-
-            // These are intensional database predicates (IDBPs).
-            distinct overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
-            distinct overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
-
-            isRoot(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
-                                                         not overwrites(NodeId, Counter).
-
-            isLeaf(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
-                                                         not overwritten(NodeId, Counter).
-
-            isCausallyReady(NodeId, Counter)          :- isRoot(NodeId, Counter). // Trailing comment.
-            isCausallyReady(NodeId, Counter)          :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
-                                                         pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
-
-            mvrStore(Key, Value)                      :- // Comments before atoms are fine.
-                                                         isLeaf(NodeId, Counter),
-                                                         // Comments between atoms are also fine.
-                                                         // Spanning multiple lines.
-                                                         isCausallyReady(NodeId, Counter),
-                                                         set(NodeId, Counter, Key, Value).
-            // Trailing comments are fine.
-        "#
-    }
-
-    pub fn mvr_store_crdt_ast() -> Program {
-        program(mvr_store_crdt_program()).unwrap().1
-    }
-
     #[test]
     fn test_mvr_store_crdt() {
-        let result = program(mvr_store_crdt_program());
-        // TODO: Compare the full program but for now we just check that
-        // the parser consumes the full input.
+        let result = program(mvr_crdt_store_datalog());
+        // Here, we just check that the parser consumes the full input.
         assert_eq!(result.as_ref().map(|(input, program)| *input), Ok(""));
         println!("{:#?}", result);
     }

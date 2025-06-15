@@ -11,7 +11,7 @@ mod operators;
 mod optimizer;
 pub mod relation;
 mod resolver;
-mod scalar;
+pub mod scalar;
 pub mod stmt;
 #[cfg(feature = "test")]
 pub mod test_helper;
@@ -205,6 +205,7 @@ mod test {
         relation::TupleValue,
         scalar::ScalarTypedValue,
         stmt::BlockStmt,
+        test_helper::setup_inc_data_log,
     };
     use expr::{AssignExpr, BinaryExpr, CallExpr, Expr, Literal, LiteralExpr, VarExpr};
     use operator::Operator;
@@ -304,11 +305,6 @@ mod test {
         assert_eq!(Value::Uint(3), result);
 
         Ok(())
-    }
-
-    // TODO: test multithreaded runtime
-    fn setup_inc_data_log() -> IncDataLog {
-        IncDataLog::default()
     }
 
     #[test]

@@ -2,13 +2,16 @@
 //! It provides helpers for testing and benchmarking purposes.
 
 use crate::{
+    IncDataLog,
     relation::{RelationSchema, TupleKey, TupleValue},
     scalar::ScalarTypedValue,
 };
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-};
+use std::{collections::HashSet, fmt::Debug};
+
+// TODO: test multithreaded runtime
+pub fn setup_inc_data_log() -> IncDataLog {
+    IncDataLog::default()
+}
 
 pub trait InputEntity: Into<TupleKey> + Into<TupleValue> + Clone + Debug {
     fn schema() -> RelationSchema;

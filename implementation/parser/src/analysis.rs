@@ -254,11 +254,11 @@ enum PrecedenceKind {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::datalog::test::mvr_store_crdt_ast;
+    use crate::{crdts::mvr_crdt_store_datalog, datalog::program};
 
     #[test]
     fn test_build_dependency_graph() -> Result<(), SyntaxError> {
-        let ast = mvr_store_crdt_ast();
+        let ast = program(mvr_crdt_store_datalog()).unwrap().1;
         let graph = PrecedenceGraph::from_ast(ast)?;
         println!("{:#?}", graph);
         let order = graph.into_execution_order()?;

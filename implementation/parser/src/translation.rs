@@ -345,7 +345,7 @@ impl<'a> Translator<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::Parser;
+    use crate::{crdts::mvr_crdt_store_datalog, Parser};
 
     fn parse_and_translate(input: &str) -> Result<(DbspInputs, Code), SyntaxError> {
         // A hacky way to obtain/leak a `RootCircuit` for testing purposes.
@@ -363,33 +363,7 @@ mod test {
         //        Implicitly, the rule that is last in the topological sort order.
         //        In case of a tie, the last rule in the input via a _stable_
         //        topological sort. Add this to thesis!
-        // 2. [ ] Cleanup and reuse test code. Rename the `cli` crate.
-
-        let input = r#"
-            // These are extensional database predicates (EDBPs).
-            pred(FromNodeId, FromCounter, ToNodeId, ToCounter)  :- .
-            set(NodeId, Counter, Key, Value)                    :- .
-
-            // These are intensional database predicates (IDBPs).
-            distinct overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
-            distinct overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
-
-            isRoot(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
-                                                         not overwrites(NodeId, Counter).
-
-            isLeaf(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
-                                                         not overwritten(NodeId, Counter).
-
-            isCausallyReady(NodeId, Counter)          :- isRoot(NodeId, Counter).
-            isCausallyReady(NodeId, Counter)          :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
-                                                         pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
-
-            mvrStore(Key, Value)                      :- set(NodeId, Counter, Key, Value),
-                                                         isCausallyReady(NodeId, Counter),
-                                                         isLeaf(NodeId, Counter).
-        "#;
-
-        let (inputs, code) = parse_and_translate(input)?;
+        let (inputs, code) = parse_and_translate(mvr_crdt_store_datalog())?;
         println!("Inputs: {:#?}", inputs);
         println!("Code: {:#?}", code);
         Ok(())

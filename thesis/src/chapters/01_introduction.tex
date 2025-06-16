@@ -133,7 +133,7 @@ Finally, I emphasize that recursion in SQL also suffers from requiring
 monotonically growing sets for recursive queries~\cite{hirn2023fix},
 just like recursion in Datalog.
 Hence, there is no fundamental difference in terms of their semantics and
-expressiveness but I see big gap in their syntax choices.
+expressiveness but I see a notable difference in their syntax choices.
 
 \section{Advanced Example: Respecting Causal Order}\label{sec:advanced_example}
 
@@ -319,7 +319,7 @@ are frequent updates both from the local and remote replicas, and the accrued
 update sizes since the last evaluation are often minor compared to the total
 size of the operation set due to the near-real-time nature of the collaboration.
 Only after extended periods of offline time, the update sizes may grow larger.
-Therefore, I see \ac{IVM} as a key technique to make \acp{CRDT} as queries
+Therefore, I regard \ac{IVM} as a key technique to make \acp{CRDT} as queries
 feasible in practice:
 If the query engine is only doing work relative to the amount of operations
 accrued since the last evaluation instead of relative to the full set of

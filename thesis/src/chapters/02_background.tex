@@ -350,6 +350,84 @@ maintenance (IVM)~\cite{mcsherry2013differential, budiu2022dbsp, budiu2024dbsp}
 can turn out to be an essential aspect to make CRDTs expressed as
 queries over relations feasible.
 
-\section{Incremental View Maintenance}
+\section{\Acl{IVM}}
+
+\Acl{IVM}~\cite{gupta1995maintenance} deals with the problem of maintaining
+an output view derived from a set of input relations in response to changes
+in these inputs.
+It computes the \emph{changes} to the output view which accrued through
+inputs' changes since the last evaluation.
+This renders the consumers of the output view \emph{stateful},
+unlike consumers of non-incremental queries which are stateless,
+and obtain the full output view upon every evaluation.
+The goal of \ac{IVM} is to maintain the view \emph{efficiently}, that is,
+being faster than recomputing the view from scratch upon hitting an input change,
+In theory, this allows to maintain output views in near-real-time over large
+inputs which are subject to frequent changes, and are prohibitively expensive to
+recompute from scratch every time.
+In a nutshell, the promise of \ac{IVM} is to do only work proportional to the
+size of the \emph{input changes}, rather than the size of the \emph{full inputs},
+for a (re)evaluation of the output view.
+This draws a clear line to caching based approaches, e.g., periodically
+refreshed materialized views, whose evaluation is still proportional
+to the size of the full inputs.
+While they may provide low read latency, the output view may be stale.
+\ac{IVM} tries to offer both low read latency and fresh data.
+
+There are multiple approaches to \ac{IVM}.
+Traditionally, \ac{IVM} relies on algebraic transformations within the framework
+of relational algebra~\cite{gupta1995maintenance, gupta1993maintaining, pgivm}.
+For a view \(V\), its derivative \(\Delta V\) has to be found to maintain
+it incrementally.
+Although this approach is not used in this work, I provide a small example
+for finding the derivative of a join.
+Let \(R\) and \(S\) be two relations and the view of interest is their
+equi join \(V := R \bowtie S\) on some field (not relevant here).
+Furthermore, \(\Delta V\), \(\Delta R\) and \(\Delta S\) are the set of changes
+to \(V\), \(R\) and \(S\), respectively, since their last evaluation.
+The state of \(V\) at the last evaluation is denoted as \(V_0\) and the
+state of \(V\) which includes the changes is denoted as \(V_1\). Then:
+
+\begin{equation}
+	\begin{aligned}
+		V_1                                                                                               & = V_0 + \Delta V                                                      \\
+		\Leftrightarrow (R + \Delta R) \bowtie (S + \Delta S)                                             & = R \bowtie S + \Delta V                                              \\
+		\Leftrightarrow R \bowtie S + R \bowtie \Delta S + \Delta R \bowtie S + \Delta R \bowtie \Delta S & = R \bowtie S + \Delta V                                              \\
+		\Leftrightarrow \Delta V                                                                          & = R \bowtie \Delta S + \Delta R \bowtie S + \Delta R \bowtie \Delta S
+	\end{aligned}
+\end{equation}
+
+In the transformation from the first to the second line, the definitions
+of \(V_0\) and \(V_1\) are used.
+Then, the \emph{bilinear} property (with respect to addition) of the join
+operator is used which allows to distribute the join over the addition.
+A final transformation is applied to isolate \(\Delta V\) and the derivative
+of the join is obtained.
+Unfortunately, this approach is not applicable to all queries and struggles
+to handle more complex queries like recursive ones~\cite{budiu2025dbsp}.
+
+More recent approaches are \emph{differential dataflow}~\cite{mcsherry2013differential}
+and the later \emph{DBSP}~\cite{budiu2022dbsp, budiu2024dbsp, budiu2025dbsp}.
+Their approach is fundamentally different from the algebraic one.
+At first, they leave relational algebra behind and instead define a general
+framework for expressing incremental computations over streams of insertions
+and deletions.
+Then, they show that the expressiveness of the framework is rich enough to
+represent relational algebra, including recursive queries, and by extension
+SQL and Datalog.
+
+Although DBSP is more recent than differential dataflow,
+they make different trade-offs instead of one superseding the other.
+While differential dataflow is more complex, it offers more
+flexibility~\cite{budiu2025dbsp}:
+The order of inputs can be a partial order, i.e., inputs can be delivered
+out-of-order.
+On the other hand, DBSP requires a total order of inputs.
+One advantage of DBSP is that it is a modular theory:
+If a new operator can be expressed as a DBSP circuit, it is incrementalizable
+and DBSP's framework can be used to obtain an efficient implementation
+of it~\cite{budiu2025dbsp}.
+In contrast, there is no general recipe to express an arbitrary operator
+as a differential dataflow operator.
 
 Introduce DBSP's concepts: Circuits, operators, handles.

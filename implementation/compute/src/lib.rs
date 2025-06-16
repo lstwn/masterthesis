@@ -26,7 +26,7 @@ use crate::{
     stmt::Code,
 };
 use context::{InterpreterContext, ProgramContext, ResolverContext};
-use dbsp::{DBSPHandle, DbspError, RootCircuit, Runtime};
+use dbsp::{DbspError, DbspHandle, RootCircuit, Runtime};
 use error::IncLogError;
 use interpreter::Interpreter;
 use resolver::Resolver;
@@ -106,10 +106,13 @@ impl Default for IncDataLog {
 }
 
 impl IncDataLog {
+    pub fn new(threads: NonZeroUsize, optimize: bool) -> Self {
+        Self { threads, optimize }
+    }
     pub fn build_circuit_from_ir<F, Code>(
         &self,
         intermediate_representation: F,
-    ) -> Result<(DBSPHandle, DbspInputs, DbspOutput), anyhow::Error>
+    ) -> Result<(DbspHandle, DbspInputs, DbspOutput), anyhow::Error>
     where
         Code: IntoIterator<Item = Stmt>,
         F: Fn(&mut RootCircuit, &mut DbspInputs) -> Result<Code, SyntaxError>
@@ -137,7 +140,7 @@ impl IncDataLog {
     pub fn build_circuit_from_parser<F>(
         &self,
         parser: F,
-    ) -> Result<(DBSPHandle, DbspInputs, DbspOutput), anyhow::Error>
+    ) -> Result<(DbspHandle, DbspInputs, DbspOutput), anyhow::Error>
     where
         F: Fn(&mut RootCircuit) -> Result<(DbspInputs, Code), SyntaxError> + Clone + Send + 'static,
     {
@@ -154,7 +157,7 @@ impl IncDataLog {
 
         Ok((circuit, inputs, output))
     }
-    fn init_dbsp_runtime<F, T>(&self, constructor: F) -> Result<(DBSPHandle, T), DbspError>
+    fn init_dbsp_runtime<F, T>(&self, constructor: F) -> Result<(DbspHandle, T), DbspError>
     where
         F: FnOnce(&mut RootCircuit) -> Result<T, anyhow::Error> + Clone + Send + 'static,
         T: Send + 'static,

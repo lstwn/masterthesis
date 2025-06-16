@@ -4,8 +4,8 @@ use crate::{
 };
 use cli_table::{Cell, Style, Table, format::Justify};
 pub use dbsp::{
-    CircuitHandle, DBSPHandle, Error as DbspError, NestedCircuit, RootCircuit, Runtime, ZWeight,
-    zset,
+    CircuitHandle, DBSPHandle as DbspHandle, Error as DbspError, NestedCircuit, RootCircuit,
+    Runtime, ZWeight, zset,
 };
 use dbsp::{IndexedZSetHandle, OrdIndexedZSet, OrdZSet, OutputHandle, Stream, utils::Tup2};
 use std::{

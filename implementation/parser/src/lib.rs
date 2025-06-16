@@ -11,7 +11,7 @@ use translation::Translator;
 
 pub mod analysis;
 pub mod ast;
-mod crdts;
+pub mod crdts;
 pub mod datalog;
 pub mod expr;
 mod graph;

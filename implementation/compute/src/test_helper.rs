@@ -6,11 +6,11 @@ use crate::{
     relation::{RelationSchema, TupleKey, TupleValue},
     scalar::ScalarTypedValue,
 };
-use std::{collections::HashSet, fmt::Debug};
+use std::{collections::HashSet, fmt::Debug, num::NonZeroUsize};
 
 // TODO: test multithreaded runtime
 pub fn setup_inc_data_log() -> IncDataLog {
-    IncDataLog::default()
+    IncDataLog::new(NonZeroUsize::try_from(4).unwrap(), true)
 }
 
 pub trait InputEntity: Into<TupleKey> + Into<TupleValue> + Clone + Debug {

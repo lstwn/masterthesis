@@ -60,7 +60,7 @@ To obtain the state of the key value store, the following set must be computed:
 
 \begin{align*}
 	\var{mvrStore} = \{ (\var{Key}, \var{Value}) \mid
-	 & (\var{RepId}, \var{Ctr}, \var{Key}, \var{Value}) \in \var{set}                      \\
+	 & \forall (\var{RepId}, \var{Ctr}, \var{Key}, \var{Value}) \in \var{set}              \\
 	 & \land \nexists (\var{FromRepId}, \var{FromCtr}, \var{\_}, \var{\_}) \in \var{pred}: \\
 	 & \var{RepId} = \var{FromRepId} \land \var{Ctr} = \var{FromCtr} \}
 \end{align*}

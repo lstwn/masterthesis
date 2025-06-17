@@ -22,7 +22,6 @@ Horn clauses, which are logical implications adhering to this structure:
 	\text{ :- }
 	\underbrace{
 	\underbrace{a_1}_{\text{atom}},
-	\underbrace{a_2}_{\text{atom}},
 	\ldots,
 	\underbrace{a_n}_{\text{atom}}.
 	}_{\text{body}}
@@ -31,7 +30,7 @@ Horn clauses, which are logical implications adhering to this structure:
 
 The left-hand side of a rule is called \emph{head} and the right-hand side \emph{body}.
 A head consists of an identifier, which also defines the name of the predicate
-the rule defines, as well as a comma-separated list of expressions
+the rule contributes to define, as well as a comma-separated list of expressions
 which may reference variables defined in the rule's body.
 A body is a comma-separated sequence of \emph{atoms} followed by a trailing ``.'' (dot).
 An atom is either referencing another \emph{predicate} to bring some of its
@@ -43,17 +42,17 @@ A rule (a predicate) is said to be \emph{self-recursive}
 if it references itself in its (one of its) body (bodies).
 Moreover, it is allowed to have multiple rules sharing the same head, that is,
 they have the same identifier and list of expressions.
+In that case, they jointly define the predicate named after their heads' identifier.
 
 \ref{code:trans-closure-datalog} illustrates the concepts for the
 computation of a graph's transitive closure with Datalog.
 It contains three rules which define the two predicates, ``edge'' and ``closure''.
-The ``edge'' predicate contains just the expression ``true''.
-This denotes an empty body and some Datalog variants allow to omit it,
+The ``edge'' predicate has an empty body,
 leaving just the dot on the rule's right-hand side.
-The ``closure'' predicate is defined through the latter two rules which share
+The ``closure'' predicate is defined through the last two rules which share
 the same head.
-The last rule consists of three atoms: The first one references itself, rendering
-the rule self-recursive, the second one references the ``edge'' predicate,
+The last rule's body consists of three atoms: The first one references itself,
+rendering the rule self-recursive, the second one references the ``edge'' predicate,
 and the last atom defines a condition, restricting the value range of the
 ``active'' variable.
 The first two atoms bring the variables ``from'', ``via'', ``to'', and ``active''
@@ -63,30 +62,36 @@ values must be equal, i.e.,
 \(a_1(x), a_2(x)\) is a shorthand for \(a_1(x_1), a_2(x_2), x_1 = x_2\).
 Next to defining the name of the predicate, the head specifies that the ``from''
 and ``to'' variables are exposed for the ``closure'' predicate.
+The second rule's body consists of two atoms but does not introduce anything new
+syntactically.
 
 \begin{figure}[htpb]
 	\centering
-	\begin{tabular}{c}
-		\begin{lstlisting}[keepspaces]
+	% \begin{tabular}{c}
+	\begin{lstlisting}[keepspaces]
 edge(from, to, active) :- .
 closure(from, to)      :- edge(from, to, active), active = true.
 closure(from, to)      :- closure(from, via), edge(via, to, active),
                           active = true.\end{lstlisting}
-	\end{tabular}
+	% \end{tabular}
 	\caption{An exemplary computation of a graph's transitive closure with Datalog.}\label{code:trans-closure-datalog}
 \end{figure}
 
 Semantically, a rule can be read from right to left: The body's atoms are
 connected with conjunctions and all variable assignments that satisfy that term
 form a new \emph{fact} of the predicate which the rule defines.
-Mathematically, this can be read as
-``$a_1$ and $a_2$ and \ldots\ and $a_n$ imply $r$'', and expressed as:
+Here, Datalog's close relationship to first-order logic becomes apparent:
+Every rule is implicitly allquantified over its variables.
+If \(x_1, \ldots x_m\) are the variables of the rule's body, this can be read as
+``for all \(x_1, \ldots, x_m\) it holds that \(a_1\) and \ldots\ and \(a_n\) imply \(r\)''
+and expressed\footnotemark{} mathematically as:
+
+\footnotetext{
+	Not every atom or head has to reference all variables.
+}
 
 \begin{equation}
-	\begin{aligned}
-		                & r \Leftarrow a_1 \land a_2 \land \ldots \land a_n          \\
-		\Leftrightarrow & r \lor \lnot a_1 \lor \lnot a_2 \lor \ldots \lor \lnot a_n
-	\end{aligned}
+	\forall x_1, \ldots, x_m: a_1(x_1, \ldots, x_m) \land \ldots \land a_n(x_1, \ldots, x_m) \Rightarrow r(x_1, \ldots, x_m) \\
 \end{equation}
 
 If there are multiple rules with the same head, their bodies' conjunctions
@@ -96,13 +101,13 @@ are connected through a disjunction~\cite{abo2024convergence}.
 Unlike \emph{derived facts}, \emph{base facts} of fact rules are externally
 given and not derived from other rules.
 Hence, the predicates defined by fact rules and the predicates defined by regular
-rules (those with a body) can be partioned into two disjoint sets,
-\emph{\acp{EDBP}} and \emph{\acp{IDBP}}. Only \acp{IDBP} may reference \acp{EDBP}
+rules (those with a body) can be partioned into two disjoint sets:
+\emph{\acfp{EDBP}} and \emph{\acfp{IDBP}}. Only \acp{IDBP} may reference \acp{EDBP}
 but not vice-versa.
 Facts contain \emph{fields} that can assume basic scalar types such as strings,
-number types, or booleans.
+numbers, or booleans.
 Moreover, for a regular rule to be valid the \emph{range-restriction property}
-must be satisfied~\cite{green2013datalog}.
+must be satisfied~\cite{green2013datalog}:
 It demands that every variable occuring in the head of a rule must also occur
 at least once in a predicate atom of its body.
 
@@ -111,7 +116,7 @@ repeated computations, therefore requiring a termination condition.
 Datalog uses least-fixpoint semantics, under which the computation terminates
 if an additional iteration of the repeated computation does not alter the result
 anymore \emph{for the first time}.
-This has some consequences but before discussing them we are now in position
+This has some consequences but before discussing them I am now in position
 to illustrate the semantics of the example query in \ref{code:trans-closure-datalog}.
 
 The ``edge'' \ac{EDBP} contains all edges of a graph and these are given
@@ -142,8 +147,8 @@ Another issue, not necessarily tied to least-fixpoint computations but shared
 with all termination criteria, is that it is impossible to prevent
 non-terminating computations in general.
 Consider a small variation on the computation in \ref{code:trans-closure-datalog}.
-If every edge carried a non-negative weight and we wanted to keep track of the
-cumulated weight for each node pair of the transitive closure,
+If every edge carried a non-negative weight and the query should additionally
+keep track of the cumulated weight for each node pair of the transitive closure,
 the computation's termination hinges on the graph being cycle-free.
 With cycles, the computation would walk cycles endlessly and constantly discover
 higher cumulated weights for node pairs which are part of a cycle.
@@ -156,11 +161,11 @@ can be found in \cite{hirn2023fix}.
 Traditionally, Datalog has set semantics and does not support multisets.
 Moreover, it does not use name-based-indexing but positional-indexing.
 As Datalog lacks a formal specification, there are many flavours of it,
-and later we define our own dialect of it which supports multisets and
+and later I define my own dialect of it which supports multisets and
 uses name-based-indexing.
 
 Due to the use of relational algebra as an \ac{IR} in \ref{ch:results},
-we point out some connections to it as well as to SQL
+I point out some connections to it as well as to SQL
 because the latter is the predominant frontend to relational algebra.
 The equivalent of a \emph{relation} in Datalog is a predicate:
 They both define a name under which \emph{tuples} (facts in Datalog; rows in SQL)
@@ -169,7 +174,7 @@ Yet, relational algebra does not distinguish between base facts and derived fact
 the same way Datalog does.
 The closest counterpart to derived facts are the tuples of a materialized view
 in SQL.
-We suspect that this is due to the little emphasis on composition in SQL.
+I suspect that this is due to the little emphasis on composition in SQL.
 
 \subsection{Negation Extension}
 
@@ -188,12 +193,12 @@ as \ref{code:negated-datalog-issue} demonstrates.
 
 \begin{figure}[htpb]
 	\centering
-	\begin{tabular}{c}
-		\begin{lstlisting}[keepspaces]
+	% \begin{tabular}{c}
+	\begin{lstlisting}[keepspaces]
 // TODO: Is there a better example? Maybe with some real-world semantics?
 r_1 :- not r_2.
 r_2 :- not r_1.\end{lstlisting}
-	\end{tabular}
+	% \end{tabular}
 	\caption{A negated Datalog program with unclear semantics~\cite{green2013datalog}.}\label{code:negated-datalog-issue}
 \end{figure}
 
@@ -228,10 +233,10 @@ even after temporary divergence.
 
 \footnotetext{
 	Although \acp{CRDT} are often referred to as \emph{Conflict-free} Replicated
-	Data Types, we use the term \emph{convergent} here because the former term
+	Data Types, I prefer the term \emph{convergent} here because the former term
 	may be a bit misleading, as conflicts can still occur, e.g., in case of
 	concurrent writes to the same ``location'' of a the data type.
-	We think that CRDTs are better characterized by their property that diverging
+	I think that CRDTs are better characterized by their property that diverging
 	replicas eventually \emph{converge} to the same state, given the delivery of
 	the same set of updates.
 	While that state may comprise conflicts, replicas uniformly agree upon them
@@ -253,14 +258,14 @@ However, this issue sometimes even affects the ``guarantees'' provided by a \ac{
 Their correct definition is complex and error-prone,
 let alone proving their convergence, even for people familiar with distributed
 systems~\cite{kleppmann2022assessing, gomes2017verifying}.
-Hence, we want to explore defining CRDTs through deterministic queries over
+Hence, I want to explore defining CRDTs through deterministic queries over
 relational data.
 This ensures that the convergence property is always satisfied by construction,
 thereby allowing application developers with little background in eventual
 consistency to formulate their own, application-specific \acp{CRDT} without
 having to worry about convergence.
 
-We provide a system overview of the approach in \autoref{fig:system-arch}.
+I provide a system overview of the approach in \autoref{fig:system-arch}.
 The \emph{database layer} incrementally updates the views \deltaO{},
 as defined by the CRDT Datalog queries formulated on the \emph{application layer},
 in response to updates from both the local \deltaI{local} and remote replicas
@@ -283,7 +288,7 @@ of this research and various approaches exist in the literature~\cite{
 	kleppmann2022making}.
 This also excludes the question of how to efficiently send just the minimum
 set of missing updates to each replica.
-We only make the basic assumption of some network topology and protocol
+I only make the basic assumption of some network topology and protocol
 which ensures that each update will eventually be delivered to all replicas.
 Replicas are assumed to be non-byzantine.
 
@@ -401,10 +406,12 @@ In the transformation from the first to the second line, the definitions
 of \(V_0\) and \(V_1\) are used.
 Then, the \emph{bilinear} property (with respect to addition) of the join
 operator is used which allows to distribute the join over the addition.
-A final transformation is applied to isolate \(\Delta V\) and the derivative
-of the join is obtained.
-Unfortunately, this approach is not applicable to all queries and struggles
-to handle more complex queries like recursive ones~\cite{budiu2025dbsp}.
+A final transformation is applied to isolate \(\Delta V\) and the well-known
+derivative of the join~\cite{idris2017dynamic} is obtained, which can also be
+derived through the DBSP framework~\cite{budiu2025dbsp}.
+Unfortunately, the algebraic transformation approach is not applicable
+to all queries and struggles to handle more complex queries like
+recursive ones~\cite{budiu2025dbsp}.
 
 More recent approaches are \emph{differential dataflow}~\cite{mcsherry2013differential}
 and the later \emph{DBSP}~\cite{budiu2022dbsp, budiu2024dbsp, budiu2025dbsp}.
@@ -423,11 +430,51 @@ flexibility~\cite{budiu2025dbsp}:
 The order of inputs can be a partial order, i.e., inputs can be delivered
 out-of-order.
 On the other hand, DBSP requires a total order of inputs.
-One advantage of DBSP is that it is a modular theory:
+One advantage of DBSP is its modular theory:
 If a new operator can be expressed as a DBSP circuit, it is incrementalizable
 and DBSP's framework can be used to obtain an efficient implementation
 of it~\cite{budiu2025dbsp}.
 In contrast, there is no general recipe to express an arbitrary operator
 as a differential dataflow operator.
+This work chooses DBSP over differential dataflow for three reasons.
+First, its open-source implementation~\cite{feldera} provides a rich,
+somewhat documented API\footnotemark{} to build upon.
+Second, it is said to be less complex while still providing all ingredients to
+to express \acp{CRDT} in my use case.
+Third, differential dataflow's advantage of being able to handle out-of-order
+inputs is not relevant for operation-based \acp{CRDT}, as they are designed
+to be tolerant of handling out-of-order updates among replicas.
+Therefore, I turn towards DBSP specific concepts which are relevant in \ref{ch:results}.
+
+\footnotetext{
+	While the documentation is not perfect and the API surface quite involved,
+	it is sufficient to start building with DBSP.
+	As part of this work, I have contributed a
+	\href{https://github.com/feldera/feldera/pull/3893}{pull request}
+	to improve the documentation of DBSP's tutorial on recursive queries.
+}
+
+\newcommand{\zset}{\(\mathcal{Z}\)-set}
+\newcommand{\zsets}{\(\mathcal{Z}\)-sets}
+\newcommand{\zweight}{\(\mathcal{Z}\)-weight}
+
+DBSP relies on the concept of \zsets{}~\cite{green2007provenance}\footnotemark{}.
+% TODO explain Zsets a bit more.
+
+\footnotetext{
+	The paper calls them \(\mathcal{K}\)-relations because it operates
+	in a more general context of tagging tuples with elements from a
+	commutative semiring \(\mathcal{K}\).
+	As DBSP uses the integers \(\mathcal{Z}\) as an instance of the
+	commutative semiring, DBSP names them \zsets{}.
+}
+
+DBSP calls a query plan a \emph{circuit} and it can be assembled from the
+available operators on \emph{streams}.
+Streams carry \zsets{} which can represent both data as well as changes to data.
+In the former case, their \zweight{} cannot be negative and a positive \zweight{}
+indicates the multiplicity of a tuple in the stream.
+In the latter case, a positive \zweight{} indicates an insertion
+and a negative \zweight{} indicates a deletion of a tuple.
 
 Introduce DBSP's concepts: Circuits, operators, handles.

@@ -436,7 +436,7 @@ mod test {
                 // The second clock cycle removes the edge |1| -1-> |2|.
                 zset! { Tup3(1, 2, 1) => -1 },
                 // The third clock cycle would introduce a cycle but that would
-                // cause the fixed-point computation to never terminate.
+                // cause the fixpoint computation to never terminate.
                 // In total, we have the following graph:
                 // |0| -1-> |1| -1-> |2| -2-> |3| -2-> |4|
                 //  ^                                   |

@@ -157,7 +157,8 @@ Define grammar, outline parser.
 \begin{figure}[htpb]
 	\centering
 	\begin{tabular}{c}
-		\begin{lstlisting}[]
+		\begin{lstlisting}[keepspaces]
+		// Core Datalog grammar.
 		program     = rule* EOF ;
         rule        = head ":-" body "." ;
         head        = "distinct"? IDENTIFIER "(" field ( "," field )* ")" ;
@@ -167,6 +168,7 @@ Define grammar, outline parser.
         predicate   = IDENTIFIER "(" variable ( "," variable )* ")" ;
         variable    = IDENTIFIER ( "=" IDENTIFIER )? ;
 
+        // Scalar expressions and arithmetic grammar.
 		comparison  = term ( ( "==" | "!=" | ">" | ">=" | "<" | "<=" ) term )? ;
 		term        = factor ( ( "+" | "-" ) factor )* ;
 		factor      = unary ( ( "*" | "/" ) unary )* ;
@@ -174,6 +176,7 @@ Define grammar, outline parser.
 		primary     = literal | IDENTIFIER | "(" comparison ")" ;
 		literal     = BOOL | UINT | IINT | STRING | NULL ;
 
+		// Primitives and literals.
 		BOOL        = "true" | "false" ;
 		UINT        = DIGIT+ ;
 		IINT        = ( "-" | "+" )? DIGIT+ ;

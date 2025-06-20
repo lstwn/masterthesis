@@ -1,3 +1,36 @@
+\newcommand{\replica}{
+	\begin{tikzpicture}
+		\tikzset{
+		layer/.style={
+				rectangle, draw, minimum height=1.5cm, minimum width=2.3cm,
+				rounded corners=1mm,
+				font=\footnotesize, align=center,
+			},
+		rel/.style={
+		->, >={Stealth[round]}, },
+		}
+		\node[layer] (app) {\textbf{Application}\\ \textbf{Layer}};
+		\node[layer,right=of app] (db) {
+			\textbf{Database Layer}\\
+			Maintains Datalog\\
+			Queries \(\delta I \to \delta O\)
+		};
+		\node[layer,above=2.0cm of app] (user) {\textbf{User}};
+
+		\draw[rel] (user) to[bend left] node[midway,near start,auto=left,yshift=-7pt]{issues \deltaI{local}} (app);
+		\draw[rel] (app) to[bend left] node[auto,sloped]{sees \deltaO{}} (user);
+
+		\draw[rel] (app)
+		to[bend right=45, auto=right]
+		node[midway]{forwards \deltaI{local} and \deltaI{remote}}
+		(db);
+		\draw[rel] (db)
+		to[bend right=45, auto=right]
+		node[midway, near start]{provides \deltaO{}}
+		(app);
+	\end{tikzpicture}
+}
+
 \begin{figure}
 	\centering
 
@@ -11,27 +44,25 @@
 		->, >={Stealth[round]},bend left,},
 		}
 
-		\node[local_replica] (local) {\replica};
+		\node[local_replica] (local) {\replica{}};
 		\node[label] (local-label) [above=0pt of local] {Local Replica};
 
-		\node[remote_replica] (remote3) [right=of local,yshift=+15pt,xshift=+15pt] {\replica};
-		\node[remote_replica] (remote2) [right=of local,yshift=+10pt,xshift=+10pt] {\replica};
-		\node[remote_replica] (remote1) [right=of local,yshift=+5pt,xshift=+5pt] {\replica};
-		\node[remote_replica] (remote0) [right=of local] {\replica};
+		\node[remote_replica] (remote3) [right=of local,yshift=+15pt,xshift=+15pt] {\replica{}};
+		\node[remote_replica] (remote2) [right=of local,yshift=+10pt,xshift=+10pt] {\replica{}};
+		\node[remote_replica] (remote1) [right=of local,yshift=+5pt,xshift=+5pt] {\replica{}};
+		\node[remote_replica] (remote0) [right=of local] {\replica{}};
 		\node[label] (remote-label) [above=0pt of remote3] {Remote Replicas};
 
 		\begin{scope}[on background layer]
 			\draw[rel] (local.north east) to[] (remote0.north west);
 			\draw[rel] (local.north east) to[] (remote1.north west);
 			\draw[rel] (local.north east) to[] (remote2.north west);
-			% TODO: Does not compile here.
-			% \draw[rel] (local.north east) to["distributes \deltaI{local}"] (remote3.north west);
+			\draw[rel] (local.north east) to[] node[midway, above, yshift=5pt]{distributes \deltaI{local}} (remote3.north west);
 
 			\draw[rel] (remote0.south west) to[] (local.south east);
 			\draw[rel] (remote1.south west) to[] (local.south east);
 			\draw[rel] (remote2.south west) to[] (local.south east);
-			% TODO: Does not compile here.
-			% \draw[rel] (remote3.south west) to["receives \deltaI{remote}"] (local.south east);
+			\draw[rel] (remote3.south west) to[] node[midway, below, xshift=40pt]{receives \deltaI{remote}} (local.south east);
 		\end{scope}
 
 	\end{tikzpicture}
@@ -39,9 +70,5 @@
 	\caption{
 		Overview of the system architecture from the perspective of a local
 		replica.
-		\deltaI{local} and \deltaI{remote} refer to the input deltas to
-		the EDBs from the local and remote replicas, respectively.
-		\deltaO{} models the output delta of all Datalog queries and is based on
-		the current state of the EDBs on the respective replica.
 	}\label{fig:system-arch}
 \end{figure}

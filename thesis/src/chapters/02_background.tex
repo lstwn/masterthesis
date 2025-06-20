@@ -82,12 +82,12 @@ connected with conjunctions and all variable assignments that satisfy that term
 form a new \emph{fact} of the predicate which the rule defines.
 Here, Datalog's close relationship to first-order logic becomes apparent:
 Every rule is implicitly allquantified over its variables.
-If \(x_1, \ldots x_m\) are the variables of the rule's body, this can be read as
+If \(x_1, \ldots x_m\) are the variables of the rule's body, the rule can be read as
 ``for all \(x_1, \ldots, x_m\) it holds that \(a_1\) and \ldots\ and \(a_n\) imply \(r\)''
 and expressed\footnotemark{} mathematically as:
 
 \footnotetext{
-	Not every atom or head has to reference all variables.
+	Not every atom or head must reference all variables.
 }
 
 \begin{equation}
@@ -118,6 +118,9 @@ if an additional iteration of the repeated computation does not alter the result
 anymore \emph{for the first time}.
 This has some consequences but before discussing them I am now in position
 to illustrate the semantics of the example query in \ref{code:trans-closure-datalog}.
+For a more formal treatment of Datalog's semantics, I refer to \cite{green2013datalog}
+which provides an overview on three equivalent formalisms to precisely define
+Datalog's semantics, model-theoretic, fixpoint-theoretic, and proof-theoretic.
 
 The ``edge'' \ac{EDBP} contains all edges of a graph and these are given
 externally, e.g., through an insertion into the database.
@@ -155,9 +158,6 @@ higher cumulated weights for node pairs which are part of a cycle.
 A discussion of alternatives to fixpoints in the context of SQL
 can be found in \cite{hirn2023fix}.
 
-% TODO:
-% - mention PR on DBSP (maybe later?)
-
 Traditionally, Datalog has set semantics and does not support multisets.
 Moreover, it does not use name-based-indexing but positional-indexing.
 As Datalog lacks a formal specification, there are many flavours of it,
@@ -178,49 +178,113 @@ I suspect that this is due to the little emphasis on composition in SQL.
 
 \subsection{Negation Extension}
 
-The Datalog semantics presented so far is not sufficient to express
-(among other things) relational algebra's set difference operator
-and the advanced example in \ref{fig:mvr-crdt} from \ref{ch:intro}
-due to its lack of negation.
-However, introducing negation without any restrictions to Datalog causes two issues.
-First, every variable occuring in the body of a rule must occur in at least one
-positive (non-negated) predicate atom, which is referred to as
-\emph{safety condition}~\cite{green2013datalog}.
-If it was not satisfied, the result of a query would not just depend on the
-actual content of a database, and may be infinite.
-Second, if negation is combined with recursion its semantics can become undefined
-as \ref{code:negated-datalog-issue} demonstrates.
+The Datalog semantics presented so far is not sufficient to express,
+for instance, relational algebra's set difference operator or the advanced example
+in \ref{code:mvr-crdt-datalog} from \ref{ch:intro} due to its lack of negation.
+However, introducing negation without any restrictions to Datalog causes
+semantic issues, as \ref{code:negated-datalog-issue} demonstrates:
 
 \begin{figure}[htpb]
 	\centering
 	% \begin{tabular}{c}
 	\begin{lstlisting}[keepspaces]
-// TODO: Is there a better example? Maybe with some real-world semantics?
+// TODO: Is there a better example? Maybe with some real-world ties?
 r_1 :- not r_2.
 r_2 :- not r_1.\end{lstlisting}
 	% \end{tabular}
 	\caption{A negated Datalog program with unclear semantics~\cite{green2013datalog}.}\label{code:negated-datalog-issue}
 \end{figure}
 
-The most common resolution to reimpart clear semantics to negative Datalog
-is called \emph{stratified negation}.
+TODO: Exlain the issue.
 
-Introduce semipositive Datalog.
+The most common resolution to reimpart unambiguous semantics to negative Datalog
+is called \emph{stratified negation}~\cite{green2013datalog} which is a syntactic
+restriction on the use of negation and recursion:
+For a \emph{recursive} rule, it disallows negation in its body
+(or in any of its predicates' bodies it references in its body).
+To characterize the semantics of stratified negation,
+an even stricter syntactic restriction called \emph{semipositive Datalog}
+is introduced first.
+
+Semipositive Datalog only allows the negation of \acp{EDBP} but not \acp{IDBP}
+in the body of a rule defining an \ac{IDBP}.
+Furthermore, it demands that every variable occuring in the body of a rule must
+occur in at least one positive (non-negated) predicate atom,
+which is referred to as \emph{safety condition}~\cite{green2013datalog}.
+If it was not satisfied, the result of a query would not just depend on the
+actual content of a database anymore, and may be infinite.
+The semantics of negated \acp{EDBP} follows the intuition that
+the negation of an \ac{EDBP} within the body of an \ac{IDBP} (together with
+the safety condition) behaves like the set difference operator
+in relational algebra.
+
+Datalog with stratified negation relaxes the restriction and allows the
+negation of \acp{IDBP} as long as the predicates are \emph{stratifiable}.
+A Datalog program is stratifiable if it can be partitioned into \emph{ordered}
+strata \(P_1, \ldots, P_n\) such that:
+
+\begin{itemize}
+	\item If the predicate \(p_b\) occurs in the body of a rule defining
+	      the predicate \(p_h\), then \(p_b \in P_i\), \(p_h \in P_j\), and
+	      \(i \leq j\).
+	\item If the predicate \(p_b\) occurs in the body of a rule defining
+	      the predicate \(p_h\) \emph{negatedly}, then \(p_b \in P_i\),
+	      \(p_h \in P_j\), and \(i < j\)~\cite{green2013datalog}.
+\end{itemize}
 
 To compute a stratification of a negative Datalog program \(P\),
-its \emph{precedence graph} \(G_P\) can be utilized.
-It is a directed graph whose nodes are the predicates of \(P\) and there is
-a \emph{positive} edge from predicate \(p_i\) to predicate \(p_j\)
-if \(p_i\) occurs in the body of a rule defining \(p_j\).
-Similarly, there is a \emph{negative} edge from \(p_i\) to \(p_j\)
-if \(p_i\) occurs \emph{negatedly} in the body of a rule defining \(p_j\).
+its \emph{precedence graph} \(G_P\) can be utilized~\cite{green2013datalog}.
+It is a directed graph whose nodes are the predicates of \(P\).
+Furthermore, there is
 
-\ref{fig:precedence-graph-mvr} shows the precedence graph of \ref{fig:mvr-crdt}.
+\begin{itemize}
+	\item a \emph{positive} edge
+	      (unlabeled in \ref{fig:precedence-graph-mvr-crdt})
+	      from predicate \(p_i\) to predicate \(p_j\)
+	      if \(p_i\) occurs in the body of a rule defining \(p_j\) as well as
+	\item a \emph{negative} edge
+	      (labeled with \(\lnot\) in \ref{fig:precedence-graph-mvr-crdt})
+	      from \(p_i\) to \(p_j\)
+	      if \(p_i\) occurs \emph{negatedly} in the body of a rule defining \(p_j\).
+\end{itemize}
+
+The precedence graph can be used to not only check whether a Datalog
+program is stratifiable but also to compute a stratification of it.
+The former is enabled by the theorem that a Datalog program is stratifiable
+if and only if its precedence graph \(G_p\) does not contain a cycle
+with a negative edge~\cite{green2013datalog}.
+For the latter, two steps are required.
+First, the precedence graph's strongly connected components form the
+\emph{strata} of the Datalog program.
+Second, to find a valid sequence of the strata,
+the strongly connected components have to be topologically sorted.
+
+The resulting order of strata is what imparts the semantics to stratifiable
+Datalog programs:
+Every stratum \(P_{i+1}\) is evaluated after its previous stratum \(P_{i}\)
+as if it was a \emph{semipositive} Datalog program with the \acp{IDBP}
+of \(P_{i+1}\) treated as if they were \acp{EDBP}.
+The semantics are well-defined because next to their existence,
+which are given by construction, they are also unique because any freedom
+in choosing the strata and their order does not lead to different results,
+as long as the underlying data is the same~\cite{apt1988towards}.
+
+\ref{fig:precedence-graph-mvr-crdt} shows the precedence graph
+of \ref{code:mvr-crdt-datalog}.
+It contains two negative edges but since they are not part of a cycle,
+the program is stratifiable.
+The only cycle is the self-recursion of the ``isCausallyReady'' predicate,
+denoted by a positive self-loop edge.
+In general, if a precedence graph contained a cycle involving multiple nodes,
+the program contains mutually recursive predicates.
+
+\input{figures/precedence_graph.tex}
 
 \section{\acsp{CRDT} and Coordination-Free Environments}
 
-\acp{CRDT}\footnotemark{} try to solve the problems arising from asynchronous
-collaboration over message-passing networks on the data structure level.
+\acfp{CRDT}\footnotemark{} try to solve the problems arising from asynchronous
+collaboration over message-passing networks on the data structure level and
+without the help of a central entity coordinating replicas and message flows.
 In these coordination-free environments, in which replicas can be offline
 for extended periods of time but are still permitted to write (and read)
 to (from) their local state at any time,
@@ -258,43 +322,6 @@ However, this issue sometimes even affects the ``guarantees'' provided by a \ac{
 Their correct definition is complex and error-prone,
 let alone proving their convergence, even for people familiar with distributed
 systems~\cite{kleppmann2022assessing, gomes2017verifying}.
-Hence, I want to explore defining CRDTs through deterministic queries over
-relational data.
-This ensures that the convergence property is always satisfied by construction,
-thereby allowing application developers with little background in eventual
-consistency to formulate their own, application-specific \acp{CRDT} without
-having to worry about convergence.
-
-I provide a system overview of the approach in \autoref{fig:system-arch}.
-The \emph{database layer} incrementally updates the views \deltaO{},
-as defined by the CRDT Datalog queries formulated on the \emph{application layer},
-in response to updates from both the local \deltaI{local} and remote replicas
-\deltaI{remote}.
-In this model the application layer is responsible for forwarding updates
-to the database layer but forwarding could equally well happen exclusively
-on the latter.
-The database layer must be capable of atomically updating all relations
-of a write to safeguard the CRDT queries against reading inconsistent
-state, i.e., queries must read from a consistent snapshot of the database.
-The next section demonstrates the importance of atomic writes.
-
-\autoref{fig:system-arch} illustrates a peer to peer architecture
-but, due to the lack of hierarchy, different network topologies are also possible,
-e.g., a star network topology with a central server for more efficient update
-gossiping.
-Yet, the issue of update propagation (and update integrity) is not the focus
-of this research and various approaches exist in the literature~\cite{
-	auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
-	kleppmann2022making}.
-This also excludes the question of how to efficiently send just the minimum
-set of missing updates to each replica.
-I only make the basic assumption of some network topology and protocol
-which ensures that each update will eventually be delivered to all replicas.
-Replicas are assumed to be non-byzantine.
-
-\input{figures/system_architecture}
-
-% \subsection{Connecting the Dots: CRDTs and Datalog}\label{sec:crdts-datalog}
 
 The literature defines two classes of CRDTs: state-based and operation-based
 which both have different requirements for correctness.
@@ -329,9 +356,18 @@ Moreover, applying any \emph{pure}\footnote{
 function \( f: S \to T \) on the state does not impede the convergence property,
 as the function is applied on all replicas in the same deterministic way.
 \( T \) is an arbitrary set of all possible derived states \( f \) can map to.
-This approach to CRDTs is known in the literature as
+This approach to \acp{CRDT} is known in the literature as
 \emph{pure operation-based replicated data types}~\cite{baquero2017pure, stewen2024undo},
 and is used in practice in the Automerge CRDT~\cite{automerge}.
+
+% Datalog as that pure function
+
+Hence, I want to explore defining CRDTs through deterministic queries over
+relational data.
+This ensures that the convergence property is always satisfied by construction,
+thereby allowing application developers with little background in eventual
+consistency to formulate their own, application-specific \acp{CRDT} without
+having to worry about convergence.
 
 The pure function \( f \) can be expressed in a Datalog query.
 As Datalog evaluation is deterministic, the convergence property is satisfied.
@@ -341,19 +377,49 @@ Furthermore, the query engine running the Datalog program is responsible
 for finding an efficient algorithm to execute the query and application developers
 can focus on the CRDT at a declarative level and get the implementation ``for free''.
 
-A common pattern of collaboration is near-real-time collaboration on a shared
-document and CRDTs can be used to power this form of collaboration.
-In this scenario, updates are usually frequent but small and therefore it
-may make sense to reuse the result of a previous query along with the input
-delta in hope of saving computation time over recomputing the query from scratch
-based on the whole input with every update.
-Ideally, the computation time is only proportional to the size of the input
-change but not to the whole input size anymore.
-As older, causally overwritten updates to a CRDT are often not contributing
-to the current state of the CRDT anymore, incremental view
-maintenance (IVM)~\cite{mcsherry2013differential, budiu2022dbsp, budiu2024dbsp}
-can turn out to be an essential aspect to make CRDTs expressed as
-queries over relations feasible.
+% A common pattern of collaboration is near-real-time collaboration on a shared
+% document and CRDTs can be used to power this form of collaboration.
+% In this scenario, updates are usually frequent but small and therefore it
+% may make sense to reuse the result of a previous query along with the input
+% delta in hope of saving computation time over recomputing the query from scratch
+% based on the whole input with every update.
+% Ideally, the computation time is only proportional to the size of the input
+% change but not to the whole input size anymore.
+% As older, causally overwritten updates to a CRDT are often not contributing
+% to the current state of the CRDT anymore, incremental view
+% maintenance (IVM)~\cite{mcsherry2013differential, budiu2022dbsp, budiu2024dbsp}
+% can turn out to be an essential aspect to make CRDTs expressed as
+% queries over relations feasible.
+
+% Consequences and setup
+
+\input{figures/system_architecture}
+
+I provide a system overview of the approach in \autoref{fig:system-arch}.
+The \emph{database layer} maintains the views \deltaO{},
+as defined by the \ac{CRDT} Datalog queries formulated on the \emph{application layer},
+in response to updates from both the local \deltaI{local} and remote replicas
+\deltaI{remote}.
+In this presentation, the application layer is responsible for forwarding updates
+to the database layer but forwarding could equally well happen exclusively
+on the database layer.
+As explained in \ref{sec:advanced_example}, the database layer must be capable
+of atomically updating all relations of a write to safeguard the \ac{CRDT} queries
+against reading inconsistent state,
+i.e., queries must read from a consistent snapshot of the database.
+
+\autoref{fig:system-arch} illustrates a peer to peer architecture.
+Yet, due to the lack of hierarchy, different network topologies are also possible,
+e.g., a star network topology with a central server for more efficient update gossiping.
+Yet, the issue of update propagation (and update integrity) is not the focus
+of this research and various approaches exist in the literature~\cite{
+	auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
+	kleppmann2022making}.
+This also precludes the question of how to efficiently send just the minimum
+set of missing updates to each replica.
+This work only makes the basic assumption of some network topology and protocol
+which ensures that each update will eventually be delivered to all replicas.
+Furthermore, replicas are assumed to be non-byzantine.
 
 \section{\Acl{IVM}}
 
@@ -361,12 +427,12 @@ queries over relations feasible.
 an output view derived from a set of input relations in response to changes
 in these inputs.
 It computes the \emph{changes} to the output view which accrued through
-inputs' changes since the last evaluation.
+the changes in its inputs since the last evaluation.
 This renders the consumers of the output view \emph{stateful},
-unlike consumers of non-incremental queries which are stateless,
+unlike consumers of non-incremental queries which are stateless
 and obtain the full output view upon every evaluation.
 The goal of \ac{IVM} is to maintain the view \emph{efficiently}, that is,
-being faster than recomputing the view from scratch upon hitting an input change,
+being faster than recomputing the view from scratch upon hitting an input change.
 In theory, this allows to maintain output views in near-real-time over large
 inputs which are subject to frequent changes, and are prohibitively expensive to
 recompute from scratch every time.
@@ -430,7 +496,7 @@ flexibility~\cite{budiu2025dbsp}:
 The order of inputs can be a partial order, i.e., inputs can be delivered
 out-of-order.
 On the other hand, DBSP requires a total order of inputs.
-One advantage of DBSP is its modular theory:
+Another advantage of DBSP is its modular theory:
 If a new operator can be expressed as a DBSP circuit, it is incrementalizable
 and DBSP's framework can be used to obtain an efficient implementation
 of it~\cite{budiu2025dbsp}.
@@ -438,9 +504,9 @@ In contrast, there is no general recipe to express an arbitrary operator
 as a differential dataflow operator.
 This work chooses DBSP over differential dataflow for three reasons.
 First, its open-source implementation~\cite{feldera} provides a rich,
-somewhat documented API\footnotemark{} to build upon.
+(somewhat) documented API\footnotemark{} to build upon.
 Second, it is said to be less complex while still providing all ingredients to
-to express \acp{CRDT} in my use case.
+to express \acp{CRDT} for my use case.
 Third, differential dataflow's advantage of being able to handle out-of-order
 inputs is not relevant for operation-based \acp{CRDT}, as they are designed
 to be tolerant of handling out-of-order updates among replicas.
@@ -459,22 +525,53 @@ Therefore, I turn towards DBSP specific concepts which are relevant in \ref{ch:r
 \newcommand{\zweight}{\(\mathcal{Z}\)-weight}
 
 DBSP relies on the concept of \zsets{}~\cite{green2007provenance}\footnotemark{}.
-% TODO explain Zsets a bit more.
+With \zsets{}, each tuple of the \zset{} is tagged with an integer,
+called \zweight{}, which has a different meaning in different contexts.
+If the tuples represent data, the \zweight{} is non-negative and indicates
+the multiplicity of the tuple.
+A negative \zweight{} has no meaning.
+If the tuples represent changes to data, a positive \zweight{} indicates
+an insertion and a negative \zweight{} indicates a deletion of a tuple.
+Hence, \zsets{} allow to represent both data and changes to data with the
+same construct.
 
 \footnotetext{
 	The paper calls them \(\mathcal{K}\)-relations because it operates
 	in a more general context of tagging tuples with elements from a
 	commutative semiring \(\mathcal{K}\).
 	As DBSP uses the integers \(\mathcal{Z}\) as an instance of the
-	commutative semiring, DBSP names them \zsets{}.
+	commutative semiring, they are named \zsets{}.
 }
 
-DBSP calls a query plan a \emph{circuit} and it can be assembled from the
-available operators on \emph{streams}.
-Streams carry \zsets{} which can represent both data as well as changes to data.
-In the former case, their \zweight{} cannot be negative and a positive \zweight{}
-indicates the multiplicity of a tuple in the stream.
-In the latter case, a positive \zweight{} indicates an insertion
-and a negative \zweight{} indicates a deletion of a tuple.
+Roughly speaking, DBSP calls a query plan a \emph{circuit}
+and it can be assembled from the available operators on \emph{streams}.
+Circuits can be nested to express recursive computations, in which case
+the outer circuit is called the \emph{parent circuit} and the inner circuit
+is called the \emph{child circuit}.
+Streams are an infinite sequence of elements from \zsets{}.
+Operators used in this work are \emph{distinct},
+\emph{map} (for projections), \emph{filter} (for selections),
+\emph{join}, \emph{plus} and \emph{minus} (for ``set'' union and difference),
+as well as the \emph{delta0} operator (required for importing streams
+from a parent circuit into a child circuit).
+Operators can be chained to form a circuit, which can be viewed as
+a directed acyclic graph of operators similar to operator trees in relational algebra.
+Its root nodes are the input streams and the leaf node represents the output
+stream, emitting the resulting tuples of the query.
+Each input stream provides a handle to feed in updates, which are processed
+according to the circuit after calling the \emph{step} method on the root
+circuit.
+The output stream's handle can be used to obtain the output tuples.
 
-Introduce DBSP's concepts: Circuits, operators, handles.
+There are \emph{stateless} and \emph{stateful} operators.
+For instance, every \emph{linear} operator, such as a \emph{filter} or a \emph{map},
+is stateless, meaning that it does not have to maintain any state between
+calls to the \emph{step} method.
+On the other hand, bilinear operators, such as a \emph{join}, are stateful
+and have to maintain state between calls to the \emph{step} method.
+This has an important implication for query optimization~\cite{budiu2025dbsp}.
+Unlike non-incremental query processing, the query plan is fixed and cannot
+adapt to changes in the inputs after the circuit has been assembled,
+\emph{without} having to construct a new circuit according to the
+reoptimized query plan and then feed in all updates again to hydrate
+the state of the stateful operators.

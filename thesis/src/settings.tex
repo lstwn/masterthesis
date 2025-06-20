@@ -125,8 +125,8 @@
 \newcommand{\code}[1]{\texttt{#1}}
 \newcommand{\setop}[5][set]{$\mathit{#1}_{#2}^{#3}(#4, #5)$}
 \newcommand{\var}[1]{\mathit{#1}}
-\newcommand{\deltaI}[1]{\(\delta I_{\text{#1}}\)}
-\newcommand{\deltaO}[1][]{\(\delta O_{\text{#1}}\)}
+\newcommand{\deltaI}[1]{\(\Delta I_{\text{#1}}\)}
+\newcommand{\deltaO}[1][]{\(\Delta O_{\text{#1}}\)}
 
 % Settings for TikZ.
 \usetikzlibrary{
@@ -171,31 +171,4 @@ stepline/.style={
 		semithick,
 		-,
 	},
-}
-
-\newcommand{\replica}{
-	\begin{tikzpicture}
-		\tikzset{
-		layer/.style={
-				rectangle, draw, minimum height=1.5cm, minimum width=2.3cm,
-				rounded corners=1mm,
-				font=\footnotesize, align=center,
-			},
-		rel/.style={
-		->, >={Stealth[round]}, },
-		}
-		\node[layer] (app) {\textbf{Application}\\ \textbf{Layer}};
-		\node[layer,right=of app] (db) {
-			\textbf{Database Layer}\\
-			Maintains Datalog\\
-			Queries \(\delta I \to \delta O\)
-		};
-		\node[layer,above=2.0cm of app] (user) {\textbf{User}};
-
-		\draw[rel] (user) to["issues \deltaI{local}", bend left, near start] (app);
-		\draw[rel] (app) to["sees \deltaO", bend left,auto=right] (user);
-
-		\draw[rel] (app) to["forwards \deltaI{local} and \deltaI{remote}", bend right=45, auto=right] (db);
-		\draw[rel] (db) to["provides \deltaO", bend right=45, auto=right,near start] (app);
-	\end{tikzpicture}
 }

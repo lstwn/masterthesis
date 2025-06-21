@@ -152,7 +152,40 @@ language constructs, such as variables, functions, and lexical scopes.
 
 \subsection{Datalog Frontend}\label{sec:datalog-frontend}
 
-Define grammar, outline parser.
+\ref{code:datalog-grammar} shows the grammar of my Datalog dialect,
+along with the syntax for literals as well as for a small expression language
+which is required to specify conditions on variables.
+The dialect follows ``typical'' Datalog syntax and semantics
+except for some modifications.
+
+Traditionally, Datalog uses positional indexing to access variables from a
+predicate. I decided to use name-based indexing for two reasons:
+First, it aligns better with the \ac{IR} which uses relational algebra
+that uses names to refer to relations' variables.
+Second, positional indexing is not really a viable option in practice because
+predicates (or relations) with many columns occur in real-world
+database schemas, rendering positional indexing cumbersome to use.
+Moreover, variables starting with an underscore are ignored but can be used
+to make things more explicit.
+
+The grammar also allows to prepend the ``distinct'' keyword to the name
+of a rule's head.
+This causes the facts of the rule to be distinct, i.e., it removes duplicates
+from the rule's output.
+As Datalog uses set semantics traditionally, an explicit distinct operator
+is usually not necessary because it is implicitly given.
+Nevertheless, I deviate to allow for bag semantics for two reasons:
+First, in practice it may be useful to be able to work with duplicates.
+Second, enforcing set semantics can be costly performance-wise
+as it requires maintaining an index to check for duplicates.
+This is very similar to the situation with relational algebra and SQL.
+In most formal settings, relational algebra uses set semantics but nearly
+every SQL implementation in practice uses bag semantics.
+
+Besides that, new fields can be defined through expressions in the list of fields
+of a rule's head.
+Yet, due to name-based indexing, a name must be provided.
+The expressions can reference all variables which are in scope of the rule's body.
 
 \begin{figure}[htpb]
 	\centering
@@ -190,35 +223,98 @@ Define grammar, outline parser.
 	\caption{Grammar of the Datalog Variant.}\label{code:datalog-grammar}
 \end{figure}
 
-\subsubsection{Important Characteristics of our Datalog Variant}
+The dialect prohibits mutual recursion and only permits self-recursion, i.e.,
+any program's precedence graph must be acyclic except for self-loops.
+This is stricter than stratified Datalog which allows for cycles,
+provided that these cycles do not contain a negative edge.
+This is a deliberate design choice to keep the implementation complexity in check.
+Furthermore, the dialect does not allow for more than one negative atom per rule.
+Otherwise, the conversion to relational algebra described in
+\ref{sec:datalog-to-relational-algebra} becomes more complex.
+Still, these restrictions turn out to be sufficient for my \ac{CRDT} use case.
+% Schema restriction
 
-- No mutual recursion, only self-recursion (precludes issues arising from
-stratified negation, it is even stricter than it).
-- At most one negative atom per rule. Also, the relation's type of the
-positive atoms must match the relation's type of the negative atom.
+\ref{code:mvr-crdt-datalog-dialect} shows the familiar \ac{MVR} key-value store
+\ac{CRDT} from \ref{ch:intro} in the Datalog dialect.
+Except for the inclusion of \acp{EDBP}, name-based indexing, and the explicit
+use of the ``distinct'' operator, the query is similar to the one
+in \ref{code:mvr-crdt-datalog}.
+The \acp{EDBP} need to be included to make the their fields known to the
+query engine.
 
-Datalog is frequently using positional indexing to access variables from a
-predicate. We decided to use nominal indexing for two reasons:
-First, it aligns better with our relational algebra IR,
-as relational algebra uses names to refer to relations' variables.
-Second, positional indexing is not really a viable option in practice because
-predicates (or relations) with lots of columns occur in many database schemas,
-rendering positional indexing cumbersome.
-Finally, variables starting with an underscore are ignored but can be used
-to make things more explicit.
+\begin{figure}[htpb]
+	\begin{lstlisting}[keepspaces]
+// These are extensional database predicates (EDBPs).
+pred(FromRepId, FromCtr, ToRepId, ToCtr) :- .
+set(RepId, Ctr, Key, Value)              :- .
 
-Datalog is a declarative language. Hence, it does not specify how to execute
-a query and leaves finding a valid execution order to the query engine.
-Therefore, we construct a precedence graph from the rules of a Datalog program.
+// These are intensional database predicates (IDBPs).
+distinct overwritten(RepId, Ctr)
+                    :- pred(RepId = FromRepId, Ctr = FromCtr, _ToRepId, _ToCtr).
+distinct overwrites(RepId, Ctr)
+                    :- pred(_FromRepId, _FromCtr, RepId = ToRepId, Ctr = ToCtr).
+isRoot(RepId, Ctr)  :- set(RepId, Ctr, _Key, _Value),
+                       not overwrites(RepId, Ctr).
+isLeaf(RepId, Ctr)  :- set(RepId, Ctr, _Key, _Value),
+                       not overwritten(RepId, Ctr).
+isCausallyReady(RepId, Ctr)
+                    :- isRoot(RepId, Ctr).
+isCausallyReady(RepId, Ctr)
+                    :- isCausallyReady(FromRepId = RepId, FromCtr = Ctr),
+                       pred(FromRepId, FromCtr, RepId = ToRepId, Ctr = ToCtr).
+mvrStore(Key, Value)
+                    :- isLeaf(RepId, Ctr),
+                       isCausallyReady(RepId, Ctr),
+                       set(RepId, Ctr, Key, Value).\end{lstlisting}
+	\caption{The \ac{MVR} key-value store in my Datalog dialect.}\label{code:mvr-crdt-datalog-dialect}
+\end{figure}
 
-TODO Define precedence graph in Backgound section.
-
-Datalog and distinct operator? Set semantics is the default in Datalog but don't
-we rather want bag semantics? Relational algebra suffers from the same problem.
-The formalism mostly uses set semantics but nearly every implementation in
-practice uses bag semantics.
+The parser itself is implemented with the help of the ``nom'' library~\cite{nom}
+which is a parser combinator framework for Rust.
+Parser combinators are higher-order functions used to compose a parser
+from smaller parsers, which makes writing a parser for an existing grammar
+relatively straightforward, as long as unit tests are written for the input
+parsers first. Otherwise, the origin of a parsing bug may be hard to identify.
 
 \subsection{Translating Datalog to Relational Algebra}\label{sec:datalog-to-relational-algebra}
+
+Due to Datalog's declarative nature, it does not specify how to execute a query
+and leaves the problem of finding a valid execution order to the query engine.
+Therefore, a precedence graph is constructed as described in \ref{sec:datalog-negation}
+from the \emph{aggregated} rules of a Datalog program.
+Aggregated means that all rules with the same head are combined into an
+aggregated rule which contains all bodies of the original rules.
+This has the advantage that every predicate is now represented by a single
+aggregated rule and not by multiple rules.
+Then, a topological sort is computed on top of the precedence graph using
+Kahn's algorithm~\cite{kahn1962topological}.
+Next to yielding a valid execution order that respects which predicate has
+to be computed before which other predicate, the algorithm also aborts in
+case of a cycle in the precedence graph, thereby detecting invalid programs.
+To avoid a false positive in case of a self-recursive predicate,
+the construction of the precedence graph omits self-loops.
+
+Having found a valid execution order of the predicates,
+the aggregated rules are translated into the relational algebra \ac{IR}.
+The topologically sorted predicates are mapped into a sequence of statements
+which assign the output of an aggregated rule to a variable with the same name.
+Then, subsequent rules which depend on the output of a previous rule can refer
+to the variable of a previous rule if necessary.
+During interpretation, the \ac{IR} implicitly returns the effect
+of the last statement as if it was an expression,
+resembling implicit returns in Rust or Ruby.
+That way, the last predicate in the topological sort order becomes the output
+of an \ac{IR} program.
+That predicate is the predicate with the most dependencies and implicitly
+assumed to be the \emph{main predicate of interest} of the Datalog program.
+In case of a tie between multiple predicates, the discovery order of Kahn's
+algorithm is used to break the tie\footnotemark{}.
+
+\footnotetext{
+	I argue that queries with multiple main predicates deserve separate
+	Datalog programs, as they are not related to each other beyond sharing
+	the same dependencies.
+}
 
 % Includes "soft" query optimization.
 

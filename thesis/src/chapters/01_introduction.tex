@@ -9,7 +9,7 @@ in the application language with some predefined interface that
 specifies how to update and read the state of a \ac{CRDT}.
 However, there is also the idea of defining \acp{CRDT}
 as relational queries~\cite{kleppmann2018data}.
-In this alternative model, the state of a CRDT is obtained through a query over
+In this alternative model, the state of a \ac{CRDT} is obtained through a query over
 relations storing operations which are gossiped across replicas.
 This research aims to explore this alternative model further and
 to utilize Datalog as a potential query language due to its elegance in
@@ -255,8 +255,8 @@ custom resolution logic.
 
 Next to the higher-level abstraction provided by a query language like Datalog,
 there is another important property that applies to \acp{CRDT} in particular.
-\acp{CRDT} must satisfy strong eventual consistency to guarantee convergence
-in a coodination-free environment.
+\acp{CRDT} must satisfy strong eventual consistency~\cite{shapiro2011comprehensive}
+to guarantee convergence in a coodination-free environment.
 Proving the correctness of a \ac{CRDT} is a non-trivial
 task~\cite{gomes2017verifying, kleppmann2022assessing},
 and requires expertise in eventual consistency as well as proving strategies.
@@ -267,10 +267,10 @@ set of gossiped operations among replicas, the convergence property is trivially
 satisfied, as I lay out in more detail in \autoref{ch:background}.
 I hope that with this approach, the doors to using \acp{CRDT} in applications
 are opened wider, as the application developer does not have to worry about
-the critical convergence property anymore but is still able to design her own
-\ac{CRDT} tailored to her application's needs, which is not possible with
+the critical convergence property anymore but is empowered to design her own
+\ac{CRDT}, tailored to her application's needs which is not possible with
 today's \ac{CRDT} libraries.
-They provide a fixed set of \ac{CRDT} types with a fixed set of operations
+These provide a fixed set of \ac{CRDT} types with a fixed set of operations
 and conflict resolution strategies.
 Alas, they are mostly treated as black boxes from the outside.
 
@@ -378,51 +378,3 @@ Although \acp{CRDT} are mostly discussed in the context of collaborative
 applications, they are not limited to such contexts.
 Companies like Ditto~\cite{ditto} serve use cases powered by \acp{CRDT}
 in manufacturing, aviation, gastronomy and defence sectors.
-
-% The goals of this research are twofold:
-% First, we deal with the question if Datalog is expressive and ergonomic enough
-% to express common CRDTs.
-% To answer that question, we implement common CRDT types in Datalog, e.g.,
-% a list/sequence CRDT, a map CRDT, as well as a set CRDT,
-% and evaluate our experience.
-% Queries often involve negation (see Section \ref{sec:motivating-example} and
-% \ref{sec:advanced_example}),
-% and because core Datalog does not support negation, the question arises if
-% the most commonly used Datalog extension for negation,
-% stratified negation~\cite{green2013datalog}, is expressive enough.
-
-% Second, we turn to the question of the practical performance of this approach.
-% We want to test some CRDT workloads against our CRDT Datalog implementations and
-% evaluate the performance.
-% To do so, we (1) may have to define common CRDT workloads for benchmarking
-% (unfortunately, there is no standard like TPCH established yet\footnote{
-% 	There are some benchmarks for text editing:
-% 	\url{https://github.com/dmonad/crdt-benchmarks} and
-% 	\url{https://github.com/josephg/editing-traces}.
-% }), and we (2) either utilize some existing Datalog engines and test them
-% with and without incremental view maintenance or may have to deal with
-% prototyping our own, as support for incremental view maintenance is variable
-% among Datalog engines
-% (see \autoref{tab:datalog-engines} for a non-exhaustive overview).
-
-% \begin{table*}[]
-% 	\center
-% 	\small
-% 	\begin{tabular}{@{}lp{3.4cm}lp{1.2cm}p{0.7cm}l@{}}
-% 		\toprule
-% 		Engine                                                                      & Datalog Variant                          & IVM & Language  & Open Source & Active \\
-% 		\midrule
-% 		\href{https://github.com/souffle-lang/souffle}{Souffle}                     & With stratified negation                 & No  & C++       & Yes         & Yes    \\
-% 		\href{https://github.com/rust-lang/datafrog}{Datafrog}                      & Vanilla                                  & No  & Rust      & Yes         & No     \\
-% 		\href{https://github.com/vmware/differential-datalog}{Differential Datalog} & ?                                        & Yes & Rust/Java & Yes         & No     \\
-% 		\href{https://github.com/s-arash/ascent/}{Ascent}                           & With stratified negation and aggregation & No  & Rust      & Yes         & Yes    \\
-% 		\href{https://github.com/ekzhang/crepe}{Crepe}                              & With stratified negation                 & No  & Rust      & Yes         & No     \\
-% 		\href{https://github.com/knowsys/nemo}{Nemo}                                & Based on RDF instead of relations        & ?   & Rust      & Yes         & Yes    \\
-% 		\href{https://www.datomic.com}{Datomic}                                     & Custom (and appears to use RDF)          & ?   & Clojure   & No          & Yes    \\
-% 		\href{https://github.com/tonsky/datascript}{Datascript}                     & Appears to mimic Datomic                 & ?   & Clojure   & Yes         & Yes    \\
-% 		\href{https://github.com/comnik/declarative-dataflow}{Declarative Dataflow} & ?                                        & Yes & Rust      & Yes         & No     \\
-% 		\bottomrule
-% 	\end{tabular}
-% 	\caption{Overview of some Datalog Engines}
-% 	\label{tab:datalog-engines}
-% \end{table*}

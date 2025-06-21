@@ -3,7 +3,7 @@
 
 \chapter{Background}\label{ch:background}
 
-\section{Datalog}
+\section{Datalog}\label{sec:datalog}
 
 Datalog~\cite{green2013datalog} is a declarative logic programming language
 invented in the 80s which is primarily used for expressing queries to retrieve
@@ -11,7 +11,7 @@ data in database systems.
 A Datalog program (or query) consists of a set of rules, which are used to
 derive new facts from existing ones.
 
-\subsection{Syntax and Semantics}
+\subsection{Syntax and Semantics}\label{sec:datalog-syntax-semantics}
 
 Rules define \emph{predicates} and are syntactially expressed in the form of
 Horn clauses, which are logical implications adhering to this structure:
@@ -176,7 +176,7 @@ The closest counterpart to derived facts are the tuples of a materialized view
 in SQL.
 I suspect that this is due to the little emphasis on composition in SQL.
 
-\subsection{Negation Extension}
+\subsection{Negation Extension}\label{sec:datalog-negation}
 
 The Datalog semantics presented so far is not sufficient to express,
 for instance, relational algebra's set difference operator or the advanced example
@@ -276,11 +276,11 @@ the program is stratifiable.
 The only cycle is the self-recursion of the ``isCausallyReady'' predicate,
 denoted by a positive self-loop edge.
 In general, if a precedence graph contained a cycle involving multiple nodes,
-the program contains mutually recursive predicates.
+the program contains \emph{mutually recursive} predicates.
 
 \input{figures/precedence_graph.tex}
 
-\section{\acsp{CRDT} and Coordination-Free Environments}
+\section{\acsp{CRDT} and Coordination-Free Environments}\label{sec:crdt-coordination-free}
 
 \acfp{CRDT}\footnotemark{} try to solve the problems arising from asynchronous
 collaboration over message-passing networks on the data structure level and
@@ -300,7 +300,7 @@ even after temporary divergence.
 	Data Types, I prefer the term \emph{convergent} here because the former term
 	may be a bit misleading, as conflicts can still occur, e.g., in case of
 	concurrent writes to the same ``location'' of a the data type.
-	I think that CRDTs are better characterized by their property that diverging
+	I think that \acp{CRDT} are better characterized by their property that diverging
 	replicas eventually \emph{converge} to the same state, given the delivery of
 	the same set of updates.
 	While that state may comprise conflicts, replicas uniformly agree upon them
@@ -323,12 +323,12 @@ Their correct definition is complex and error-prone,
 let alone proving their convergence, even for people familiar with distributed
 systems~\cite{kleppmann2022assessing, gomes2017verifying}.
 
-The literature defines two classes of CRDTs: state-based and operation-based
+The literature defines two classes of \acp{CRDT}: state-based and operation-based
 which both have different requirements for correctness.
-Let \( S \) be the set of all possible states of a CRDT.
-State-based CRDTs require a merge function \( \sqcup: S \times S \to S \)
+Let \( S \) be the set of all possible states of a \ac{CRDT}.
+State-based \acp{CRDT} require a merge function \( \sqcup: S \times S \to S \)
 which must be commutative, associative, and idempotent.
-Operation-based CRDTs require that the operation functions \( op_i: S \to S \)
+Operation-based \acp{CRDT} require that the operation functions \( op_i: S \to S \)
 are commutative and applied exactly once.
 Both models must adhere to these properties under the strong eventual consistency
 model which demands three properties~\cite{shapiro2011comprehensive}:
@@ -341,10 +341,10 @@ model which demands three properties~\cite{shapiro2011comprehensive}:
 	      updates are in an equivalent state.
 \end{enumerate}
 
-Verifying the correctness for a CRDT is a complex,
+Verifying the correctness of a \ac{CRDT} is a complex,
 error-prone task~\cite{gomes2017verifying, kleppmann2022assessing},
-and currently has to be done for each CRDT individually.
-If, however, the set of operations on a CRDT \emph{is} the state,
+and currently has to be done for each \ac{CRDT} individually.
+If, however, the set of operations on a \ac{CRDT} \emph{is} the state,
 the merge function can be defined as the set union,
 for which the properties of commutativity, associativity, and idempotency hold.
 The critical convergence property demanded by the strong eventual consistency
@@ -358,40 +358,10 @@ as the function is applied on all replicas in the same deterministic way.
 \( T \) is an arbitrary set of all possible derived states \( f \) can map to.
 This approach to \acp{CRDT} is known in the literature as
 \emph{pure operation-based replicated data types}~\cite{baquero2017pure, stewen2024undo},
-and is used in practice in the Automerge CRDT~\cite{automerge}.
-
-% Datalog as that pure function
-
-Hence, I want to explore defining CRDTs through deterministic queries over
-relational data.
-This ensures that the convergence property is always satisfied by construction,
-thereby allowing application developers with little background in eventual
-consistency to formulate their own, application-specific \acp{CRDT} without
-having to worry about convergence.
-
-The pure function \( f \) can be expressed in a Datalog query.
+and is used in practice in the Automerge \ac{CRDT}~\cite{automerge}.
+This work explores defining the pure function \( f \) as a Datalog query
+over the state comprising the operations of a \ac{CRDT}.
 As Datalog evaluation is deterministic, the convergence property is satisfied.
-This gives application developers the power to define their own, custom CRDTs
-without worrying about the complex aspect of convergence.
-Furthermore, the query engine running the Datalog program is responsible
-for finding an efficient algorithm to execute the query and application developers
-can focus on the CRDT at a declarative level and get the implementation ``for free''.
-
-% A common pattern of collaboration is near-real-time collaboration on a shared
-% document and CRDTs can be used to power this form of collaboration.
-% In this scenario, updates are usually frequent but small and therefore it
-% may make sense to reuse the result of a previous query along with the input
-% delta in hope of saving computation time over recomputing the query from scratch
-% based on the whole input with every update.
-% Ideally, the computation time is only proportional to the size of the input
-% change but not to the whole input size anymore.
-% As older, causally overwritten updates to a CRDT are often not contributing
-% to the current state of the CRDT anymore, incremental view
-% maintenance (IVM)~\cite{mcsherry2013differential, budiu2022dbsp, budiu2024dbsp}
-% can turn out to be an essential aspect to make CRDTs expressed as
-% queries over relations feasible.
-
-% Consequences and setup
 
 \input{figures/system_architecture}
 
@@ -421,7 +391,7 @@ This work only makes the basic assumption of some network topology and protocol
 which ensures that each update will eventually be delivered to all replicas.
 Furthermore, replicas are assumed to be non-byzantine.
 
-\section{\Acl{IVM}}
+\section{\Acl{IVM}}\label{sec:ivm}
 
 \Acl{IVM}~\cite{gupta1995maintenance} deals with the problem of maintaining
 an output view derived from a set of input relations in response to changes

@@ -273,6 +273,71 @@ impl From<PredRel> for TupleValue {
     }
 }
 
+/// This function returns test data for an operation history of the MVR CRDT store.
+/// The history is as follows.
+/// The notation is `set_<replica_id>_<counter>(<key>, <value>)`.
+///
+/// 1. step (just one root operation setting register with key 1 to value 1):
+///
+/// ```text
+/// set_0_0(1, 1)
+/// ```
+///
+/// 2. step (concurrent writes by replica 0 and 1):
+///
+/// ```text
+///               ---> set_0_1(1, 2)
+/// set_0_0(1, 1)
+///               ---> set_1_0(1, 3)
+/// ```
+///
+/// 3. step (replica 1 does a "merge" operation overwriting the previous conflict):
+///
+/// ```text
+///               ---> set_0_1(1, 2)
+/// set_0_0(1, 1)                    ---> set_1_2(1, 4)
+///               ---> set_1_0(1, 3)
+/// ```
+///
+/// 4. step (replica 0 overwrites a not-yet delivered operation):
+///
+/// ```text
+///               ---> set_0_1(1, 2)
+/// set_0_0(1, 1)                    ---> set_1_2(1, 4) ---> missing ---> set_0_4(1, 6)
+///               ---> set_1_0(1, 3)
+/// ```
+///
+/// 5. step (replica 0's missing operation arrives):
+///
+/// ```text
+///               ---> set_0_1(1, 2)
+/// set_0_0(1, 1)                    ---> set_1_2(1, 4) ---> set_0_3(1, 5) ---> set_0_4(1, 6)
+///               ---> set_1_0(1, 3)
+/// ```
+///
+pub fn mvr_store_operation_history() -> (
+    impl IntoIterator<Item = Vec<PredRel>>,
+    impl IntoIterator<Item = Vec<SetOp>>,
+) {
+    (
+        [
+            vec![],
+            vec![PredRel::new(0, 0, 0, 1), PredRel::new(0, 0, 1, 0)],
+            vec![PredRel::new(0, 1, 1, 2), PredRel::new(1, 0, 1, 2)],
+            vec![PredRel::new(0, 3, 0, 4)],
+            vec![PredRel::new(1, 2, 0, 3)],
+        ],
+        [
+            vec![SetOp::new(0, 0, 1, 1)],
+            vec![SetOp::new(0, 1, 1, 2), SetOp::new(1, 0, 1, 3)],
+            vec![SetOp::new(1, 2, 1, 4)],
+            vec![SetOp::new(0, 4, 1, 6)],
+            vec![SetOp::new(0, 3, 1, 5)],
+        ],
+    )
+}
+
+// For benchmarking purposes.
 pub struct Replica {
     node_id: u64,
     /// Always points to the next unused counter value.

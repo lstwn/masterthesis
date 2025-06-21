@@ -2,9 +2,10 @@ use crate::{
     context::ResolverContext,
     error::SyntaxError,
     expr::{
-        AliasExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr, DifferenceExpr,
-        DistinctExpr, EquiJoinExpr, Expr, ExprVisitorMut, FixedPointIterExpr, FunctionExpr,
-        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr, UnionExpr, VarExpr,
+        AliasExpr, AntiJoinExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr,
+        DifferenceExpr, DistinctExpr, EquiJoinExpr, Expr, ExprVisitorMut, FixedPointIterExpr,
+        FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr,
+        UnionExpr, VarExpr,
     },
     stmt::{BlockStmt, ExprStmt, Stmt, StmtVisitorMut, VarStmt},
     util::{Named, Resolvable},
@@ -307,8 +308,8 @@ impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
     }
 
     fn visit_equi_join_expr(&mut self, expr: &mut EquiJoinExpr, ctx: VisitorCtx) -> VisitorResult {
-        // TODO: statically check that the listed attributes are valid.
-        // Implement through returning type information through `VisitorResult`.
+        // Maybe: statically check that the listed attributes are valid.
+        // Could be implemented through returning type information through `VisitorResult`.
         self.visit_expr(&mut expr.left, ctx)
             .and_then(|()| self.visit_expr(&mut expr.right, ctx))
             .and_then(|()| {
@@ -322,6 +323,21 @@ impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
                 })
             })
             .and_then(|()| self.visit_projection_attributes(expr.attributes.as_mut(), ctx))
+    }
+
+    fn visit_anti_join_expr(&mut self, expr: &mut AntiJoinExpr, ctx: VisitorCtx) -> VisitorResult {
+        self.visit_expr(&mut expr.left, ctx)
+            .and_then(|()| self.visit_expr(&mut expr.right, ctx))
+            .and_then(|()| {
+                expr.on.iter_mut().try_for_each(|(left, right)| {
+                    ctx.begin_tuple_context();
+                    let ret = self
+                        .visit_expr(left, ctx)
+                        .and_then(|()| self.visit_expr(right, ctx));
+                    ctx.end_tuple_context();
+                    ret
+                })
+            })
     }
 
     fn visit_fixed_point_iter_expr(

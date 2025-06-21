@@ -11,17 +11,14 @@ use compute::{
     dbsp::{DbspInput, DbspInputs, RootCircuit},
     error::SyntaxError,
     expr::{
-        BinaryExpr, DistinctExpr, EquiJoinExpr, Expr, ProjectionExpr, SelectionExpr, UnionExpr,
-        VarExpr as IncLogVarExpr,
+        AntiJoinExpr, BinaryExpr, DistinctExpr, EquiJoinExpr, Expr, ProjectionExpr, SelectionExpr,
+        UnionExpr, VarExpr as IncLogVarExpr,
     },
     operator::Operator,
     relation::{RelationSchema, RelationType},
     stmt::{Code, ExprStmt, Stmt, VarStmt as IncLogVarStmt},
 };
-use compute::{
-    expr::{DifferenceExpr, FixedPointIterExpr},
-    stmt::BlockStmt,
-};
+use compute::{expr::FixedPointIterExpr, stmt::BlockStmt};
 
 pub struct Translator<'a> {
     aggregated_rules: Vec<AggregatedRule>,
@@ -31,6 +28,7 @@ pub struct Translator<'a> {
 }
 
 impl<'a> Translator<'a> {
+    /// The `from` argument is assumed to be in a valid execution order.
     pub fn new(root_circuit: &'a mut RootCircuit, from: Vec<AggregatedRule>) -> Self {
         Self {
             aggregated_rules: from,
@@ -146,7 +144,7 @@ impl<'a> Translator<'a> {
         let (distinct, body) = body;
         let (condition, positive, negative) = Self::partition_atoms(body);
 
-        let (relation_type, folded_positive_atoms) = Self::try_fold_helper(
+        let (positive_relation_type, folded_positive_atoms) = Self::try_fold_helper(
             positive,
             |predicate| Ok(self.translate_predicate(predicate)),
             |(left_type, left), (right_type, right)| {
@@ -172,21 +170,33 @@ impl<'a> Translator<'a> {
 
         let mut negative = negative.into_iter();
 
-        // For now we only support at most one negative predicate *and* assume
-        // that the folded positive atoms and the negative predicate are
-        // schema-compatible, so we keep the relation type as is.
+        // For now we only support at most one negative predicate.
         let first_negative_as_set_diff = if let Some(predicate) = negative.next() {
-            let (_relation_type, negative_atom) = self.translate_predicate(predicate);
-            Expr::from(DifferenceExpr {
+            let (negative_relation_type, negative_atom) = self.translate_predicate(predicate);
+            Expr::from(AntiJoinExpr {
                 left: folded_positive_atoms,
                 right: negative_atom,
+                // We can just take the fields from the negative relation type
+                // and due to Datalog's safety condition, the variables referenced
+                // in the negative atom must be a subset of the positive ones.
+                on: negative_relation_type
+                    .into_iter()
+                    .map(|field| {
+                        (
+                            Expr::from(IncLogVarExpr::new(field.0)),
+                            Expr::from(IncLogVarExpr::new(field.0)),
+                        )
+                    })
+                    .collect(),
             })
         } else {
             folded_positive_atoms
         };
 
         if negative.next().is_some() {
-            return Err(SyntaxError::new("Only one negative predicate supported"));
+            return Err(SyntaxError::new(
+                "At most one negative predicate is supported",
+            ));
         }
 
         let with_free_floating_conditions = match condition {
@@ -205,7 +215,7 @@ impl<'a> Translator<'a> {
             with_free_floating_conditions
         };
 
-        Ok((relation_type, with_distinct))
+        Ok((positive_relation_type, with_distinct))
     }
     fn translate_predicate(&mut self, predicate: Predicate) -> (RelationType, Expr) {
         // The rule type is the type of the rule the predicate is referencing.

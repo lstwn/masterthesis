@@ -167,6 +167,13 @@ impl StreamWrapper {
         }
     }
 
+    pub fn anti_join_index(&self, other: &Self) -> Self {
+        match self {
+            Self::Root(stream) => Self::Root(stream.antijoin(other.expect_root())),
+            Self::Nested(stream) => Self::Nested(stream.antijoin(other.expect_nested())),
+        }
+    }
+
     /// The delta0 operator imports a stream from the parent circuit into the
     /// child circuit.
     pub fn delta0(&self, child_circuit: &NestedCircuit) -> Self {

@@ -3,9 +3,10 @@ use crate::{
     dbsp::OrdIndexedNestedStream,
     error::RuntimeError,
     expr::{
-        AliasExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr, DifferenceExpr,
-        DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixedPointIterExpr, FunctionExpr,
-        GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr, UnionExpr, VarExpr,
+        AliasExpr, AntiJoinExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr,
+        DifferenceExpr, DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixedPointIterExpr,
+        FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr,
+        UnionExpr, VarExpr,
     },
     function::new_function,
     operator::Operator,
@@ -498,6 +499,32 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         });
 
         Ok(Value::Relation(new_relation(schema, joined)))
+    }
+
+    fn visit_anti_join_expr(&mut self, expr: &AntiJoinExpr, ctx: VisitorCtx) -> ExprVisitorResult {
+        let left = self
+            .visit_expr(&expr.left, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))?;
+
+        let right = self
+            .visit_expr(&expr.right, ctx)
+            .and_then(|value| assert_type!(value, Value::Relation))?;
+
+        let (left_key_fields, right_key_fields): (Vec<&Expr>, Vec<&Expr>) =
+            expr.on.iter().map(|(left, right)| (left, right)).unzip();
+
+        let (left_indexed, key_fields) =
+            reindex_helper(&left, left_key_fields.as_slice(), ctx.environment);
+        let (right_indexed, _) =
+            reindex_helper(&right, right_key_fields.as_slice(), ctx.environment);
+
+        let anti_joined = left_indexed.anti_join_index(&right_indexed);
+
+        Ok(Value::Relation(new_relation(
+            // The schema of the left relation is the schema of the anti-joined relation.
+            left.borrow().schema.clone(),
+            anti_joined,
+        )))
     }
 
     fn visit_fixed_point_iter_expr(

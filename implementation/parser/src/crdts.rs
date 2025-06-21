@@ -42,7 +42,6 @@ pub fn mvr_store_datalog() -> &'static str {
 
         // These are intensional database predicates (IDBPs).
         distinct overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
-        // TODO: This will be an error as the schema does not align.
         mvrStore(Key, Value)                      :- set(NodeId, Counter, Key, Value),
                                                      not overwritten(NodeId, Counter).
     "#

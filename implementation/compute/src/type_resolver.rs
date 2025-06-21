@@ -1,10 +1,10 @@
 use crate::{
     error::SyntaxError,
     expr::{
-        AliasExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr, DifferenceExpr,
-        DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixedPointIterExpr, FunctionExpr,
-        GroupingExpr, Literal, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr, UnionExpr,
-        VarExpr,
+        AliasExpr, AntiJoinExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr,
+        DifferenceExpr, DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixedPointIterExpr,
+        FunctionExpr, GroupingExpr, Literal, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr,
+        UnionExpr, VarExpr,
     },
     operator::Operator,
     resolver::ScopeStack,
@@ -242,6 +242,10 @@ impl ExprVisitor<VisitorResult, VisitorCtx<'_, '_>> for TypeResolver {
             .and_then(|expr_type| assert_type!(expr_type, ExprType::Relation))?;
         let joined = left_relation_type.join(right_relation_type);
         self.visit_projection_attributes(joined, expr.attributes.as_ref(), ctx)
+    }
+
+    fn visit_anti_join_expr(&mut self, expr: &AntiJoinExpr, ctx: VisitorCtx) -> VisitorResult {
+        self.visit_expr(&expr.left, ctx)
     }
 
     fn visit_fixed_point_iter_expr(

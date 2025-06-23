@@ -181,17 +181,17 @@ impl From<Edge> for TupleValue {
 
 #[derive(Copy, Clone, Debug)]
 pub struct SetOp {
-    node_id: u64,
-    counter: u64,
+    rep_id: u64,
+    ctr: u64,
     key: u64,
     value: u64,
 }
 
 impl SetOp {
-    pub fn new(node_id: u64, counter: u64, key: u64, value: u64) -> Self {
+    pub fn new(rep_id: u64, ctr: u64, key: u64, value: u64) -> Self {
         Self {
-            node_id,
-            counter,
+            rep_id,
+            ctr,
             key,
             value,
         }
@@ -200,42 +200,38 @@ impl SetOp {
 
 impl InputEntity for SetOp {
     fn schema() -> RelationSchema {
-        RelationSchema::new(
-            "set",
-            ["NodeId", "Counter", "Key", "Value"],
-            ["NodeId", "Counter"],
-        )
-        .expect("Correct schema definition")
+        RelationSchema::new("set", ["RepId", "Ctr", "Key", "Value"], ["RepId", "Ctr"])
+            .expect("Correct schema definition")
     }
 }
 
 impl From<SetOp> for TupleKey {
     fn from(set_op: SetOp) -> Self {
-        TupleKey::from_iter([set_op.node_id, set_op.counter])
+        TupleKey::from_iter([set_op.rep_id, set_op.ctr])
     }
 }
 
 impl From<SetOp> for TupleValue {
     fn from(set_op: SetOp) -> Self {
-        TupleValue::from_iter([set_op.node_id, set_op.counter, set_op.key, set_op.value])
+        TupleValue::from_iter([set_op.rep_id, set_op.ctr, set_op.key, set_op.value])
     }
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct PredRel {
-    from_node_id: u64,
-    from_counter: u64,
-    to_node_id: u64,
-    to_counter: u64,
+    from_rep_id: u64,
+    from_ctr: u64,
+    to_rep_id: u64,
+    to_ctr: u64,
 }
 
 impl PredRel {
-    pub fn new(from_node_id: u64, from_counter: u64, to_node_id: u64, to_counter: u64) -> Self {
+    pub fn new(from_rep_id: u64, from_ctr: u64, to_rep_id: u64, to_ctr: u64) -> Self {
         Self {
-            from_node_id,
-            from_counter,
-            to_node_id,
-            to_counter,
+            from_rep_id,
+            from_ctr,
+            to_rep_id,
+            to_ctr,
         }
     }
 }
@@ -244,8 +240,8 @@ impl InputEntity for PredRel {
     fn schema() -> RelationSchema {
         RelationSchema::new(
             "pred",
-            ["FromNodeId", "FromCounter", "ToNodeId", "ToCounter"],
-            ["FromNodeId", "FromCounter", "ToNodeId", "ToCounter"],
+            ["FromRepId", "FromCtr", "ToRepId", "ToCtr"],
+            ["FromRepId", "FromCtr", "ToRepId", "ToCtr"],
         )
         .expect("Correct schema definition")
     }
@@ -254,10 +250,10 @@ impl InputEntity for PredRel {
 impl From<PredRel> for TupleKey {
     fn from(pred_rel: PredRel) -> Self {
         TupleKey::from_iter([
-            pred_rel.from_node_id,
-            pred_rel.from_counter,
-            pred_rel.to_node_id,
-            pred_rel.to_counter,
+            pred_rel.from_rep_id,
+            pred_rel.from_ctr,
+            pred_rel.to_rep_id,
+            pred_rel.to_ctr,
         ])
     }
 }
@@ -265,10 +261,10 @@ impl From<PredRel> for TupleKey {
 impl From<PredRel> for TupleValue {
     fn from(pred_rel: PredRel) -> Self {
         TupleValue::from_iter([
-            pred_rel.from_node_id,
-            pred_rel.from_counter,
-            pred_rel.to_node_id,
-            pred_rel.to_counter,
+            pred_rel.from_rep_id,
+            pred_rel.from_ctr,
+            pred_rel.to_rep_id,
+            pred_rel.to_ctr,
         ])
     }
 }
@@ -339,17 +335,17 @@ pub fn mvr_store_operation_history() -> (
 
 // For benchmarking purposes.
 pub struct Replica {
-    node_id: u64,
+    rep_id: u64,
     /// Always points to the next unused counter value.
-    counter: u64,
+    ctr: u64,
     heads: HashSet<(u64, u64)>,
 }
 
 impl Replica {
-    pub fn new(node_id: u64) -> Self {
+    pub fn new(rep_id: u64) -> Self {
         Self {
-            node_id,
-            counter: 0,
+            rep_id,
+            ctr: 0,
             heads: HashSet::new(),
         }
     }
@@ -358,41 +354,40 @@ impl Replica {
     /// missing causal predecessors for now.
     pub fn ack_remote_set_op(&mut self, set_op: &SetOp, pred_rels: &[PredRel]) {
         // We ensure that the set_op is not from this replica.
-        debug_assert!(set_op.node_id != self.node_id);
+        debug_assert!(set_op.rep_id != self.rep_id);
         // We ensure that the pred_rels are all related to the set_op.
         debug_assert!(
-            pred_rels
-                .iter()
-                .all(|pred_rel| pred_rel.to_node_id == set_op.node_id
-                    && pred_rel.to_counter == set_op.counter)
+            pred_rels.iter().all(
+                |pred_rel| pred_rel.to_rep_id == set_op.rep_id && pred_rel.to_ctr == set_op.ctr
+            )
         );
         for pred_rel in pred_rels {
-            let value = (pred_rel.from_node_id, pred_rel.from_counter);
+            let value = (pred_rel.from_rep_id, pred_rel.from_ctr);
             // We remove all heads that are now subsumed by the new set_op.
             if self.heads.contains(&value) {
                 self.heads.remove(&value);
             }
         }
-        self.heads.insert((set_op.node_id, set_op.counter));
+        self.heads.insert((set_op.rep_id, set_op.ctr));
         // Advance the lamport clock if the new set_op has a higher counter.
-        if self.counter < set_op.counter {
-            self.counter = set_op.counter + 1;
+        if self.ctr < set_op.ctr {
+            self.ctr = set_op.ctr + 1;
         }
     }
     pub fn new_local_set_op(&mut self, key: u64, value: u64) -> (SetOp, Vec<PredRel>) {
-        let set_op = SetOp::new(self.node_id, self.counter, key, value);
+        let set_op = SetOp::new(self.rep_id, self.ctr, key, value);
         let pred_rels = self
             .heads
             .iter()
-            .map(|&(from_node_id, from_counter)| {
-                let to_node_id = set_op.node_id;
-                let to_counter = set_op.counter;
-                PredRel::new(from_node_id, from_counter, to_node_id, to_counter)
+            .map(|&(from_rep_id, from_ctr)| {
+                let to_rep_id = set_op.rep_id;
+                let to_ctr = set_op.ctr;
+                PredRel::new(from_rep_id, from_ctr, to_rep_id, to_ctr)
             })
             .collect::<Vec<_>>();
         self.heads.clear();
-        self.heads.insert((set_op.node_id, set_op.counter));
-        self.counter += 1;
+        self.heads.insert((set_op.rep_id, set_op.ctr));
+        self.ctr += 1;
         (set_op, pred_rels)
     }
 }

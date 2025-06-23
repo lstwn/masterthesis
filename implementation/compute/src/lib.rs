@@ -980,7 +980,7 @@ mod test {
                         initializer: Some(Expr::from(DistinctExpr {
                             relation: Expr::from(ProjectionExpr {
                                 relation: Expr::from(VarExpr::new("pred")),
-                                attributes: [("NodeId", "FromNodeId"), ("Counter", "FromCounter")]
+                                attributes: [("RepId", "FromRepId"), ("Ctr", "FromCtr")]
                                     .into_iter()
                                     .map(|(name, origin)| {
                                         (name.to_string(), Expr::from(VarExpr::new(origin)))
@@ -994,7 +994,7 @@ mod test {
                         initializer: Some(Expr::from(DistinctExpr {
                             relation: Expr::from(ProjectionExpr {
                                 relation: Expr::from(VarExpr::new("pred")),
-                                attributes: [("NodeId", "ToNodeId"), ("Counter", "ToCounter")]
+                                attributes: [("RepId", "ToRepId"), ("Ctr", "ToCtr")]
                                     .into_iter()
                                     .map(|(name, origin)| {
                                         (name.to_string(), Expr::from(VarExpr::new(origin)))
@@ -1008,7 +1008,7 @@ mod test {
                         initializer: Some(Expr::from(DifferenceExpr {
                             left: Expr::from(ProjectionExpr {
                                 relation: Expr::from(VarExpr::new("set")),
-                                attributes: ["NodeId", "Counter"]
+                                attributes: ["RepId", "Ctr"]
                                     .into_iter()
                                     .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                                     .collect(),
@@ -1021,7 +1021,7 @@ mod test {
                         initializer: Some(Expr::from(DifferenceExpr {
                             left: Expr::from(ProjectionExpr {
                                 relation: Expr::from(VarExpr::new("set")),
-                                attributes: ["NodeId", "Counter"]
+                                attributes: ["RepId", "Ctr"]
                                     .into_iter()
                                     .map(|name| (name.to_string(), Expr::from(VarExpr::new(name))))
                                     .collect(),
@@ -1054,24 +1054,18 @@ mod test {
                                         }),
                                         on: vec![
                                             (
-                                                Expr::from(VarExpr::new("NodeId")),
-                                                Expr::from(VarExpr::new("FromNodeId")),
+                                                Expr::from(VarExpr::new("RepId")),
+                                                Expr::from(VarExpr::new("FromRepId")),
                                             ),
                                             (
-                                                Expr::from(VarExpr::new("Counter")),
-                                                Expr::from(VarExpr::new("FromCounter")),
+                                                Expr::from(VarExpr::new("Ctr")),
+                                                Expr::from(VarExpr::new("FromCtr")),
                                             ),
                                         ],
                                         attributes: Some(
                                             [
-                                                (
-                                                    "NodeId",
-                                                    Expr::from(VarExpr::new("next.ToNodeId")),
-                                                ),
-                                                (
-                                                    "Counter",
-                                                    Expr::from(VarExpr::new("next.ToCounter")),
-                                                ),
+                                                ("RepId", Expr::from(VarExpr::new("next.ToRepId"))),
+                                                ("Ctr", Expr::from(VarExpr::new("next.ToCtr"))),
                                             ]
                                             .into_iter()
                                             .map(|(name, expr)| (name.to_string(), expr))
@@ -1091,24 +1085,24 @@ mod test {
                                 right: Expr::from(VarExpr::new("set")),
                                 on: vec![
                                     (
-                                        Expr::from(VarExpr::new("NodeId")),
-                                        Expr::from(VarExpr::new("NodeId")),
+                                        Expr::from(VarExpr::new("RepId")),
+                                        Expr::from(VarExpr::new("RepId")),
                                     ),
                                     (
-                                        Expr::from(VarExpr::new("Counter")),
-                                        Expr::from(VarExpr::new("Counter")),
+                                        Expr::from(VarExpr::new("Ctr")),
+                                        Expr::from(VarExpr::new("Ctr")),
                                     ),
                                 ],
                                 // With `attributes: None` the query does not work because
-                                // the fields `node_id` and `counter` are both duplicated in
+                                // the fields `rep_id` and `ctr` are both duplicated in
                                 // the tuple output. The EquiJoin below then indexes upon
                                 // both duplicated fields for its `right` operand
                                 // and no join match is found with its `left` operand.
                                 // Welcome to the funny world of relational algebra's semantics.
                                 attributes: Some(
                                     [
-                                        ("NodeId", Expr::from(VarExpr::new("NodeId"))),
-                                        ("Counter", Expr::from(VarExpr::new("Counter"))),
+                                        ("RepId", Expr::from(VarExpr::new("RepId"))),
+                                        ("Ctr", Expr::from(VarExpr::new("Ctr"))),
                                         ("Key", Expr::from(VarExpr::new("Key"))),
                                         ("Value", Expr::from(VarExpr::new("Value"))),
                                     ]
@@ -1119,12 +1113,12 @@ mod test {
                             }),
                             on: vec![
                                 (
-                                    Expr::from(VarExpr::new("NodeId")),
-                                    Expr::from(VarExpr::new("NodeId")),
+                                    Expr::from(VarExpr::new("RepId")),
+                                    Expr::from(VarExpr::new("RepId")),
                                 ),
                                 (
-                                    Expr::from(VarExpr::new("Counter")),
-                                    Expr::from(VarExpr::new("Counter")),
+                                    Expr::from(VarExpr::new("Ctr")),
+                                    Expr::from(VarExpr::new("Ctr")),
                                 ),
                             ],
                             attributes: Some(

@@ -5,30 +5,30 @@
 pub fn mvr_crdt_store_datalog() -> &'static str {
     r#"
         // These are extensional database predicates (EDBPs).
-        pred(FromNodeId, FromCounter, ToNodeId, ToCounter)  :- .
-        set(NodeId, Counter, Key, Value)                    :- .
+        pred(FromRepId, FromCtr, ToRepId, ToCtr) :- .
+        set(RepId, Ctr, Key, Value)              :- .
 
         // These are intensional database predicates (IDBPs).
-        distinct overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
-        distinct overwrites(NodeId, Counter)      :- pred(_FromNodeId, _FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+        distinct overwritten(RepId, Ctr)         :- pred(RepId = FromRepId, Ctr = FromCtr, _ToRepId, _ToCtr).
+        distinct overwrites(RepId, Ctr)          :- pred(_FromRepId, _FromCtr, RepId = ToRepId, Ctr = ToCtr).
 
-        isRoot(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
-                                                     not overwrites(NodeId, Counter).
+        isRoot(RepId, Ctr)                       :- set(RepId, Ctr, _Key, _Value),
+                                                    not overwrites(RepId, Ctr).
 
-        isLeaf(NodeId, Counter)                   :- set(NodeId, Counter, _Key, _Value),
-                                                     not overwritten(NodeId, Counter).
+        isLeaf(RepId, Ctr)                       :- set(RepId, Ctr, _Key, _Value),
+                                                    not overwritten(RepId, Ctr).
 
-        isCausallyReady(NodeId, Counter)          :- isRoot(NodeId, Counter). // Trailing comment.
-        isCausallyReady(NodeId, Counter)          :- isCausallyReady(FromNodeId = NodeId, FromCounter = Counter),
-                                                     pred(FromNodeId, FromCounter, NodeId = ToNodeId, Counter = ToCounter).
+        isCausallyReady(RepId, Ctr)              :- isRoot(RepId, Ctr). // Trailing comment.
+        isCausallyReady(RepId, Ctr)              :- isCausallyReady(FromRepId = RepId, FromCtr = Ctr),
+                                                    pred(FromRepId, FromCtr, RepId = ToRepId, Ctr = ToCtr).
 
-        mvrStore(Key, Value)                      :- // Comments before atoms are fine.
-                                                     isLeaf(NodeId, Counter),
-                                                     // Comments between atoms are also fine.
-                                                     // Spanning multiple lines.
-                                                     isCausallyReady(NodeId, Counter),
-                                                     set(NodeId, Counter, Key, Value).
-        // Trailing comments are fine.
+        mvrStore(Key, Value)                     :- // Comments before atoms are fine.
+                                                    isLeaf(RepId, Ctr),
+                                                    // Comments between atoms are also fine.
+                                                    // Spanning multiple lines.
+                                                    isCausallyReady(RepId, Ctr),
+                                                    set(RepId, Ctr, Key, Value).
+                                                    // Trailing comments are fine.
     "#
 }
 
@@ -37,12 +37,12 @@ pub fn mvr_crdt_store_datalog() -> &'static str {
 pub fn mvr_store_datalog() -> &'static str {
     r#"
         // These are extensional database predicates (EDBPs).
-        pred(FromNodeId, FromCounter, ToNodeId, ToCounter)  :- .
-        set(NodeId, Counter, Key, Value)                    :- .
+        pred(FromRepId, FromCtr, ToRepId, ToCtr) :- .
+        set(RepId, Ctr, Key, Value)              :- .
 
         // These are intensional database predicates (IDBPs).
-        distinct overwritten(NodeId, Counter)     :- pred(NodeId = FromNodeId, Counter = FromCounter, _ToNodeId, _ToCounter).
-        mvrStore(Key, Value)                      :- set(NodeId, Counter, Key, Value),
-                                                     not overwritten(NodeId, Counter).
+        distinct overwritten(RepId, Ctr)         :- pred(RepId = FromRepId, Ctr = FromCtr, _ToRepId, _ToCtr).
+        mvrStore(Key, Value)                     :- set(RepId, Ctr, Key, Value),
+                                                    not overwritten(RepId, Ctr).
     "#
 }

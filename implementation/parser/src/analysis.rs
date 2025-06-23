@@ -106,6 +106,8 @@ impl PrecedenceGraph {
     }
 }
 
+/// If the first element of the tuple is `true`, the output of the body must
+/// be distinct, that is, it must not contain duplicates.
 pub type DistinctFlaggedBody = (bool, Body);
 
 /// An aggregated rule contains all rules that share the same head, that is,

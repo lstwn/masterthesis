@@ -24,6 +24,9 @@ pub fn mvr_crdt_store_datalog() -> &'static str {
 
         mvrStore(Key, Value)                     :- // Comments before atoms are fine.
                                                     isLeaf(RepId, Ctr),
+                                                    // Alternative version: Do not use `isLeaf` but
+                                                    // inline the logic of `isLeaf` here by using instead:
+                                                    // not overwritten(RepId, Ctr),
                                                     // Comments between atoms are also fine.
                                                     // Spanning multiple lines.
                                                     isCausallyReady(RepId, Ctr),

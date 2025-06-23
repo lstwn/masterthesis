@@ -340,7 +340,9 @@ impl<'a> Translator<'a> {
 
         Ok(folded)
     }
+    // TODO: Check safety condition
     // fn check_all_vars_at_least_once_positive()
+    // TODO: Check range restriction
     // fn check_range_restriction()
 }
 

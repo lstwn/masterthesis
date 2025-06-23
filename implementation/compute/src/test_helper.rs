@@ -8,7 +8,6 @@ use crate::{
 };
 use std::{collections::HashSet, fmt::Debug, num::NonZeroUsize};
 
-// TODO: test multithreaded runtime
 pub fn setup_inc_data_log() -> IncDataLog {
     IncDataLog::new(NonZeroUsize::try_from(4).unwrap(), true)
 }
@@ -23,31 +22,6 @@ pub struct Person {
     name: String,
     age: u64,
     profession_id: u64,
-}
-
-impl Person {
-    pub fn data() -> impl IntoIterator<Item = Person> {
-        [
-            Person {
-                person_id: 0,
-                name: "Alice".to_string(),
-                age: 20,
-                profession_id: 0,
-            },
-            Person {
-                person_id: 1,
-                name: "Bob".to_string(),
-                age: 30,
-                profession_id: 1,
-            },
-            Person {
-                person_id: 2,
-                name: "Charlie".to_string(),
-                age: 40,
-                profession_id: 0,
-            },
-        ]
-    }
 }
 
 impl InputEntity for Person {
@@ -88,21 +62,6 @@ pub struct Profession {
     name: String,
 }
 
-impl Profession {
-    pub fn data() -> impl IntoIterator<Item = Profession> {
-        [
-            Profession {
-                profession_id: 0,
-                name: "Engineer".to_string(),
-            },
-            Profession {
-                profession_id: 1,
-                name: "Doctor".to_string(),
-            },
-        ]
-    }
-}
-
 impl InputEntity for Profession {
     fn schema() -> RelationSchema {
         RelationSchema::new("profession", ["profession_id", "name"], ["profession_id"])
@@ -124,6 +83,92 @@ impl From<Profession> for TupleValue {
             data: vec![
                 ScalarTypedValue::Uint(profession.profession_id),
                 ScalarTypedValue::String(profession.name),
+            ],
+        }
+    }
+}
+
+pub fn person_profession_data() -> [(Vec<Person>, Vec<Profession>); 1] {
+    [(
+        vec![
+            Person {
+                person_id: 0,
+                name: "Alice".to_string(),
+                age: 20,
+                profession_id: 0,
+            },
+            Person {
+                person_id: 1,
+                name: "Bob".to_string(),
+                age: 30,
+                profession_id: 1,
+            },
+            Person {
+                person_id: 2,
+                name: "Charlie".to_string(),
+                age: 40,
+                profession_id: 0,
+            },
+        ],
+        vec![
+            Profession {
+                profession_id: 0,
+                name: "Engineer".to_string(),
+            },
+            Profession {
+                profession_id: 1,
+                name: "Doctor".to_string(),
+            },
+        ],
+    )]
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct PlainRelation {
+    a: u64,
+    b: u64,
+    c: u64,
+}
+
+impl PlainRelation {
+    pub fn new(a: u64, b: u64, c: u64) -> Self {
+        Self { a, b, c }
+    }
+    const STEPS: usize = 1;
+    pub fn test_data_1() -> [Vec<PlainRelation>; Self::STEPS] {
+        [vec![
+            PlainRelation::new(1, 2, 3),
+            PlainRelation::new(4, 5, 6),
+            PlainRelation::new(7, 8, 9),
+        ]]
+    }
+    pub fn test_data_2() -> [Vec<PlainRelation>; Self::STEPS] {
+        [vec![PlainRelation::new(1, 2, 3)]]
+    }
+    pub fn test_data_3() -> [Vec<PlainRelation>; Self::STEPS] {
+        [vec![PlainRelation::new(4, 5, 6)]]
+    }
+}
+
+impl InputEntity for PlainRelation {
+    fn schema() -> RelationSchema {
+        RelationSchema::new("plain", ["a", "b", "c"], []).expect("Correct schema definition")
+    }
+}
+
+impl From<PlainRelation> for TupleKey {
+    fn from(fact: PlainRelation) -> Self {
+        TupleKey { data: vec![] }
+    }
+}
+
+impl From<PlainRelation> for TupleValue {
+    fn from(fact: PlainRelation) -> Self {
+        TupleValue {
+            data: vec![
+                ScalarTypedValue::Uint(fact.a),
+                ScalarTypedValue::Uint(fact.b),
+                ScalarTypedValue::Uint(fact.c),
             ],
         }
     }
@@ -311,26 +356,20 @@ impl From<PredRel> for TupleValue {
 ///               ---> set_1_0(1, 3)
 /// ```
 ///
-pub fn mvr_store_operation_history() -> (
-    impl IntoIterator<Item = Vec<PredRel>>,
-    impl IntoIterator<Item = Vec<SetOp>>,
-) {
-    (
-        [
-            vec![],
+pub fn mvr_store_operation_history() -> [(Vec<PredRel>, Vec<SetOp>); 5] {
+    [
+        (vec![], vec![SetOp::new(0, 0, 1, 1)]),
+        (
             vec![PredRel::new(0, 0, 0, 1), PredRel::new(0, 0, 1, 0)],
-            vec![PredRel::new(0, 1, 1, 2), PredRel::new(1, 0, 1, 2)],
-            vec![PredRel::new(0, 3, 0, 4)],
-            vec![PredRel::new(1, 2, 0, 3)],
-        ],
-        [
-            vec![SetOp::new(0, 0, 1, 1)],
             vec![SetOp::new(0, 1, 1, 2), SetOp::new(1, 0, 1, 3)],
+        ),
+        (
+            vec![PredRel::new(0, 1, 1, 2), PredRel::new(1, 0, 1, 2)],
             vec![SetOp::new(1, 2, 1, 4)],
-            vec![SetOp::new(0, 4, 1, 6)],
-            vec![SetOp::new(0, 3, 1, 5)],
-        ],
-    )
+        ),
+        (vec![PredRel::new(0, 3, 0, 4)], vec![SetOp::new(0, 4, 1, 6)]),
+        (vec![PredRel::new(1, 2, 0, 3)], vec![SetOp::new(0, 3, 1, 5)]),
+    ]
 }
 
 // For benchmarking purposes.

@@ -168,43 +168,35 @@ impl<'a> Translator<'a> {
             },
         )?;
 
-        let mut negative = negative.into_iter();
-
-        // For now we only support at most one negative predicate.
-        let first_negative_as_set_diff = if let Some(predicate) = negative.next() {
-            let (negative_relation_type, negative_atom) = self.translate_predicate(predicate);
-            Expr::from(AntiJoinExpr {
-                left: folded_positive_atoms,
-                right: negative_atom,
-                // We can just take the fields from the negative relation type
-                // and due to Datalog's safety condition, the variables referenced
-                // in the negative atom must be a subset of the positive ones.
-                on: negative_relation_type
-                    .into_iter()
-                    .map(|field| {
-                        (
-                            Expr::from(IncLogVarExpr::new(field.0)),
-                            Expr::from(IncLogVarExpr::new(field.0)),
-                        )
+        let with_negative_atoms =
+            negative
+                .into_iter()
+                .fold(folded_positive_atoms, |left, predicate| {
+                    let (right_type, right) = self.translate_predicate(predicate);
+                    Expr::from(AntiJoinExpr {
+                        left,
+                        right,
+                        // We can just take the fields from the negative relation type
+                        // and due to Datalog's safety condition, the variables referenced
+                        // in the negative atom must be a subset of the positive ones.
+                        on: right_type
+                            .into_iter()
+                            .map(|field| {
+                                (
+                                    Expr::from(IncLogVarExpr::new(field.0)),
+                                    Expr::from(IncLogVarExpr::new(field.0)),
+                                )
+                            })
+                            .collect(),
                     })
-                    .collect(),
-            })
-        } else {
-            folded_positive_atoms
-        };
-
-        if negative.next().is_some() {
-            return Err(SyntaxError::new(
-                "At most one negative predicate is supported",
-            ));
-        }
+                });
 
         let with_free_floating_conditions = match condition {
             Some(condition) => Expr::from(SelectionExpr {
-                relation: first_negative_as_set_diff,
+                relation: with_negative_atoms,
                 condition,
             }),
-            None => first_negative_as_set_diff,
+            None => with_negative_atoms,
         };
 
         let with_distinct = if distinct {

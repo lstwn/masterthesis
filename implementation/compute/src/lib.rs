@@ -208,7 +208,7 @@ mod test {
         relation::TupleValue,
         scalar::ScalarTypedValue,
         stmt::BlockStmt,
-        test_helper::setup_inc_data_log,
+        test_helper::{person_profession_data, setup_inc_data_log},
     };
     use expr::{AssignExpr, BinaryExpr, CallExpr, Expr, Literal, LiteralExpr, VarExpr};
     use operator::Operator;
@@ -492,21 +492,23 @@ mod test {
         let person_input = inputs.get("person").unwrap();
         let profession_input = inputs.get("profession").unwrap();
 
-        person_input.insert_with_same_weight(&Vec::from_iter(Person::data()), 1);
-        profession_input.insert_with_same_weight(&Vec::from_iter(Profession::data()), 1);
+        for (person_step, profession_step) in person_profession_data() {
+            person_input.insert_with_same_weight(&person_step, 1);
+            profession_input.insert_with_same_weight(&profession_step, 1);
 
-        circuit.step()?;
+            circuit.step()?;
 
-        let batch = output.to_batch();
-        println!("{}", batch.as_table());
-        assert_eq!(
-            batch.as_debug_zset(),
-            zset! {
-                tuple!(0_u64, "Alice", 20_u64, 0_u64, "Engineer") => 1,
-                tuple!(2_u64, "Charlie", 40_u64, 0_u64, "Engineer") => 1,
-                tuple!(1_u64, "Bob", 30_u64, 1_u64, "Doctor") => 1,
-            }
-        );
+            let batch = output.to_batch();
+            println!("{}", batch.as_table());
+            assert_eq!(
+                batch.as_debug_zset(),
+                zset! {
+                    tuple!(0_u64, "Alice", 20_u64, 0_u64, "Engineer") => 1,
+                    tuple!(2_u64, "Charlie", 40_u64, 0_u64, "Engineer") => 1,
+                    tuple!(1_u64, "Bob", 30_u64, 1_u64, "Doctor") => 1,
+                }
+            );
+        }
 
         Ok(())
     }
@@ -554,24 +556,26 @@ mod test {
         let person_input = inputs.get("person").unwrap();
         let profession_input = inputs.get("profession").unwrap();
 
-        person_input.insert_with_same_weight(&Vec::from_iter(Person::data()), 1);
-        profession_input.insert_with_same_weight(&Vec::from_iter(Profession::data()), 1);
+        for (person_step, profession_step) in person_profession_data() {
+            person_input.insert_with_same_weight(&person_step, 1);
+            profession_input.insert_with_same_weight(&profession_step, 1);
 
-        circuit.step()?;
+            circuit.step()?;
 
-        let batch = output.to_batch();
-        println!("{}", batch.as_debug_table());
-        assert_eq!(
-            batch.as_debug_zset(),
-            zset! {
-                tuple!(0_u64, "Alice", 20_u64, 0_u64, 0_u64, "Engineer") => 1,
-                tuple!(0_u64, "Alice", 20_u64, 0_u64, 1_u64, "Doctor") => 1,
-                tuple!(1_u64, "Bob", 30_u64, 1_u64, 0_u64, "Engineer") => 1,
-                tuple!(1_u64, "Bob", 30_u64, 1_u64, 1_u64, "Doctor") => 1,
-                tuple!(2_u64, "Charlie", 40_u64, 0_u64, 0_u64, "Engineer") => 1,
-                tuple!(2_u64, "Charlie", 40_u64, 0_u64, 1_u64, "Doctor") => 1,
-            }
-        );
+            let batch = output.to_batch();
+            println!("{}", batch.as_debug_table());
+            assert_eq!(
+                batch.as_debug_zset(),
+                zset! {
+                    tuple!(0_u64, "Alice", 20_u64, 0_u64, 0_u64, "Engineer") => 1,
+                    tuple!(0_u64, "Alice", 20_u64, 0_u64, 1_u64, "Doctor") => 1,
+                    tuple!(1_u64, "Bob", 30_u64, 1_u64, 0_u64, "Engineer") => 1,
+                    tuple!(1_u64, "Bob", 30_u64, 1_u64, 1_u64, "Doctor") => 1,
+                    tuple!(2_u64, "Charlie", 40_u64, 0_u64, 0_u64, "Engineer") => 1,
+                    tuple!(2_u64, "Charlie", 40_u64, 0_u64, 1_u64, "Doctor") => 1,
+                }
+            );
+        }
 
         Ok(())
     }

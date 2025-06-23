@@ -48,7 +48,7 @@ mod test {
         dbsp::zset,
         relation::TupleValue,
         scalar::ScalarTypedValue,
-        test_helper::{mvr_store_operation_history, setup_inc_data_log},
+        test_helper::{mvr_store_operation_history, setup_inc_data_log, PlainRelation},
         tuple,
     };
 
@@ -63,8 +63,6 @@ mod test {
 
         let pred_rel_input = inputs.get("pred").unwrap();
         let set_op_input = inputs.get("set").unwrap();
-
-        let (pred_rel_data, set_op_data) = mvr_store_operation_history();
 
         let mut expected = [
             zset! {
@@ -89,7 +87,7 @@ mod test {
         ]
         .into_iter();
 
-        for (pred_rel_step, set_op_step) in pred_rel_data.into_iter().zip(set_op_data) {
+        for (pred_rel_step, set_op_step) in mvr_store_operation_history() {
             pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
             set_op_input.insert_with_same_weight(set_op_step.iter(), 1);
 
@@ -113,8 +111,6 @@ mod test {
 
         let pred_rel_input = inputs.get("pred").unwrap();
         let set_op_input = inputs.get("set").unwrap();
-
-        let (pred_rel_data, set_op_data) = mvr_store_operation_history();
 
         let mut expected = [
             zset! {
@@ -141,9 +137,54 @@ mod test {
         ]
         .into_iter();
 
-        for (pred_rel_step, set_op_step) in pred_rel_data.into_iter().zip(set_op_data) {
+        for (pred_rel_step, set_op_step) in mvr_store_operation_history() {
             pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
             set_op_input.insert_with_same_weight(set_op_step.iter(), 1);
+
+            handle.step()?;
+
+            let batch = output.to_batch();
+            println!("{}", batch.as_table());
+            assert_eq!(batch.as_zset(), expected.next().unwrap());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_multiple_negation() -> Result<(), anyhow::Error> {
+        let inc_data_log = setup_inc_data_log();
+
+        let (mut handle, inputs, output) =
+            inc_data_log.build_circuit_from_parser(|root_circuit| {
+                let code = r#"
+                    r1(a, b, c)                     :- .
+                    r2(a, b, c)                     :- .
+                    r3(a, b, c)                     :- .
+                    test_multiple_negation(a, b, c) :- r1(a, b, c),
+                                                       not r2(b),
+                                                       not r3(c).
+                "#;
+                Parser::new(root_circuit).parse(code)
+            })?;
+
+        let r1_input = inputs.get("r1").unwrap();
+        let r2_input = inputs.get("r2").unwrap();
+        let r3_input = inputs.get("r3").unwrap();
+
+        let mut expected = [zset! {
+            tuple!(7_u64, 8_u64, 9_u64) => 1,
+        }]
+        .into_iter();
+
+        let data_steps = PlainRelation::test_data_1()
+            .into_iter()
+            .zip(PlainRelation::test_data_2())
+            .zip(PlainRelation::test_data_3());
+
+        for ((r1_step, r2_step), r3_step) in data_steps {
+            r1_input.insert_with_same_weight(&r1_step, 1);
+            r2_input.insert_with_same_weight(&r2_step, 1);
+            r3_input.insert_with_same_weight(&r3_step, 1);
 
             handle.step()?;
 

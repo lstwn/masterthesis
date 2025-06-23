@@ -429,8 +429,7 @@ mod test {
     };
     use std::{cell::RefCell, rc::Rc};
 
-    // TODO: Provide a PR to DBSP with this example.
-    // Note that this example only works with acyclic graphs.
+    /// Note that this example only works with acyclic graphs.
     #[test]
     fn test_transitive_closure() -> Result<(), anyhow::Error> {
         const STEPS: usize = 2;

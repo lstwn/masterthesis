@@ -116,16 +116,17 @@ These are enough to express a wide range of queries and support my use case.
 	\centering
 	\begin{tabular}{@{}p{0.11\textwidth}p{0.19\textwidth}p{0.6\textwidth}@{}}
 		\toprule
-		Operator           & Notation                                             & Description                                                                                                                                                                                                                                                                                                       \\
+		Operator           & Notation                                                    & Description                                                                                                                                                                                                                                                                                                       \\
 		\midrule
-		Distinct           & \(\mathit{distinct}(R)\)                             & Removes duplicate tuples from its input relation \(R\).                                                                                                                                                                                                                                                           \\
-		Union              & \(R \cup S\)                                         & Merges its input relations \(R\) and \(S\).                                                                                                                                                                                                                                                                       \\
-		Difference         & \(R \setminus S\)                                    & Removes tuples from the first relation \(R\) which are also present in the second relation \(S\).                                                                                                                                                                                                                 \\
-		Selection          & \(\sigma_{\mathit{pred}}(R)\)                        & Filters tuples from its input relation \(R\) based on the predicate \(\mathit{pred}\).                                                                                                                                                                                                                            \\
-		Projection         & \(\pi_{[(\mathit{name},\mathit{expr})]}(R)\)         & Produces a new relation with fields defined by the list of name-expression pairs. All expressions are evaluated in the context of a tuple from its input relation \(R\).                                                                                                                                          \\
-		Cartesian Product  & \(R \times S\)                                       & Combines two relations by pairing every tuple from the first input relation \(R\) with every tuple from the second input relation \(S\).                                                                                                                                                                          \\
-		Equijoin           & \(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S\) & Like the cartesian product but it only emits a pair if all left-hand-side expressions of the list of pairs (\(\mathit{lexpr}\); evaluated in the context of a tuple from \(R\)) evaluate to equal values as all right-hand-side expressions (\(\mathit{rexpr}\); evaluated in the context of a tuple from \(S\)). \\
-		Fixpoint Iteration & \(\mu\) TODO                                         & Executes its body as long as there are changes to its up-to-now computed output, i.e., it stops once the \emph{least fixpoint} is attained.                                                                                                                                                                       \\
+		Distinct           & \(\mathit{distinct}(R)\)                                    & Removes duplicate tuples from its input relation \(R\).                                                                                                                                                                                                                                                           \\
+		Union              & \(R \cup S\)                                                & Merges its input relations \(R\) and \(S\).                                                                                                                                                                                                                                                                       \\
+		Difference         & \(R \setminus S\)                                           & Removes tuples from the first input relation \(R\) which are also present in the second input relation \(S\).                                                                                                                                                                                                     \\
+		Selection          & \(\sigma_{\mathit{pred}}(R)\)                               & Filters tuples from its input relation \(R\) based on the predicate \(\mathit{pred}\).                                                                                                                                                                                                                            \\
+		Projection         & \(\pi_{[(\mathit{name},\mathit{expr})]}(R)\)                & Produces a new relation with fields defined by the list of name-expression pairs. All expressions are evaluated in the context of a tuple from its input relation \(R\).                                                                                                                                          \\
+		Cartesian Product  & \(R \times S\)                                              & Combines two relations by pairing every tuple from the first input relation \(R\) with every tuple from the second input relation \(S\).                                                                                                                                                                          \\
+		Equijoin           & \(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S\)        & Like the cartesian product but it only emits a pair if all left-hand-side expressions of the list of pairs (\(\mathit{lexpr}\); evaluated in the context of a tuple from \(R\)) evaluate to equal values as all right-hand-side expressions (\(\mathit{rexpr}\); evaluated in the context of a tuple from \(S\)). \\
+		Antijoin           & \(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S\) & Returns all tuples from the first input relation \(R\) that do \emph{not} match any tuple from the second input relation \(S\) based on the list of expression pairs (which is evaluated as for the equi join).                                                                                                   \\
+		Fixpoint Iteration & \(\mu\) TODO                                                & Executes its body as long as there are changes to its up-to-now computed output, i.e., it stops once the \emph{least fixpoint} is attained.                                                                                                                                                                       \\
 		\bottomrule
 	\end{tabular}
 	\caption{Relational operators of the \ac{IR}.}\label{tab:ir-operators}
@@ -149,6 +150,12 @@ is evaluated.
 We built an intermediate representation (IR) that supports both operations
 on scalars and relations. Moreover, the IR supports a variety of programming
 language constructs, such as variables, functions, and lexical scopes.
+
+Mention optimizations:
+\begin{itemize}
+	\item The static variable resolver pass.
+	\item The optimizations around projections.
+\end{itemize}
 
 \subsection{Datalog Frontend}\label{sec:datalog-frontend}
 
@@ -227,12 +234,8 @@ The dialect prohibits mutual recursion and only permits self-recursion, i.e.,
 any program's precedence graph must be acyclic except for self-loops.
 This is stricter than stratified Datalog which allows for cycles,
 provided that these cycles do not contain a negative edge.
-This is a deliberate design choice to keep the implementation complexity in check.
-Furthermore, the dialect does not allow for more than one negative atom per rule.
-Otherwise, the conversion to relational algebra described in
-\ref{sec:datalog-to-relational-algebra} becomes more complex.
-Still, these restrictions turn out to be sufficient for my \ac{CRDT} use case.
-% Schema restriction
+This is a deliberate design choice to keep the implementation complexity in check
+while still being sufficient for my \ac{CRDT} use case.
 
 \ref{code:mvr-crdt-datalog-dialect} shows the familiar \ac{MVR} key-value store
 \ac{CRDT} from \ref{ch:intro} in the Datalog dialect.
@@ -285,7 +288,7 @@ from the \emph{aggregated} rules of a Datalog program.
 Aggregated means that all rules with the same head are combined into an
 aggregated rule which contains all bodies of the original rules.
 This has the advantage that every predicate is now represented by a single
-aggregated rule and not by multiple rules.
+aggregated rule and not by multiple rules anymore.
 Then, a topological sort is computed on top of the precedence graph using
 Kahn's algorithm~\cite{kahn1962topological}.
 Next to yielding a valid execution order that respects which predicate has
@@ -305,35 +308,104 @@ of the last statement as if it was an expression,
 resembling implicit returns in Rust or Ruby.
 That way, the last predicate in the topological sort order becomes the output
 of an \ac{IR} program.
-That predicate is the predicate with the most dependencies and implicitly
-assumed to be the \emph{main predicate of interest} of the Datalog program.
+Due to the nature of topological sortings, the last predicate is the
+predicate with the most dependencies and implicitly assumed to be the
+\emph{main predicate of interest} of the Datalog program.
 In case of a tie between multiple predicates, the discovery order of Kahn's
 algorithm is used to break the tie\footnotemark{}.
 
 \footnotetext{
 	I argue that queries with multiple main predicates deserve separate
 	Datalog programs, as they are not related to each other beyond sharing
-	the same dependencies.
+	some dependencies.
 }
 
-% Includes "soft" query optimization.
+This leaves the question of how to translate an individual aggregated rule
+(predicate) into its \ac{IR} representation.
+The representation is similar to an operator tree in relational algebra.
+To illustrate the translation, I first discuss a naive translation
+which emerges from Datalog's reliance on first-order logic that can be
+translated to set-theoretic operations.
+At first, the discussion precludes negative atoms and is limited to
+non-recursive predicates, both which I introduce later.
+Finally, I discuss a more efficient translation which I have implemented for
+the query engine.
 
-Completely naive query translation with cartesian product and subsequent filter.
+The translations often require to \emph{fold} a sequence of atoms into
+nested binary operators, forming an operator tree of the \ac{IR}.
+Next to the sequence, a fold requires an \emph{accumulator} and a \emph{fold function}.
+The accumulator is the starting value of the fold and in case of an empty
+sequence, the fold returns the accumulator.
+Otherwise, the fold function is called for each atom with the accumulator
+and the current atom as arguments and returns the new accumulator for the next
+iteration or the final result of the fold.
+Hence, when I say that a sequence of atoms is
+\emph{folded into an operator tree of a certain binary operator}, e.g., an equi join,
+\emph{starting from an operator tree} \(\mathit{acc}\), I mean that the initial
+accumulator is \(\mathit{acc}\) and that the fold function nests the current
+accumulator as the binary operator's left input and the current atom as the
+binary operator's right input and returns that new binary operator,
+which has a nesting level one deeper than its input accumulator.
+The real translation in the Rust implementation relies on fold operations as well.
 
-Define semi-naive query translation.
+\textbf{Rules with only positive atoms}.
+Non-recursive rules without negative atoms can be naively translated
+into a cartesian product of all predicates in the rule's body followed by
+a selection.
+To handle potential name collisions among the fields,
+each relation is aliased with a unique prefix.
+Moreover, each referenced predicate is projected to only include the listed
+fields and to potentially rename them.
+The selection's predicate consists of \emph{conjunctions}
+encompassing all comparison atoms in the rule's body as well as equality comparisons.
+For each variable occuring in \(n > 1\) relations, \(n - 1\) equality comparisons
+are included in the selection's predicate.
+Each equality comparison connects a pair of relations such that there exists
+a path connecting all \(n\) relations.
+Each comparison has the name of the variable on the both the left-hand and right-hand
+side of the comparison but prefixed with the relations' aliases, respectively.
+Finally, the list of expressions of the rule's head are projected from the
+selection's output.
 
-\(n \in \mathbb{N}\) number of rules with the same name with index \(i \in [n]\).
-\(m \in \mathbb{N}\) number of a single rule's atoms with index \(j \in [m]\).
-\(p \in \mathbb{N}\) number of the rule's head's variables with index \(k \in [p]\).
-\(p_m \in \mathbb{N}\) number of the \(m\)-th atom's variables with index \(k_m \in [p_m]\).
+\textbf{Rules with positive and negative atoms}.
+To handle rules with both positive and negative atoms,
+all atoms in the rule's body are partioned into positive and negative atoms.
+First, the positive atoms are translated into an operator tree as described above.
+Then, the negative atoms are folded into an operator tree of antijoins,
+starting from the positive atoms' operator tree.
+The partitioning ensures that the positive atoms are evaluated first.
+Due to the \emph{safety condition} of negative Datalog (\ref{sec:datalog-negation}),
+it is then guaranteed that all variables referenced in the negative atoms are
+occuring at least once in the positive atoms, too, rendering the antijoins well-defined.
+For the negative atoms, the antijoin operator is useful, as it does not
+require schema equality between its input relations, unlike the set difference operator.
+In theory, the set difference operator could also be used but it may result
+in projections cutting off fields to ensure schema equality between its inputs.
+Yet, in some cases, the previously cut off fields have to be joined back in later.
+To avoid this, I use the antijoin operator which allows to specify set difference
+with respect to a list of expressions.
 
-Point out limitations of the current translation:
+\textbf{Self-recursive rules}.
+Recursive vs non-recursive predicates.
 
-1. Only one negative atom per rule.
-2. The positive part's schema must match the negative atom's schema.
+In case of multiple rules with the same head,
+every rule's translated operator tree is folded into a union.
+Moreover, each rule with an empty body (defining an \ac{EDBP})
+is translated into a relation literal of the \ac{IR}, specifying
+the relation's name and its named fields that can be accessed.
 
-Point out why it is hard to support more than one negative atom per rule
-and handle non matching schemas.
+To avoid the fatal cartesian product with its exponential blow-up,
+I introduce the \emph{semi-naive} query translation.
+It tries to use as many equi joins as possible and removes unnecessary projections.
+Furthermore, because DBSP's join operator allows to include a projection the
+emitted tuples,
+the semi-naive query translation coalesces joins that are immediately followed
+by a projection into a single join operator.
+
+% \(n \in \mathbb{N}\) number of rules with the same name with index \(i \in [n]\).
+% \(m \in \mathbb{N}\) number of a single rule's atoms with index \(j \in [m]\).
+% \(p \in \mathbb{N}\) number of the rule's head's variables with index \(k \in [p]\).
+% \(p_m \in \mathbb{N}\) number of the \(m\)-th atom's variables with index \(k_m \in [p_m]\).
 
 % \[
 % 	output(v_1, \ldots, v_p) \leftarrow

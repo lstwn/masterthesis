@@ -5,13 +5,27 @@
 
 \begin{itemize}
 	\item Benchmark hydration setting for modeling application restarts.
+	      Show that the causal broadcast does not benefit from parallelization
+	      as it is inherently sequential by benchmarking the non-causal CRDT
+	      as reference.
 	\item Benchmark applying just some updates for modeling near-real time collaboration.
+	      Again, how expensive is the causal broadcast?
 \end{itemize}
 
 - Lots of dependent joins in the fixed point iteration. How to optimize?
 - Partial synchronization.
 
 \subsection{Future Work}
+
+On query optimization:
+\begin{itemize}
+	\item Better join order. How to choose one in the absence of statistics
+	      and with static query plans?
+	\item Schedule antijoins as early as possible, i.e., if all variables
+	      referenced by a negative atom are in scope, then schedule the antijoin,
+	      to keep the result set small, as opposed to scheduling them at the
+	      end of the query plan.
+\end{itemize}
 
 Define and benchmark more CRDTs.
 

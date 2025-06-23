@@ -33,8 +33,9 @@ A head consists of an identifier, which also defines the name of the predicate
 the rule contributes to define, as well as a comma-separated list of expressions
 which may reference variables defined in the rule's body.
 A body is a comma-separated sequence of \emph{atoms} followed by a trailing ``.'' (dot).
-An atom is either referencing another \emph{predicate} to bring some of its
-variables into scope or imposing a boolean condition.
+An atom is either referencing another \emph{predicate} (hereafter predicate atoms)
+to bring some of its variables into scope or imposing a boolean condition
+(hereafter condition atom).
 A condition can either restrict a variable's value range (e.g. \(x = 3\))
 or specify a relationship with another variable (e.g. \(x = y\)).
 
@@ -522,6 +523,7 @@ Streams are an infinite sequence of elements from \zsets{}.
 Operators used in this work are \emph{distinct},
 \emph{map} (for projections), \emph{filter} (for selections),
 \emph{join}, \emph{plus} and \emph{minus} (for ``set'' union and difference),
+\emph{antijoin} (for set difference with respect to a key),
 as well as the \emph{delta0} operator (required for importing streams
 from a parent circuit into a child circuit).
 Operators can be chained to form a circuit, which can be viewed as

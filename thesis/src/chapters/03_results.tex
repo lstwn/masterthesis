@@ -159,11 +159,17 @@ Mention optimizations:
 
 \subsection{Datalog Frontend}\label{sec:datalog-frontend}
 
-\ref{code:datalog-grammar} shows the grammar of my Datalog dialect,
+\ref{code:datalog-grammar} shows the grammar of my Datalog dialect\footnotemark{},
 along with the syntax for literals as well as for a small expression language
 which is required to specify conditions on variables.
 The dialect follows ``typical'' Datalog syntax and semantics
 except for some modifications.
+
+\footnotetext{
+	The grammar does not include comment support for brevity.
+	The implementation supports \code{//}-EOL-style comments between rules
+	and between atoms of a rule's body.
+}
 
 Traditionally, Datalog uses positional indexing to access variables from a
 predicate. I decided to use name-based indexing for two reasons:
@@ -401,6 +407,8 @@ Furthermore, because DBSP's join operator allows to include a projection the
 emitted tuples,
 the semi-naive query translation coalesces joins that are immediately followed
 by a projection into a single join operator.
+
+\input{figures/naive_vs_optimized_query_plan.tex}
 
 % \(n \in \mathbb{N}\) number of rules with the same name with index \(i \in [n]\).
 % \(m \in \mathbb{N}\) number of a single rule's atoms with index \(j \in [m]\).

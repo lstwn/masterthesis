@@ -1,0 +1,106 @@
+\begin{figure}[tpb]
+	\centering
+
+	\begin{subfigure}[b]{\textwidth}
+		\begin{lstlisting}[keepspaces]
+mvrStore(Key, Value) :- set(RepId, Ctr, Key, Value),
+                        isCausallyReady(RepId, Ctr),
+                        isLeaf(RepId, Ctr).\end{lstlisting}
+		\caption{The ``mvrStore'' rule to optimize.}\label{code:mvr-store-rule}
+	\end{subfigure}
+
+	\vspace{1em}
+
+	\begin{subfigure}[b]{0.45\textwidth}
+		\begin{tikzpicture}
+			\small
+
+			\tikzset{
+				node/.style={minimum width=0.5cm, minimum height=0cm, align=center,fill=white},
+				input/.style={edge},
+				edgelabel/.style={midway},
+			}
+
+			\node[node] (projection) {\(\pi_{}\)};
+			\node[node,below=of projection] (selection) {\(\sigma_{}\)};
+			\node[node,below=of selection] (cartesian) {\(\times\)};
+
+			% set
+			\node[node,below left=of cartesian] (setalias) {\(\rho_{s}\)};
+			\node[node,below=of setalias] (setprojection) {\(\pi_{}\)};
+			\node[node,below=of setprojection] (set) {set};
+
+			\node[node,below right=of cartesian] (cartesian2) {\(\times\)};
+
+			% isCausallyReady
+			\node[node,below left=of cartesian2] (causalias) {\(\rho_{c}\)};
+			\node[node,below=of causalias] (causprojection) {\(\pi_{}\)};
+			\node[node,below=of causprojection] (caus) {isCausallyReady};
+
+			% isLeaf
+			\node[node,below right=of cartesian2] (leafalias) {\(\rho_{l}\)};
+			\node[node,below=of leafalias] (leafprojection) {\(\pi_{}\)};
+			\node[node,below=of leafprojection] (leaf) {isLeaf};
+
+			\begin{scope}[on background layer]
+				\draw[input] (selection) to[] (projection);
+				\draw[input] (cartesian) to[] (selection);
+
+				% set
+				\draw[input] (setalias) to[] (cartesian);
+				\draw[input] (setprojection) to[] (setalias);
+				\draw[input] (set) to[] (setprojection);
+
+				\draw[input] (cartesian2) to[] (cartesian);
+
+				% isCausallyReady
+				\draw[input] (causalias) to[] (cartesian2);
+				\draw[input] (causprojection) to[] (causalias);
+				\draw[input] (caus) to[] (causprojection);
+
+				% isLeaf
+				\draw[input] (leafalias) to[] (cartesian2);
+				\draw[input] (leafprojection) to[] (leafalias);
+				\draw[input] (leaf) to[] (leafprojection);
+			\end{scope}
+		\end{tikzpicture}
+		\caption{The naive query plan.}\label{fig:naive-plan}
+	\end{subfigure}
+	\hspace{1em}
+	\begin{subfigure}[b]{0.45\textwidth}
+		\begin{tikzpicture}
+			\small
+
+			\tikzset{
+				node/.style={minimum width=0.5cm, minimum height=0cm, align=center,fill=white},
+				input/.style={edge},
+				edgelabel/.style={midway},
+			}
+
+			% TODO: Sidebrace that shows that the two operators are actually one.
+			\node[node] (projection) {\(\pi_{}\)};
+			\node[node,below=of projection] (equijoin) {\(\bowtie{}\)};
+			% TODO: Arguemnts to operators via custom command
+
+			\node[node,below left=of equijoin] (set) {set};
+			\node[node,below right=of equijoin] (equijoin2) {\(\bowtie\)};
+
+			\node[node,below left=of equijoin2] (caus) {isCausallyReady};
+			\node[node,below right=of equijoin2] (leaf) {isLeaf};
+
+			\begin{scope}[on background layer]
+				\draw[input] (equijoin) to[] (projection);
+				\draw[input] (set) to[] (equijoin);
+
+				\draw[input] (equijoin2) to[] (equijoin);
+				\draw[input] (caus) to[] (equijoin2);
+				\draw[input] (leaf) to[] (equijoin2);
+			\end{scope}
+		\end{tikzpicture}
+		\caption{The semi-naive query plan.}\label{fig:optimized-plan}
+	\end{subfigure}
+
+	\caption{
+		A naive and an optimized query plan for the ``mvrStore'' predicate of \ref{code:mvr-crdt-datalog}.
+	}\label{fig:query-opt}
+\end{figure}

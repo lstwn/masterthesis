@@ -156,7 +156,7 @@ mod test {
 
         let (mut handle, inputs, output) =
             inc_data_log.build_circuit_from_parser(|root_circuit| {
-                let code = r#"
+                let program = r#"
                     r1(a, b, c)                     :- .
                     r2(a, b, c)                     :- .
                     r3(a, b, c)                     :- .
@@ -164,7 +164,7 @@ mod test {
                                                        not r2(b),
                                                        not r3(c).
                 "#;
-                Parser::new(root_circuit).parse(code)
+                Parser::new(root_circuit).parse(program)
             })?;
 
         let r1_input = inputs.get("r1").unwrap();
@@ -193,5 +193,45 @@ mod test {
             assert_eq!(batch.as_zset(), expected.next().unwrap());
         }
         Ok(())
+    }
+
+    /// The safety condition demands that all variables occuring negatively
+    /// in a rule must also occur at least once positively in the same rule.
+    #[test]
+    fn test_safety_condition() {
+        let inc_data_log = setup_inc_data_log();
+
+        let result = inc_data_log.build_circuit_from_parser(|root_circuit| {
+            let invalid_program = r#"
+                    r1(a, b, c) :- .
+                    // Variable `b` is not occuring in a positive atom.
+                    r2(a, b)    :- r1(a), not r1(b).
+                "#;
+            Parser::new(root_circuit).parse(invalid_program)
+        });
+
+        if let Err(ref e) = result {
+            println!("Error: {}", e);
+        }
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_range_restriction() {
+        let inc_data_log = setup_inc_data_log();
+
+        let result = inc_data_log.build_circuit_from_parser(|root_circuit| {
+            let invalid_program = r#"
+                    r1(a, b, c) :- .
+                    // Variable `b` is not bound.
+                    r2(a, b)    :- r1(a).
+                "#;
+            Parser::new(root_circuit).parse(invalid_program)
+        });
+
+        if let Err(ref e) = result {
+            println!("Error: {}", e);
+        }
+        assert!(result.is_err());
     }
 }

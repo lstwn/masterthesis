@@ -2,6 +2,8 @@
 //! [`AggregatedRules`](crate::analysis::AggregatedRule) into an equivalent
 //! list of [`Stmts`](compute::stmt::Stmt) that can be executed incrementally.
 
+use std::collections::HashSet;
+
 use crate::{
     analysis::{AggregatedRule, DistinctFlaggedBody},
     ast::{Atom, Body, Head, Predicate, VarStmt},
@@ -41,15 +43,21 @@ impl<'a> Translator<'a> {
         let code: Code = std::mem::take(&mut self.aggregated_rules)
             .into_iter()
             .map(|rule| {
-                // This ensures that all predicates and variables are already
-                // known in case we later inquire about them.
-                let _rule_type = self.type_resolver.resolve_rule(&rule)?;
-                match rule {
-                    rule if rule.is_extensional() => self.translate_extensional_rule(rule),
-                    rule if rule.is_self_recursive() => self.translate_self_recursive_rule(rule),
-                    rule if rule.is_intensional() => self.translate_intensional_rule(rule),
-                    _ => unreachable!(),
-                }
+                Self::check_range_restriction(&rule)
+                    .and_then(|_| Self::check_safety_condition(&rule))
+                    .and_then(|_| {
+                        // This ensures that all predicates and variables are already
+                        // known in case we later inquire about them.
+                        let _rule_type = self.type_resolver.resolve_rule(&rule)?;
+                        match rule {
+                            rule if rule.is_extensional() => self.translate_extensional_rule(rule),
+                            rule if rule.is_self_recursive() => {
+                                self.translate_self_recursive_rule(rule)
+                            }
+                            rule if rule.is_intensional() => self.translate_intensional_rule(rule),
+                            _ => unreachable!(),
+                        }
+                    })
             })
             .collect::<Result<_, _>>()?;
         Ok((self.inputs, code))
@@ -340,10 +348,54 @@ impl<'a> Translator<'a> {
 
         Ok(folded)
     }
-    // TODO: Check safety condition
-    // fn check_all_vars_at_least_once_positive()
-    // TODO: Check range restriction
-    // fn check_range_restriction()
+    /// The safety condition demands that all variables occurring negatively
+    /// in a rule must also occur at least once positively in the same rule.
+    fn check_safety_condition(rule: &AggregatedRule) -> Result<(), SyntaxError> {
+        // We have to check the condition for each individual rule and _not_
+        // on the aggregated level!
+        for body in rule.bodies() {
+            let positive_vars: HashSet<_> = body
+                .positive_variables()
+                .map(|var| var.target_name())
+                .collect();
+            for negative_var in body.negative_variables() {
+                if !positive_vars.contains(&negative_var.target_name()) {
+                    return Err(SyntaxError::new(format!(
+                        "Safety condition violated: Variable `{}` occurs negatively but not positively in rule `{}`.",
+                        negative_var.target_name(), rule.name()
+                    )));
+                }
+            }
+        }
+
+        Ok(())
+    }
+    /// The range restriction demands that all variables in the head of a rule
+    /// must also exist the body of the rule.
+    fn check_range_restriction(rule: &AggregatedRule) -> Result<(), SyntaxError> {
+        if rule.is_extensional() {
+            // Extensional rules are an exception to the rule.
+            return Ok(());
+        }
+        // We have to check the condition for each individual rule and _not_
+        // on the aggregated level!
+        for body in rule.bodies() {
+            let positive_vars: HashSet<_> = body
+                .positive_variables()
+                .map(|var| var.target_name())
+                .collect();
+            for head_var in rule.head().variables() {
+                if !positive_vars.contains(&head_var.target_name()) {
+                    return Err(SyntaxError::new(format!(
+                        "Range restriction violated: Variable `{}` in head of rule `{}` is not bound in its body.",
+                        head_var.target_name(), rule.name()
+                    )));
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -362,11 +414,6 @@ mod test {
 
     #[test]
     fn test_translation() -> Result<(), anyhow::Error> {
-        // TODO:
-        // 1. [ ] How to specify which rule should be the result of the query?
-        //        Implicitly, the rule that is last in the topological sort order.
-        //        In case of a tie, the last rule in the input via a _stable_
-        //        topological sort. Add this to thesis!
         let (inputs, code) = parse_and_translate(mvr_crdt_store_datalog())?;
         println!("Inputs: {:#?}", inputs);
         println!("Code: {:#?}", code);

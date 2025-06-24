@@ -69,11 +69,37 @@ impl Head {
         // Two heads are aggregatable if they have the same name and the same variables.
         self.name == other.name && self.variables == other.variables
     }
+    pub fn variables(&self) -> impl Iterator<Item = &VarStmt> {
+        self.variables.iter()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Body {
     pub atoms: Vec<Atom>,
+}
+
+impl Body {
+    pub fn positive_predicates(&self) -> impl Iterator<Item = &Predicate> {
+        self.atoms.iter().filter_map(|atom| match atom {
+            Atom::Positive(predicate) => Some(predicate),
+            _ => None,
+        })
+    }
+    pub fn negative_predicates(&self) -> impl Iterator<Item = &Predicate> {
+        self.atoms.iter().filter_map(|atom| match atom {
+            Atom::Negative(predicate) => Some(predicate),
+            _ => None,
+        })
+    }
+    pub fn positive_variables(&self) -> impl Iterator<Item = &VarStmt> {
+        self.positive_predicates()
+            .flat_map(|predicate| predicate.variables())
+    }
+    pub fn negative_variables(&self) -> impl Iterator<Item = &VarStmt> {
+        self.negative_predicates()
+            .flat_map(|predicate| predicate.variables())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -93,6 +119,9 @@ pub struct Predicate {
 impl Predicate {
     pub fn name(&self) -> &String {
         self.name.as_ref()
+    }
+    pub fn variables(&self) -> impl Iterator<Item = &VarStmt> {
+        self.variables.iter()
     }
 }
 
@@ -120,6 +149,9 @@ impl VarStmt {
             identifier: target_name.into(),
             initializer: Some(origin),
         }
+    }
+    pub fn target_name(&self) -> &String {
+        &self.identifier.inner
     }
     pub fn is_unused(&self) -> bool {
         self.identifier.inner.starts_with("_")

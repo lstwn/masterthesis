@@ -28,9 +28,10 @@ Horn clauses, which are logical implications adhering to this structure:
 	}_{\text{rule}}
 \end{equation}
 
-The left-hand side of a rule is called \emph{head} and the right-hand side \emph{body}.
+The left-hand side of a rule is called \emph{head}, the right-hand side \emph{body},
+and they are separated by a ``:-'' (colon-dash).
 A head consists of an identifier, which also defines the name of the predicate
-the rule contributes to define, as well as a comma-separated list of expressions
+whose definition the rule contributes to, as well as a comma-separated list of expressions
 which may reference variables defined in the rule's body.
 A body is a comma-separated sequence of \emph{atoms} followed by a trailing ``.'' (dot).
 An atom is either referencing another \emph{predicate} (hereafter predicate atoms)
@@ -41,7 +42,7 @@ or specify a relationship with another variable (e.g. \(x = y\)).
 
 A rule (a predicate) is said to be \emph{self-recursive}
 if it references itself in its (one of its) body (bodies).
-Moreover, it is allowed to have multiple rules sharing the same head, that is,
+Moreover, it is possible to have multiple rules share the same head, that is,
 they have the same identifier and list of expressions.
 In that case, they jointly define the predicate named after their heads' identifier.
 
@@ -50,7 +51,7 @@ computation of a graph's transitive closure with Datalog.
 It contains three rules which define the two predicates, ``edge'' and ``closure''.
 The ``edge'' predicate has an empty body,
 leaving just the dot on the rule's right-hand side.
-The ``closure'' predicate is defined through the last two rules which share
+The ``closure'' predicate is defined through the last two rules sharing
 the same head.
 The last rule's body consists of three atoms: The first one references itself,
 rendering the rule self-recursive, the second one references the ``edge'' predicate,
@@ -63,8 +64,8 @@ values must be equal, i.e.,
 \(a_1(x), a_2(x)\) is a shorthand for \(a_1(x_1), a_2(x_2), x_1 = x_2\).
 Next to defining the name of the predicate, the head specifies that the ``from''
 and ``to'' variables are exposed for the ``closure'' predicate.
-The second rule's body consists of two atoms but does not introduce anything new
-syntactically.
+The second rule's body consists of two atoms but, syntactically,
+does not introduce anything new.
 
 \begin{figure}[htpb]
 	\centering
@@ -83,9 +84,9 @@ connected with conjunctions and all variable assignments that satisfy that term
 form a new \emph{fact} of the predicate which the rule defines.
 Here, Datalog's close relationship to first-order logic becomes apparent:
 Every rule is implicitly allquantified over its variables.
-If \(x_1, \ldots x_m\) are the variables of the rule's body, the rule can be read as
-``for all \(x_1, \ldots, x_m\) it holds that \(a_1\) and \ldots\ and \(a_n\) imply \(r\)''
-and expressed\footnotemark{} mathematically as:
+If \(x_1, \ldots x_m\) are the variables of the rule's body, a rule can be read as
+``for all \(x_1, \ldots, x_m\) it holds that \(a_1\) and \ldots\ and \(a_n\) imply \(r\)''.
+Mathematically, a rule can be expressed as\footnotemark{}:
 
 \footnotetext{
 	Not every atom or head must reference all variables.
@@ -121,7 +122,7 @@ This has some consequences but before discussing them I am now in position
 to illustrate the semantics of the example query in \ref{code:trans-closure-datalog}.
 For a more formal treatment of Datalog's semantics, I refer to \cite{green2013datalog}
 which provides an overview on three equivalent formalisms to precisely define
-Datalog's semantics, model-theoretic, fixpoint-theoretic, and proof-theoretic.
+Datalog's semantics: Model-theoretic, fixpoint-theoretic, and proof-theoretic.
 
 The ``edge'' \ac{EDBP} contains all edges of a graph and these are given
 externally, e.g., through an insertion into the database.
@@ -132,14 +133,14 @@ a contrived example to demonstrate a condition on a variable.
 The ``closure'' \ac{IDBP} specifies the actual computation of the graph's
 transitive closure.
 The first rule of its definition specifies the computation's starting point,
-that is, all pairs of nodes which (1) are reachable through a path length of 1
-and (2) are marked as ``active''.
+that is, all pairs of nodes which are reachable through a path of length 1
+and which are marked as ``active''.
 The second rule takes all node pairs identified so far, which are reachable
 through paths of length \(n\), and discovers new node pairs connected
 through a path of length \(n + 1\),
 again while restricting the edges to be marked as ``active''.
 The computation terminates if a (re)application of the rules on top of the
-currently discovered facts does not produce more facts,
+currently derived facts does not produce more facts,
 upon which the least-fixpoint is attained.
 
 Least-fixpoint computations can only solve problems whose solutions
@@ -155,18 +156,18 @@ If every edge carried a non-negative weight and the query should additionally
 keep track of the cumulated weight for each node pair of the transitive closure,
 the computation's termination hinges on the graph being cycle-free.
 With cycles, the computation would walk cycles endlessly and constantly discover
-higher cumulated weights for node pairs which are part of a cycle.
+higher cumulated weights, for node pairs which are part of a cycle.
 A discussion of alternatives to fixpoints in the context of SQL
 can be found in \cite{hirn2023fix}.
 
-Traditionally, Datalog has set semantics and does not support multisets.
+Traditionally, Datalog offers set semantics and does not support multisets.
 Moreover, it does not use name-based-indexing but positional-indexing.
 As Datalog lacks a formal specification, there are many flavours of it,
 and later I define my own dialect of it which supports multisets and
 uses name-based-indexing.
 
 Due to the use of relational algebra as an \ac{IR} in \ref{ch:results},
-I point out some connections to it as well as to SQL
+I point out some connections to it, as well as to SQL,
 because the latter is the predominant frontend to relational algebra.
 The equivalent of a \emph{relation} in Datalog is a predicate:
 They both define a name under which \emph{tuples} (facts in Datalog; rows in SQL)
@@ -179,11 +180,11 @@ I suspect that this is due to the little emphasis on composition in SQL.
 
 \subsection{Negation Extension}\label{sec:datalog-negation}
 
-The Datalog semantics presented so far is not sufficient to express,
+The Datalog semantics presented so far are not sufficient to express,
 for instance, relational algebra's set difference operator or the advanced example
 in \ref{code:mvr-crdt-datalog} from \ref{ch:intro} due to its lack of negation.
 However, introducing negation without any restrictions to Datalog causes
-semantic issues, as \ref{code:negated-datalog-issue} demonstrates:
+semantic issues, as \ref{code:negative-datalog-issue} demonstrates:
 
 \begin{figure}[htpb]
 	\centering
@@ -193,34 +194,35 @@ semantic issues, as \ref{code:negated-datalog-issue} demonstrates:
 r_1 :- not r_2.
 r_2 :- not r_1.\end{lstlisting}
 	% \end{tabular}
-	\caption{A negated Datalog program with unclear semantics~\cite{green2013datalog}.}\label{code:negated-datalog-issue}
+	\caption{A negative Datalog program with unclear semantics~\cite{green2013datalog}.}\label{code:negative-datalog-issue}
 \end{figure}
 
 TODO: Exlain the issue.
 
 The most common resolution to reimpart unambiguous semantics to negative Datalog
 is called \emph{stratified negation}~\cite{green2013datalog} which is a syntactic
-restriction on the use of negation and recursion:
+restriction on the use of negation together with recursion:
 For a \emph{recursive} rule, it disallows negation in its body
 (or in any of its predicates' bodies it references in its body).
 To characterize the semantics of stratified negation,
 an even stricter syntactic restriction called \emph{semipositive Datalog}
 is introduced first.
 
-Semipositive Datalog only allows the negation of \acp{EDBP} but not \acp{IDBP}
+Semipositive Datalog only allows the negation of \acp{EDBP}, but not \acp{IDBP},
 in the body of a rule defining an \ac{IDBP}.
 Furthermore, it demands that every variable occuring in the body of a rule must
-occur in at least one positive (non-negated) predicate atom,
-which is referred to as \emph{safety condition}~\cite{green2013datalog}.
+occur in at least one positive (non-negative) predicate atom,
+which is referred to as the \emph{safety condition}~\cite{green2013datalog}.
 If it was not satisfied, the result of a query would not just depend on the
 actual content of a database anymore, and may be infinite.
-The semantics of negated \acp{EDBP} follows the intuition that
+The semantics of negative \acp{EDBP} follows the intuition that
 the negation of an \ac{EDBP} within the body of an \ac{IDBP} (together with
 the safety condition) behaves like the set difference operator
 in relational algebra.
 
 Datalog with stratified negation relaxes the restriction and allows the
-negation of \acp{IDBP} as long as the predicates are \emph{stratifiable}.
+negation of \acp{IDBP} within a rule, as long as the rule's predicates
+are \emph{stratifiable}.
 A Datalog program is stratifiable if it can be partitioned into \emph{ordered}
 strata \(P_1, \ldots, P_n\) such that:
 
@@ -229,7 +231,7 @@ strata \(P_1, \ldots, P_n\) such that:
 	      the predicate \(p_h\), then \(p_b \in P_i\), \(p_h \in P_j\), and
 	      \(i \leq j\).
 	\item If the predicate \(p_b\) occurs in the body of a rule defining
-	      the predicate \(p_h\) \emph{negatedly}, then \(p_b \in P_i\),
+	      the predicate \(p_h\) \emph{negatively}, then \(p_b \in P_i\),
 	      \(p_h \in P_j\), and \(i < j\)~\cite{green2013datalog}.
 \end{itemize}
 
@@ -246,12 +248,12 @@ Furthermore, there is
 	\item a \emph{negative} edge
 	      (labeled with \(\lnot\) in \ref{fig:precedence-graph-mvr-crdt})
 	      from \(p_i\) to \(p_j\)
-	      if \(p_i\) occurs \emph{negatedly} in the body of a rule defining \(p_j\).
+	      if \(p_i\) occurs \emph{negatively} in the body of a rule defining \(p_j\).
 \end{itemize}
 
 The precedence graph can be used to not only check whether a Datalog
 program is stratifiable but also to compute a stratification of it.
-The former is enabled by the theorem that a Datalog program is stratifiable
+The former is enabled by the theorem that a Datalog program is stratifiable,
 if and only if its precedence graph \(G_p\) does not contain a cycle
 with a negative edge~\cite{green2013datalog}.
 For the latter, two steps are required.
@@ -263,10 +265,11 @@ the strongly connected components have to be topologically sorted.
 The resulting order of strata is what imparts the semantics to stratifiable
 Datalog programs:
 Every stratum \(P_{i+1}\) is evaluated after its previous stratum \(P_{i}\)
-as if it was a \emph{semipositive} Datalog program with the \acp{IDBP}
-of \(P_{i+1}\) treated as if they were \acp{EDBP}.
+as if it was a \emph{semipositive} Datalog program with those \acp{IDBP}
+of \(P_{i+1}\), which are defined in a lower stratum,
+treated as if they were \acp{EDBP}.
 The semantics are well-defined because next to their existence,
-which are given by construction, they are also unique because any freedom
+which is given by construction, they are also unique: Any freedom
 in choosing the strata and their order does not lead to different results,
 as long as the underlying data is the same~\cite{apt1988towards}.
 
@@ -276,7 +279,7 @@ It contains two negative edges but since they are not part of a cycle,
 the program is stratifiable.
 The only cycle is the self-recursion of the ``isCausallyReady'' predicate,
 denoted by a positive self-loop edge.
-In general, if a precedence graph contained a cycle involving multiple nodes,
+In general, if a precedence graph contains a cycle involving multiple nodes,
 the program contains \emph{mutually recursive} predicates.
 
 \input{figures/precedence_graph.tex}
@@ -309,20 +312,17 @@ even after temporary divergence.
 }
 
 Compared to distributed systems that require coordination,
-this model is great for two reasons.
+this model has some advantages and disadvantages.
 First, it offers excellent availability and latency for writes because
 they do not have to coordinate over the network with other replicas.
-Second, reads also offer excellent latency but may be stale insofar that they
-do not always reflect the full global state.
+Second, reads also offer excellent latency as they can just read local state.
+Yet, reads may be stale insofar that they do not always reflect the full global state.
 As a consequence of allowing offline writes,
 application specific invariants (beyond the ones guaranteed by the concrete \ac{CRDT})
 may be violated on the aggregate level after convergence,
 even though each write individually respected the invariants (based on their
 respective replica's state at write creation time).
-However, this issue sometimes even affects the ``guarantees'' provided by a \ac{CRDT}:
-Their correct definition is complex and error-prone,
-let alone proving their convergence, even for people familiar with distributed
-systems~\cite{kleppmann2022assessing, gomes2017verifying}.
+This has to be addressed by the application.
 
 The literature defines two classes of \acp{CRDT}: state-based and operation-based
 which both have different requirements for correctness.
@@ -344,6 +344,7 @@ model which demands three properties~\cite{shapiro2011comprehensive}:
 
 Verifying the correctness of a \ac{CRDT} is a complex,
 error-prone task~\cite{gomes2017verifying, kleppmann2022assessing},
+even for people familiar with distributed systems,
 and currently has to be done for each \ac{CRDT} individually.
 If, however, the set of operations on a \ac{CRDT} \emph{is} the state,
 the merge function can be defined as the set union,
@@ -362,39 +363,38 @@ This approach to \acp{CRDT} is known in the literature as
 and is used in practice in the Automerge \ac{CRDT}~\cite{automerge}.
 This work explores defining the pure function \( f \) as a Datalog query
 over the state comprising the operations of a \ac{CRDT}.
-As Datalog evaluation is deterministic, the convergence property is satisfied.
+As Datalog evaluation is deterministic, the convergence property remains satisfied.
 
 \input{figures/system_architecture}
 
-I provide a system overview of the approach in \autoref{fig:system-arch}.
+\ref{fig:system-arch} provides an overview of a potential system architecture.
 The \emph{database layer} maintains the views \deltaO{},
 as defined by the \ac{CRDT} Datalog queries formulated on the \emph{application layer},
 in response to updates from both the local \deltaI{local} and remote replicas
 \deltaI{remote}.
 In this presentation, the application layer is responsible for forwarding updates
-to the database layer but forwarding could equally well happen exclusively
-on the database layer.
+to the database layer but forwarding could equally well happen on the database layer.
 As explained in \ref{sec:advanced_example}, the database layer must be capable
 of atomically updating all relations of a write to safeguard the \ac{CRDT} queries
-against reading inconsistent state,
-i.e., queries must read from a consistent snapshot of the database.
+against reading inconsistent state.
 
-\autoref{fig:system-arch} illustrates a peer to peer architecture.
-Yet, due to the lack of hierarchy, different network topologies are also possible,
-e.g., a star network topology with a central server for more efficient update gossiping.
-Yet, the issue of update propagation (and update integrity) is not the focus
-of this research and various approaches exist in the literature~\cite{
+Although \ref{fig:system-arch} illustrates a peer to peer architecture,
+different network topologies are also possible due to the lack of hierarchy.
+For instance, a star network topology with a central server could be used
+for more efficient update gossiping.
+However, the issue of update propagation (and update integrity) is not the focus
+of this work and various approaches are discussed in the literature~\cite{
 	auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
 	kleppmann2022making}.
 This also precludes the question of how to efficiently send just the minimum
 set of missing updates to each replica.
-This work only makes the basic assumption of some network topology and protocol
+I only make the basic assumption of some network topology and protocol
 which ensures that each update will eventually be delivered to all replicas.
 Furthermore, replicas are assumed to be non-byzantine.
 
 \section{\Acl{IVM}}\label{sec:ivm}
 
-\Acl{IVM}~\cite{gupta1995maintenance} deals with the problem of maintaining
+\Acf{IVM}~\cite{gupta1995maintenance} deals with the problem of maintaining
 an output view derived from a set of input relations in response to changes
 in these inputs.
 It computes the \emph{changes} to the output view which accrued through
@@ -405,8 +405,8 @@ and obtain the full output view upon every evaluation.
 The goal of \ac{IVM} is to maintain the view \emph{efficiently}, that is,
 being faster than recomputing the view from scratch upon hitting an input change.
 In theory, this allows to maintain output views in near-real-time over large
-inputs which are subject to frequent changes, and are prohibitively expensive to
-recompute from scratch every time.
+inputs which are subject to frequent changes, and are otherwise prohibitively
+expensive to recompute from scratch every time.
 In a nutshell, the promise of \ac{IVM} is to do only work proportional to the
 size of the \emph{input changes}, rather than the size of the \emph{full inputs},
 for a (re)evaluation of the output view.
@@ -476,12 +476,12 @@ as a differential dataflow operator.
 This work chooses DBSP over differential dataflow for three reasons.
 First, its open-source implementation~\cite{feldera} provides a rich,
 (somewhat) documented API\footnotemark{} to build upon.
-Second, it is said to be less complex while still providing all ingredients to
-to express \acp{CRDT} for my use case.
+Second, it is said to be less complex while still providing all the necessary
+ingredients to to express \acp{CRDT} for my use case.
 Third, differential dataflow's advantage of being able to handle out-of-order
-inputs is not relevant for operation-based \acp{CRDT}, as they are designed
+inputs is not relevant for \acp{CRDT}, as they are designed
 to be tolerant of handling out-of-order updates among replicas.
-Therefore, I turn towards DBSP specific concepts which are relevant in \ref{ch:results}.
+Therefore, I turn towards DBSP specific concepts which become relevant in \ref{ch:results}.
 
 \footnotetext{
 	While the documentation is not perfect and the API surface quite involved,
@@ -523,7 +523,7 @@ Streams are an infinite sequence of elements from \zsets{}.
 Operators used in this work are \emph{distinct},
 \emph{map} (for projections), \emph{filter} (for selections),
 \emph{join}, \emph{plus} and \emph{minus} (for ``set'' union and difference),
-\emph{antijoin} (for set difference with respect to a key),
+\emph{antijoin} (for set difference with respect to some key),
 as well as the \emph{delta0} operator (required for importing streams
 from a parent circuit into a child circuit).
 Operators can be chained to form a circuit, which can be viewed as
@@ -533,7 +533,7 @@ stream, emitting the resulting tuples of the query.
 Each input stream provides a handle to feed in updates, which are processed
 according to the circuit after calling the \emph{step} method on the root
 circuit.
-The output stream's handle can be used to obtain the output tuples.
+The output stream's handle can be used to obtain the result tuples.
 
 There are \emph{stateless} and \emph{stateful} operators.
 For instance, every \emph{linear} operator, such as a \emph{filter} or a \emph{map},
@@ -541,9 +541,9 @@ is stateless, meaning that it does not have to maintain any state between
 calls to the \emph{step} method.
 On the other hand, bilinear operators, such as a \emph{join}, are stateful
 and have to maintain state between calls to the \emph{step} method.
-This has an important implication for query optimization~\cite{budiu2025dbsp}.
-Unlike non-incremental query processing, the query plan is fixed and cannot
+This has an important implication for query optimization~\cite{budiu2025dbsp}:
+Unlike with non-incremental query processing, the query plan is fixed and cannot
 adapt to changes in the inputs after the circuit has been assembled,
 \emph{without} having to construct a new circuit according to the
-reoptimized query plan and then feed in all updates again to hydrate
-the state of the stateful operators.
+reoptimized query plan and then having to feed in all updates again
+to hydrate the stateful operators' state.

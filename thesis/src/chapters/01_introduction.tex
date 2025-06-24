@@ -17,8 +17,8 @@ expressing recursive queries, which I believe to be a fundamental aspect in
 successfully defining \acp{CRDT} as queries.
 Furthermore, the declarative nature of a query language may be easier to work
 with than lower-level, in-memory, object-oriented data structures.
-For this chapter I assume familiarity with \acp{CRDT} and Datalog.
-The topics are explained in more detail in \autoref{ch:background}.
+For this chapter, I assume familiarity with \acp{CRDT} and Datalog.
+Both topics are explained in greater detail in \autoref{ch:background}.
 
 \section{Motivating Example: A Key-Value Store as a Query}\label{sec:motivating-example}
 
@@ -36,18 +36,21 @@ consisting of MVR registers, can be expressed with a query language.
 	but they do not play as nice with relational data models.
 }
 
-I use two relations (\acp{EDBP} in Datalog terms) to store the operations
-on the registers of the key-value store.
-First, the \code{set} relation can be thought of a log of all operations
+I use two relations (\acp{EDBP} in Datalog terminology) to store the
+operations on the registers of the key-value store.
+The \code{set} relation contains a log of all operations
 that ever happen to the key-value store.
-Second, the \code{pred} relation stores the causal dependencies between operations.
+The \code{pred} relation stores the causal dependencies between the operations.
 The schema of both relations and some example data is shown in
 \ref{fig:mvr-store-pred,fig:mvr-store-set}.
 In operation-based \acp{CRDT}, a pair of \code{ReplicaId} and \code{Counter} values
-(abbreviated as \code{RepId} and \code{Ctr}, respectively) uniquely
-identifies an operation.
+(abbreviated as \code{RepId} and \code{Ctr}, respectively) is frequently used
+to uniquely identify an operation.
 The \code{ReplicaId} is a unique identifier for the replica that performed the
 operation, and the \code{Counter} is essentially a Lamport clock~\cite{lamport2019time}.
+Having each replica draw a \code{ReplicaId} randomly from a sufficiently large space
+to avoid the implications of the birthday paradox,
+this scheme allows replicas to generate unique identifiers without a central authority.
 
 \input{figures/mvr_store_relations.tex}
 
@@ -71,12 +74,13 @@ The result is \(\{ (k_1, y), (k_1, z), (k_2, c)\}\) because other assigned value
 (\(x\) for \(k_1\); \(a, b\) for \(k_2\)) have been overwritten by later operations.
 \ref{code:mvr-store-datalog} shows a Datalog query that computes the state of the
 \ac{MVR} key-value store.
-Its formulation is close to the mathematical notation above.
+Its formulation resembles the mathematical notation above and uses the additional
+``overwritten'' predicate to make it more readable.
 The query can also be expressed in SQL, and I demonstrate two variants.
 The first one in \ref{code:mvr-store-sql-left-join} uses a \code{LEFT JOIN}
 and a \code{null} filter.
 The second one in \ref{code:mvr-store-sql-subquery} uses a subquery
-and negated set inclusion, to align the SQL query closer with the mathematical
+and negative set inclusion, to align the SQL query closer with the mathematical
 notation.
 
 \begin{figure}[htpb]
@@ -119,21 +123,13 @@ SELECT key, value FROM set WHERE (RepId, Ctr) NOT IN overwritten;
 	\end{subfigure}
 \end{figure}
 
-While for this example the SQL queries are not too far off from the mathematical
-notation, I think that Datalog is more elegant, offers better support for
-composition, and excels at expressing recursion~\cite{abo2024convergence},
-which is important for more complex CRDTs~\cite{kleppmann2018data}.
-Especially, I want to avoid the cumbersome syntax around recursive
-CTEs which remains unpopular even within the SQL
-community~\cite{neumann2024critique, hirn2023fix, mcsherry2022recursion}.
-Furthermore, there exists some interesting research about defining Datalog
-over arbitrary semirings~\cite{abo2024convergence, khamis2022datalog},
-which may open up new avenues for Datalog's semantics and expressiveness.
-Finally, I emphasize that recursion in SQL also suffers from requiring
-monotonically growing sets for recursive queries~\cite{hirn2023fix},
-just like recursion in Datalog.
-Hence, there is no fundamental difference in terms of their semantics and
-expressiveness but I see a notable difference in their syntax choices.
+These examples demonstrate how little code is required to express a relatively
+simple \ac{CRDT} as a query.
+Unlike hand-coding them in an imperative programming language,
+this approach is more approachable for developers familiar with query languages.
+While for this example, the SQL queries are not too far off from the mathematical
+notation, the next section shows that this is not always the case and motivates
+why I turn towards Datalog as a query language in this work.
 
 \section{Advanced Example: Respecting Causal Order}\label{sec:advanced_example}
 
@@ -144,7 +140,7 @@ the example from \autoref{sec:motivating-example} is not a proper \ac{MVR} \ac{C
 as it does not respect the causal order of updates in case updates are delivered
 out-of-order.
 To illustrate this issue, consider \autoref{fig:causal_issue} from the
-perspective of replica \(r_2\) limited to register \(k_1\).
+perspective of replica \(r_2\) and limited to register \(k_1\).
 Initially, \(r_2\) is in the familiar state from \autoref{fig:causal-history-k1}.
 Then, write \(w_2\) from replica \(r_1\) is delivered to \(r_2\) although its
 causal dependency \(w_1\) has not been delivered yet.
@@ -165,24 +161,41 @@ Hence, the problem of causal delivery is equivalent to a graph reachability
 problem: Which nodes are reachable from the set of root nodes?
 \ref{code:mvr-crdt-datalog} extends the query from \autoref{sec:motivating-example}
 with a causal broadcast expressed in Datalog.
-It additionally introduces the predicates \code{overwrittes}, \code{isRoot},
-\code{isLeaf}, and \code{isCausallyReady} to only consider operations
-which are causally ready to derive the state of the key-value store.
+It additionally introduces the four predicates, \code{overwrites}, \code{isRoot},
+\code{isLeaf}, and \code{isCausallyReady}, to only consider operations
+which are causally ready, to derive the state of the key-value store.
+The \code{overwrites} predicate is analogous to the \code{overwritten} predicate.
+The \code{isRoot} predicate captures the root nodes of the causal history,
+and the \code{isLeaf} predicate captures the leaf nodes of the causal history.
 The \code{isCausallyReady} predicate is defined recursively and captures
-the transitive closure of the \code{pred} relation if starting from the
-root nodes of the causal history.
-The computation of the transitive closure is used in \ref{ch:background} to
-explain the semantics of Datalog in greater detail.
-Moreover, I use the \ac{MVR} \ac{CRDT} Datalog query throughout the thesis
+the transitive closure of the \code{pred} relation,
+if starting from the root nodes of the causal history.
+I return to the computation of the transitive closure in \ref{ch:background} to
+explain the semantics of Datalog.
+Moreover, I use the \ac{MVR} \ac{CRDT} Datalog query throughout this work
 as an ongoing example because of its interesting properties:
 It is a simple yet expressive example that encompasses recursion and negation,
-two features that are important for expressing \acp{CRDT}.
+two features that I deem as important for expressing \acp{CRDT}.
 
 \ref{code:mvr-crdt-sql} shows an equivalent SQL query.
 Although I structure the query with the same subqueries as in the Datalog
-query, the SQL query is more verbose and arguably less readable.
-Hence, I prefer Datalog's syntax which allows for declarative, compact
+example, the SQL query is more verbose and arguably less readable.
+I think that Datalog is more elegant, offers better support for composition,
+and excels at expressing recursion~\cite{abo2024convergence},
+which is important for more complex CRDTs~\cite{kleppmann2018data}.
+Especially, I want to avoid the cumbersome syntax around recursive
+common table expressions which remains unpopular even within the SQL
+community~\cite{neumann2024critique, hirn2023fix, mcsherry2022recursion}.
+Semantic-wise, recursion in SQL and Datalog are equivalent and
+both require monotonically growing sets for recursive queries~\cite{hirn2023fix}.
+Hence, there is no fundamental difference in terms of their semantics and
+expressiveness but I see a notable difference in their syntax choices.
+Therefore, I prefer Datalog's syntax which allows for declarative, compact
 and composable queries. Ergonomic composability is key to enabling reusability.
+Furthermore, there exists some recent research about defining Datalog
+over arbitrary semirings~\cite{abo2024convergence, khamis2022datalog},
+which may open up new avenues for Datalog's semantics and expressiveness
+in the future.
 
 \begin{figure}[tpb]
 	\begin{subfigure}[b]{\textwidth}
@@ -236,18 +249,17 @@ AND isCausallyReady.Ctr = isLeaf.Ctr\end{lstlisting}
 	\end{subfigure}
 \end{figure}
 
-Moreover, the example demonstrates why atomic writes to the underlying database
-are important.
-Write \(w_2\) updates both the \code{set} and \code{pred} EDBs.
-If the query reads state in which only the \code{set} EDB has been updated
-but not the \code{pred} EDB,
+The example also demonstrates why atomic writes to the database are important.
+Write \(w_2\) updates both the \code{set} and \code{pred} relations.
+If the query reads state in which only the \code{set} relation,
+but not the \code{pred} relation, has been updated,
 the query incorrectly deems \setop{4}{r_1}{k_1}{y_3} as a new root and
 again returns the invalid result from above.
 
 While the issue of this section can be ignored by assuming a causal broadcast
 either on the application or on the database layer,
 I think that queries benefit from having the full causal history available.
-It provides queries with the ability to detect when operations are concurrent,
+It provides them with the ability to detect when operations are concurrent,
 and use that information to adjust their conflict handling to perform
 custom resolution logic.
 
@@ -268,11 +280,11 @@ satisfied, as I lay out in more detail in \autoref{ch:background}.
 I hope that with this approach, the doors to using \acp{CRDT} in applications
 are opened wider, as the application developer does not have to worry about
 the critical convergence property anymore but is empowered to design her own
-\ac{CRDT}, tailored to her application's needs which is not possible with
-today's \ac{CRDT} libraries.
-These provide a fixed set of \ac{CRDT} types with a fixed set of operations
+\ac{CRDT}, tailored to her application's needs.
+Alas,this is not possible with today's \ac{CRDT} libraries.
+They provide a fixed set of \ac{CRDT} types with a fixed set of operations
 and conflict resolution strategies.
-Alas, they are mostly treated as black boxes from the outside.
+From the outside, they are mostly treated as black boxes.
 
 Similar to how queries made data retrieval and storage more accessible to
 application developers, I hope that expressing \acp{CRDT} as queries
@@ -296,7 +308,7 @@ which has the advantage that the query engine can be optimized over time without
 introducing breaking changes to the application.
 
 Yet, operation-based \acp{CRDT}, which derive their state from a monotonically
-growing set of operations, pose an additional challenge to query engines though.
+growing set of operations, pose an additional challenge to query engines.
 For each evaluation of the current state of the data structure,
 traditional query engines have to re-evaluate the \emph{entire}
 set of operations to derive the current state, performing the same work over
@@ -308,13 +320,15 @@ To address this issue, I focus on exploring \ac{IVM} for this work.
 The promise of \ac{IVM} is that it can incrementally maintain a view defined
 by a query, while only doing work relative to the size of the query's
 inputs' \emph{change since the last evaluation}, as opposed to doing work
-relative to the size of the query's \emph{full inputs} (which are monotonically
-growing in this case) happening with traditional query engines.
+relative to the size of the query's \emph{full inputs},
+as happening with traditional query engines.
+To exacerbate the situation, the inputs are monotonically growing sets in this
+case.
 The issue is the stateless nature of non-incremental query engines, or rather
 that they ``forget'' any previous work done for evaluations of the query,
 and start from scratch every time.
 This behavior is not a good fit with most \ac{CRDT} workloads.
-They are often used in a near-real-time collaboration settings in which there
+They are often used in a near-real-time collaboration settings, in which there
 are frequent updates both from the local and remote replicas, and the accrued
 update sizes since the last evaluation are often minor compared to the total
 size of the operation set due to the near-real-time nature of the collaboration.
@@ -322,23 +336,20 @@ Only after extended periods of offline time, the update sizes may grow larger.
 Therefore, I regard \ac{IVM} as a key technique to make \acp{CRDT} as queries
 feasible in practice:
 If the query engine is only doing work relative to the amount of operations
-accrued since the last evaluation instead of relative to the full set of
+accrued since the last evaluation, instead of relative to the full set of
 operations, the query can be evaluated within acceptable time budgets,
 irrespective of the size (and correlatedly age) of the operation history.
 
 \section{Contributions}
 
-% Zero: Higher-level abstraction through declarative queries. + Datalog
-% First: Convergence for free.
-% Second: IVM and implementation for free from the perspective of the app developer.
-
 Having motivated the idea of expressing \acp{CRDT} as deterministic queries to
 (1) gain a higher-level abstraction and (2) to trivially satisfy \ac{CRDT}'s
 convergence property,
 I point out the two main contributions of this work.
-First, I present an incremental Datalog query engine based on DBSP~\cite{budiu2022dbsp}.
+First, I present an incremental Datalog query engine based on the DBSP
+framework~\cite{budiu2022dbsp}.
 Next to working incrementally, the engine also handles the conversion from
-declarative Datalog to more imperative trees of relational algebra.
+declarative Datalog to the more imperative trees of relational algebra.
 Second, I explore expressing \acp{CRDT} as Datalog queries, and evaluate
 their performance using the incremental engine.
 Finally, I discuss the results and the implications of this approach,
@@ -356,15 +367,14 @@ The data stored in \acp{CRDT} can benefit from the durability guarantees of
 database systems, which are often not provided by \ac{CRDT} libraries.
 Furthermore, the read finality issue of \acp{CRDT} under non-monotone queries
 may be better addressed with the support of a query language~\cite{laddad2022keep}.
-From another perspective, applications benefit from extending the idea of functional
+Applications, on the other hand, benefit from extending the idea of functional
 reactive programming beyond the \ac{GUI} to the whole application stack,
 \emph{including} the database layer.
 The application can then be considered a reactive, pure function
 of some state captured in a (potentially shared) ground truth~\cite{litt2023riffle}.
 
-On the other hand, database systems can be introduced to coordination-free
-environments.
-In exchange for some guarantees which cannot be upheld in such environments,
+Conversely, database systems can be introduced to coordination-free environments.
+In exchange for some guarantees, which cannot be upheld in such environments,
 for instance uniqueness constraints,
 coordination-free database systems can deliver ultimate availability
 to their clients:

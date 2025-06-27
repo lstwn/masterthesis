@@ -20,13 +20,13 @@ use crate::{
     parser_helper::{lead_ws, lead_ws_cmt},
 };
 use nom::{
+    IResult, Parser,
     branch::alt,
     bytes::complete::tag,
     character::complete::multispace1,
     combinator::{eof, map, opt, value},
     multi::{fold_many0, separated_list1},
     sequence::{delimited, pair, preceded, terminated},
-    IResult, Parser,
 };
 
 const DIVIDER: &str = ":-";
@@ -265,6 +265,6 @@ pub mod test {
         let result = program(mvr_crdt_store_datalog());
         // Here, we just check that the parser consumes the full input.
         assert_eq!(result.as_ref().map(|(input, program)| *input), Ok(""));
-        println!("{:#?}", result);
+        println!("{result:#?}");
     }
 }

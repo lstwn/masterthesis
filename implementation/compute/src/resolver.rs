@@ -3,7 +3,7 @@ use crate::{
     error::SyntaxError,
     expr::{
         AliasExpr, AntiJoinExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr,
-        DifferenceExpr, DistinctExpr, EquiJoinExpr, Expr, ExprVisitorMut, FixedPointIterExpr,
+        DifferenceExpr, DistinctExpr, EquiJoinExpr, Expr, ExprVisitorMut, FixPointIterExpr,
         FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr,
         UnionExpr, VarExpr,
     },
@@ -342,7 +342,7 @@ impl ExprVisitorMut<VisitorResult, VisitorCtx<'_, '_>> for Resolver {
 
     fn visit_fixed_point_iter_expr(
         &mut self,
-        expr: &mut FixedPointIterExpr,
+        expr: &mut FixPointIterExpr,
         ctx: VisitorCtx,
     ) -> VisitorResult {
         let exprs = iter::once(&mut expr.accumulator)

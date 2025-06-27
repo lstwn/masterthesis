@@ -22,7 +22,7 @@ pub trait Tuple: FromIterator<ScalarTypedValue> {
             .map(|field| field.to_string())
             .collect::<Vec<_>>()
             .join(" | ");
-        format!("| {} |", fields)
+        format!("| {fields} |")
     }
 }
 
@@ -69,6 +69,16 @@ impl<'a, T: Tuple> SchemaTuple<'a, T> {
     }
     pub fn join(&self, other: &Self) -> impl Iterator<Item = ScalarTypedValue> {
         self.fields().chain(other.fields()).cloned()
+    }
+}
+
+impl Debug for SchemaTuple<'_, TupleValue> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list()
+            .entries(self.schema.active_fields().map(|(index, info)| {
+                format!("{}: {}", info.name(&None), self.tuple.data_at(index))
+            }))
+            .finish()
     }
 }
 
@@ -212,7 +222,7 @@ impl FieldInfo {
         if self.active {
             name
         } else {
-            format!("{}*", name)
+            format!("{name}*")
         }
     }
 }
@@ -354,7 +364,7 @@ impl TupleSchema {
             .map(|(_, info)| info.name(&None))
             .collect::<Vec<_>>()
             .join(" | ");
-        format!("| {} |", fields)
+        format!("| {fields} |")
     }
 }
 
@@ -415,7 +425,7 @@ impl RelationSchema {
     }
     pub fn coalesce(&self) -> Self {
         Self {
-            name: format!("{}-coalesced", self.name),
+            name: format!("[{}-coalesced]", self.name),
             key: self.key.coalesce(),
             tuple: self.tuple.coalesce(),
         }
@@ -423,14 +433,14 @@ impl RelationSchema {
     /// Just clones the current schema, as selections do not alter the schema.
     pub fn select(&self) -> Self {
         Self {
-            name: format!("{}-selected", self.name),
+            name: format!("[{}-selected]", self.name),
             key: self.key.clone(),
             tuple: self.tuple.clone(),
         }
     }
     pub fn pick(&self, fields: &Vec<(&String, Option<&String>)>) -> Self {
         Self {
-            name: format!("{}-picked", self.name),
+            name: format!("[{}-picked]", self.name),
             // To keep the `ProjectionExpr`'s semantics consistent,
             // we erase the key here, too, as we do for the full projection below.
             key: self.key.forget(),
@@ -439,16 +449,25 @@ impl RelationSchema {
     }
     pub fn project(&self, fields: Vec<String>) -> Self {
         Self {
-            name: format!("{}-projected", self.name),
+            name: format!("[{}-projected]", self.name),
             key: TupleSchema::empty(),
             tuple: self.tuple.project(fields),
         }
     }
     pub fn join(&self, other: &Self, key_fields: impl IntoIterator<Item = String>) -> Self {
         Self {
-            name: format!("{}-{}-joined", self.name, other.name),
+            name: format!("[{}-{}-joined]", self.name, other.name),
             key: key_fields.into_iter().collect(),
             tuple: self.tuple.join(&other.tuple),
+        }
+    }
+    pub fn anti_join(&self, other: &Self, key_fields: impl IntoIterator<Item = String>) -> Self {
+        // We do not need to store the key in the schema, as it is not used
+        // in the anti-join.
+        Self {
+            name: format!("{}-{}-anti-joined", self.name, other.name),
+            key: key_fields.into_iter().collect(),
+            tuple: self.tuple.clone(),
         }
     }
 }
@@ -544,13 +563,14 @@ impl<'a> IntoIterator for &'a RelationType {
     }
 }
 
-impl<T, S: AsRef<str>> PartialEq<T> for RelationType
+impl<T, S> PartialEq<T> for RelationType
 where
     // Is there a way to avoid the clone here?
     T: ExactSizeIterator<Item = S> + Clone,
+    S: AsRef<str>,
 {
     fn eq(&self, iter: &T) -> bool {
-        let iter = iter.clone();
+        let iter = iter.clone(); // Should be cheap, as it is an iterator.
         if self.fields.len() != iter.len() {
             return false;
         }

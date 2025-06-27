@@ -16,6 +16,9 @@ pub fn reindex_helper(
     environment: &Environment,
 ) -> (StreamWrapper, Vec<String>) {
     let requires_projection = on.iter().any(|expr| is_pickable(expr).is_none());
+    // We disable the pick optimization for now, as it may cause trouble with
+    // column ordering.
+    let requires_projection = true;
 
     let relation_ref = relation.borrow();
 
@@ -23,7 +26,7 @@ pub fn reindex_helper(
         let schema: Vec<String> = on
             .iter()
             .enumerate()
-            .map(|(idx, _)| format!("anonymous_field_{idx}"))
+            .map(|(idx, _)| format!("anonym_field_{idx}"))
             .collect();
         let indexed = relation_ref.inner.map_index({
             let relation = Rc::clone(relation);

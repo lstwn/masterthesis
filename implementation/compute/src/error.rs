@@ -14,7 +14,7 @@ pub enum IncLogError {
 /// An error that occurs during parsing or static analysis at compile time.
 pub struct SyntaxError {
     // TODO: source location
-    message: String,
+    pub message: String,
 }
 
 impl SyntaxError {

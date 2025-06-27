@@ -31,7 +31,7 @@ impl<'a> Parser<'a> {
     pub fn parse(&mut self, input: &str) -> Result<(DbspInputs, Code), SyntaxError> {
         let datalog_program = program(input)
             .map(|(_, program)| program)
-            .map_err(|e| SyntaxError::new(format!("Failed to parse input: {}", e)))?;
+            .map_err(|e| SyntaxError::new(format!("Failed to parse input: {e}")))?;
         let precedence_graph = PrecedenceGraph::from_ast(datalog_program)?;
         let execution_order = precedence_graph.into_execution_order()?;
         let inclog_program = Translator::new(self.root_circuit, execution_order).translate()?;
@@ -41,14 +41,16 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::crdts::{mvr_crdt_store_datalog, mvr_store_datalog};
-
     use super::*;
+    use crate::crdts::{list_crdt_datalog, mvr_crdt_store_datalog, mvr_store_datalog};
     use compute::{
         dbsp::zset,
         relation::TupleValue,
         scalar::ScalarTypedValue,
-        test_helper::{mvr_store_operation_history, setup_inc_data_log, PlainRelation},
+        test_helper::{
+            PlainRelation, list_crdt_operation_history, mvr_store_operation_history,
+            setup_inc_data_log,
+        },
         tuple,
     };
 
@@ -88,8 +90,8 @@ mod test {
         .into_iter();
 
         for (pred_rel_step, set_op_step) in mvr_store_operation_history() {
-            pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
-            set_op_input.insert_with_same_weight(set_op_step.iter(), 1);
+            pred_rel_input.insert_with_same_weight(&pred_rel_step, 1);
+            set_op_input.insert_with_same_weight(&set_op_step, 1);
 
             handle.step()?;
 
@@ -138,8 +140,45 @@ mod test {
         .into_iter();
 
         for (pred_rel_step, set_op_step) in mvr_store_operation_history() {
-            pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
-            set_op_input.insert_with_same_weight(set_op_step.iter(), 1);
+            pred_rel_input.insert_with_same_weight(&pred_rel_step, 1);
+            set_op_input.insert_with_same_weight(&set_op_step, 1);
+
+            handle.step()?;
+
+            let batch = output.to_batch();
+            println!("{}", batch.as_table());
+            assert_eq!(batch.as_zset(), expected.next().unwrap());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_list_crdt() -> Result<(), anyhow::Error> {
+        let inc_data_log = setup_inc_data_log();
+
+        let (mut handle, inputs, output) =
+            inc_data_log.build_circuit_from_parser(|root_circuit| {
+                Parser::new(root_circuit).parse(list_crdt_datalog())
+            })?;
+
+        let insert_op_input = inputs.get("insert").unwrap();
+        let assert_op_input = inputs.get("assign").unwrap();
+        let remove_op_input = inputs.get("remove").unwrap();
+
+        let mut expected = [zset! {
+            tuple!(0_u64, 0_u64, 0_u64, 2_u64) => 1,
+            tuple!(0_u64, 1_u64, 0_u64, 4_u64) => 1,
+            tuple!(0_u64, 2_u64, 0_u64, 6_u64) => 1,
+            tuple!(0_u64, 3_u64, 0_u64, 1_u64) => 1,
+            tuple!(0_u64, 5_u64, 0_u64, 3_u64) => 1,
+            tuple!(0_u64, 6_u64, 0_u64, 5_u64) => 1,
+        }]
+        .into_iter();
+
+        for (insert_op_step, assert_op_step, remove_op_step) in list_crdt_operation_history() {
+            insert_op_input.insert_with_same_weight(&insert_op_step, 1);
+            assert_op_input.insert_with_same_weight(&assert_op_step, 1);
+            remove_op_input.insert_with_same_weight(&remove_op_step, 1);
 
             handle.step()?;
 
@@ -211,7 +250,7 @@ mod test {
         });
 
         if let Err(ref e) = result {
-            println!("Error: {}", e);
+            println!("Error: {e}");
         }
         assert!(result.is_err());
     }
@@ -230,7 +269,7 @@ mod test {
         });
 
         if let Err(ref e) = result {
-            println!("Error: {}", e);
+            println!("Error: {e}");
         }
         assert!(result.is_err());
     }

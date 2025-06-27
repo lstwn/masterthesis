@@ -90,10 +90,10 @@ impl From<()> for ScalarTypedValue {
 impl Display for ScalarTypedValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            ScalarTypedValue::String(value) => write!(f, "{}", value),
-            ScalarTypedValue::Uint(value) => write!(f, "{}", value),
-            ScalarTypedValue::Iint(value) => write!(f, "{}", value),
-            ScalarTypedValue::Bool(value) => write!(f, "{}", value),
+            ScalarTypedValue::String(value) => write!(f, "{value}"),
+            ScalarTypedValue::Uint(value) => write!(f, "{value}"),
+            ScalarTypedValue::Iint(value) => write!(f, "{value}"),
+            ScalarTypedValue::Bool(value) => write!(f, "{value}"),
             ScalarTypedValue::Null(()) => write!(f, "null"),
         }
     }

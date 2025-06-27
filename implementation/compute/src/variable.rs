@@ -87,10 +87,10 @@ impl From<Literal> for Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::String(value) => write!(f, "{}", value),
-            Value::Uint(value) => write!(f, "{}", value),
-            Value::Iint(value) => write!(f, "{}", value),
-            Value::Bool(value) => write!(f, "{}", value),
+            Value::String(value) => write!(f, "{value}"),
+            Value::Uint(value) => write!(f, "{value}"),
+            Value::Iint(value) => write!(f, "{value}"),
+            Value::Bool(value) => write!(f, "{value}"),
             Value::Null(()) => write!(f, "null"),
             Value::Function(function) => write!(f, "{}", function.borrow()),
             Value::Relation(relation) => write!(f, "{}", relation.borrow()),

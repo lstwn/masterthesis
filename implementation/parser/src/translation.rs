@@ -20,7 +20,7 @@ use compute::{
     relation::{RelationSchema, RelationType},
     stmt::{Code, ExprStmt, Stmt, VarStmt as IncLogVarStmt},
 };
-use compute::{expr::FixedPointIterExpr, stmt::BlockStmt};
+use compute::{expr::FixPointIterExpr, stmt::BlockStmt};
 
 pub struct Translator<'a> {
     aggregated_rules: Vec<AggregatedRule>,
@@ -126,18 +126,18 @@ impl<'a> Translator<'a> {
 
         let accumulator: (String, Expr) = (
             head.name().clone(),
-            self.unionize_bodies(&head, non_rec_bodies.into_iter())?,
+            self.unionize_bodies(&head, non_rec_bodies)?,
         );
 
         let step = BlockStmt {
             stmts: vec![Stmt::from(ExprStmt {
-                expr: self.unionize_bodies(&head, rec_bodies.into_iter())?,
+                expr: self.unionize_bodies(&head, rec_bodies)?,
             })],
         };
 
         Ok(Stmt::from(IncLogVarStmt {
             name: head.name.identifier.inner,
-            initializer: Some(Expr::from(FixedPointIterExpr {
+            initializer: Some(Expr::from(FixPointIterExpr {
                 circuit: self.root_circuit.clone(),
                 imports,
                 accumulator,
@@ -147,9 +147,9 @@ impl<'a> Translator<'a> {
     }
     fn translate_body(
         &mut self,
-        body: DistinctFlaggedBody,
+        head: &Head,
+        body: Body,
     ) -> Result<(RelationType, Expr), SyntaxError> {
-        let (distinct, body) = body;
         let (condition, positive, negative) = Self::partition_atoms(body);
 
         let (positive_relation_type, folded_positive_atoms) = Self::try_fold_helper(
@@ -180,23 +180,23 @@ impl<'a> Translator<'a> {
             negative
                 .into_iter()
                 .fold(folded_positive_atoms, |left, predicate| {
-                    let (right_type, right) = self.translate_predicate(predicate);
-                    Expr::from(AntiJoinExpr {
-                        left,
-                        right,
-                        // We can just take the fields from the negative relation type
-                        // and due to Datalog's safety condition, the variables referenced
-                        // in the negative atom must be a subset of the positive ones.
-                        on: right_type
-                            .into_iter()
-                            .map(|field| {
-                                (
-                                    Expr::from(IncLogVarExpr::new(field.0)),
-                                    Expr::from(IncLogVarExpr::new(field.0)),
-                                )
-                            })
-                            .collect(),
-                    })
+                    // We can take the fields from the negative relation "predicate"
+                    // and due to Datalog's safety condition, the variables referenced
+                    // in the negative relation must be in scope in the `left` relation, too.
+                    // The safety condition guarantees that all negative variables
+                    // are a subset of the positive variables.
+                    let on = predicate
+                        .variables
+                        .iter()
+                        .map(|field| {
+                            (
+                                Expr::from(IncLogVarExpr::new(&field.identifier.inner)),
+                                Expr::from(IncLogVarExpr::new(&field.identifier.inner)),
+                            )
+                        })
+                        .collect();
+                    let (_right_type, right) = self.translate_predicate(predicate);
+                    Expr::from(AntiJoinExpr { left, right, on })
                 });
 
         let with_free_floating_conditions = match condition {
@@ -207,38 +207,39 @@ impl<'a> Translator<'a> {
             None => with_negative_atoms,
         };
 
-        let with_distinct = if distinct {
-            Expr::from(DistinctExpr {
-                relation: with_free_floating_conditions,
-            })
-        } else {
-            with_free_floating_conditions
-        };
+        let confined_to_head_variables = Expr::from(ProjectionExpr {
+            relation: with_free_floating_conditions,
+            attributes: head
+                .variables
+                .iter()
+                .filter_map(|variable| variable.clone().into_projection_attribute())
+                .collect(),
+        });
 
-        Ok((positive_relation_type, with_distinct))
+        Ok((positive_relation_type, confined_to_head_variables))
     }
     fn translate_predicate(&mut self, predicate: Predicate) -> (RelationType, Expr) {
-        // The rule type is the type of the rule the predicate is referencing.
+        // The rule type is the type of the referenced rule by the predicate (source).
         let rule_type = self.get_rule_type(predicate.name());
+        // The predicate type is the type of the predicate itself (target).
         let predicate_type = self.get_predicate_type(&predicate);
         let relation = Expr::from(IncLogVarExpr::from(predicate.name));
-        let translated = self.possibly_project((rule_type, relation), predicate.variables);
+        let translated = Self::possibly_project((&rule_type, relation), predicate.variables);
         (predicate_type, translated)
     }
     fn unionize_bodies(
         &mut self,
         head: &Head,
-        bodies: impl DoubleEndedIterator<Item = DistinctFlaggedBody>
-            + ExactSizeIterator<Item = DistinctFlaggedBody>,
+        bodies: Vec<DistinctFlaggedBody>,
     ) -> Result<Expr, SyntaxError> {
         let bodies_count = bodies.len();
-        Self::try_fold_helper(
+        let all_distinct = bodies.iter().all(|body| body.0);
+
+        let unionized = Self::try_fold_helper(
             bodies,
-            |body| {
-                let typed_relation = self.translate_body(body)?;
-                // Each body needs to be projected to the rule's head's variables
-                // to be union-compatible.
-                Ok(self.possibly_project(typed_relation, head.variables.clone()))
+            |(distinct, body)| {
+                self.translate_body(head, body)
+                    .map(|(_type, body)| Self::possibly_distinct(body, !all_distinct && distinct))
             },
             |mut left, right| {
                 if let Expr::Union(union) = &mut left {
@@ -250,17 +251,26 @@ impl<'a> Translator<'a> {
                 relations.push(right);
                 Ok(Expr::from(UnionExpr { relations }))
             },
-        )
+        )?;
+
+        Ok(Self::possibly_distinct(unionized, all_distinct))
+    }
+    fn possibly_distinct(relation: Expr, wrap: bool) -> Expr {
+        if !wrap {
+            relation
+        } else {
+            Expr::from(DistinctExpr { relation })
+        }
     }
     fn possibly_project(
-        &mut self,
-        typed_input_relation: (RelationType, Expr),
+        typed_input_relation: (&RelationType, Expr),
         attributes: Vec<VarStmt>,
     ) -> Expr {
         let (input_relation_type, mut relation) = typed_input_relation;
-        // The comparison below is vulnerable to duplicates in `attributes` but
-        // these things should be addressed by a (future) type checker.
-        if input_relation_type == attributes.iter().map(|var| &var.identifier.inner) {
+        // The comparison below is vulnerable to duplicates in `attributes`
+        // (in which case the schemas do not contain the same fields),
+        // but these things should be addressed by a (future) type checker.
+        if *input_relation_type == attributes.iter().map(|var| &var.identifier.inner) {
             // If the relation's type is the same as the attributes,
             // we can optimize away the projection.
             return relation;
@@ -362,7 +372,8 @@ impl<'a> Translator<'a> {
                 if !positive_vars.contains(&negative_var.target_name()) {
                     return Err(SyntaxError::new(format!(
                         "Safety condition violated: Variable `{}` occurs negatively but not positively in rule `{}`.",
-                        negative_var.target_name(), rule.name()
+                        negative_var.target_name(),
+                        rule.name()
                     )));
                 }
             }
@@ -388,7 +399,8 @@ impl<'a> Translator<'a> {
                 if !positive_vars.contains(&head_var.target_name()) {
                     return Err(SyntaxError::new(format!(
                         "Range restriction violated: Variable `{}` in head of rule `{}` is not bound in its body.",
-                        head_var.target_name(), rule.name()
+                        head_var.target_name(),
+                        rule.name()
                     )));
                 }
             }
@@ -401,7 +413,7 @@ impl<'a> Translator<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{crdts::mvr_crdt_store_datalog, Parser};
+    use crate::{Parser, crdts::mvr_crdt_store_datalog};
 
     fn parse_and_translate(input: &str) -> Result<(DbspInputs, Code), SyntaxError> {
         // A hacky way to obtain/leak a `RootCircuit` for testing purposes.
@@ -415,8 +427,8 @@ mod test {
     #[test]
     fn test_translation() -> Result<(), anyhow::Error> {
         let (inputs, code) = parse_and_translate(mvr_crdt_store_datalog())?;
-        println!("Inputs: {:#?}", inputs);
-        println!("Code: {:#?}", code);
+        println!("Inputs: {inputs:#?}");
+        println!("Code: {code:#?}");
         Ok(())
     }
 }

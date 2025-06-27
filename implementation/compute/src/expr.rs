@@ -29,7 +29,7 @@ pub enum Expr {
     CartesianProduct(Box<CartesianProductExpr>),
     EquiJoin(Box<EquiJoinExpr>),
     AntiJoin(Box<AntiJoinExpr>),
-    FixedPointIter(Box<FixedPointIterExpr>),
+    FixedPointIter(Box<FixPointIterExpr>),
 }
 
 impl_from_auto_box! {
@@ -51,7 +51,7 @@ impl_from_auto_box! {
     (Expr::CartesianProduct, CartesianProductExpr),
     (Expr::EquiJoin, EquiJoinExpr),
     (Expr::AntiJoin, AntiJoinExpr),
-    (Expr::FixedPointIter, FixedPointIterExpr)
+    (Expr::FixedPointIter, FixPointIterExpr)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -268,7 +268,7 @@ pub struct ThetaJoinExpr {
 
 /// Evaluates to a relation/stream again.
 #[derive(Clone)]
-pub struct FixedPointIterExpr {
+pub struct FixPointIterExpr {
     /// The parent circuit which can only be a root circuit.
     pub circuit: RootCircuit,
     /// The streams from the root circuit to make available in the nested circuit.
@@ -289,9 +289,9 @@ pub struct FixedPointIterExpr {
     pub step: BlockStmt,
 }
 
-impl Eq for FixedPointIterExpr {}
+impl Eq for FixPointIterExpr {}
 
-impl PartialEq for FixedPointIterExpr {
+impl PartialEq for FixPointIterExpr {
     fn eq(&self, other: &Self) -> bool {
         self.imports == other.imports
             && self.accumulator == other.accumulator
@@ -299,9 +299,9 @@ impl PartialEq for FixedPointIterExpr {
     }
 }
 
-impl Debug for FixedPointIterExpr {
+impl Debug for FixPointIterExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let FixedPointIterExpr {
+        let FixPointIterExpr {
             circuit: _,
             accumulator,
             imports,
@@ -387,10 +387,10 @@ impl From<()> for Literal {
 impl Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Literal::String(value) => write!(f, "{}", value),
-            Literal::Uint(value) => write!(f, "{}", value),
-            Literal::Iint(value) => write!(f, "{}", value),
-            Literal::Bool(value) => write!(f, "{}", value),
+            Literal::String(value) => write!(f, "{value}"),
+            Literal::Uint(value) => write!(f, "{value}"),
+            Literal::Iint(value) => write!(f, "{value}"),
+            Literal::Bool(value) => write!(f, "{value}"),
             Literal::Null(()) => write!(f, "null"),
             Literal::Relation(value) => write!(f, "relation {}", value.schema.name),
         }
@@ -417,7 +417,7 @@ pub trait ExprVisitor<T, C> {
             Expr::CartesianProduct(expr) => self.visit_cartesian_product_expr(expr, ctx),
             Expr::EquiJoin(expr) => self.visit_equi_join_expr(expr, ctx),
             Expr::AntiJoin(expr) => self.visit_anti_join_expr(expr, ctx),
-            Expr::FixedPointIter(expr) => self.visit_fixed_point_iter_expr(expr, ctx),
+            Expr::FixedPointIter(expr) => self.visit_fix_point_iter_expr(expr, ctx),
         }
     }
     fn visit_binary_expr(&mut self, expr: &BinaryExpr, ctx: C) -> T;
@@ -437,7 +437,7 @@ pub trait ExprVisitor<T, C> {
     fn visit_cartesian_product_expr(&mut self, expr: &CartesianProductExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &EquiJoinExpr, ctx: C) -> T;
     fn visit_anti_join_expr(&mut self, expr: &AntiJoinExpr, ctx: C) -> T;
-    fn visit_fixed_point_iter_expr(&mut self, expr: &FixedPointIterExpr, ctx: C) -> T;
+    fn visit_fix_point_iter_expr(&mut self, expr: &FixPointIterExpr, ctx: C) -> T;
 }
 
 pub trait ExprVisitorMut<T, C> {
@@ -480,7 +480,7 @@ pub trait ExprVisitorMut<T, C> {
     fn visit_cartesian_product_expr(&mut self, expr: &mut CartesianProductExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: &mut EquiJoinExpr, ctx: C) -> T;
     fn visit_anti_join_expr(&mut self, expr: &mut AntiJoinExpr, ctx: C) -> T;
-    fn visit_fixed_point_iter_expr(&mut self, expr: &mut FixedPointIterExpr, ctx: C) -> T;
+    fn visit_fixed_point_iter_expr(&mut self, expr: &mut FixPointIterExpr, ctx: C) -> T;
 }
 
 pub trait ExprVisitorOwn<T, C> {
@@ -523,7 +523,7 @@ pub trait ExprVisitorOwn<T, C> {
     fn visit_cartesian_product_expr(&mut self, expr: CartesianProductExpr, ctx: C) -> T;
     fn visit_equi_join_expr(&mut self, expr: EquiJoinExpr, ctx: C) -> T;
     fn visit_anti_join_expr(&mut self, expr: AntiJoinExpr, ctx: C) -> T;
-    fn visit_fixed_point_iter_expr(&mut self, expr: FixedPointIterExpr, ctx: C) -> T;
+    fn visit_fixed_point_iter_expr(&mut self, expr: FixPointIterExpr, ctx: C) -> T;
 }
 
 impl MemAddr for Expr {}
@@ -544,4 +544,4 @@ impl MemAddr for ProjectionExpr {}
 impl MemAddr for CartesianProductExpr {}
 impl MemAddr for EquiJoinExpr {}
 impl MemAddr for AntiJoinExpr {}
-impl MemAddr for FixedPointIterExpr {}
+impl MemAddr for FixPointIterExpr {}

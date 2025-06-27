@@ -34,7 +34,16 @@ impl TypeResolver {
         self.new_rule_context(rule);
 
         // For extensional rules, there will be no bodies containing any atoms.
-        rule.bodies().try_for_each(|body| self.resolve_body(body))?;
+        rule.bodies()
+            .try_for_each(|body| self.resolve_body(body))
+            .map_err(|mut err| {
+                // TODO: Use a proper error stack (like anyhow) to add context to errors.
+                err.message.push_str(&format!(
+                    " while type resolving predicate '{}'",
+                    rule.name()
+                ));
+                err
+            })?;
         // Having resolved all bodies' atoms, we have enough information to
         // resolve the head.
         let relation_type = self.resolve_head(rule.head())?;

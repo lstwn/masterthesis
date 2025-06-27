@@ -49,3 +49,93 @@ pub fn mvr_store_datalog() -> &'static str {
                                                     not overwritten(RepId, Ctr).
     "#
 }
+
+/// This is an implementation of the replicated growable array (RGA) CRDT in Datalog.
+/// Credits are due to Martin Kleppmann.
+pub fn list_crdt_datalog() -> &'static str {
+    r#"
+        // These are extensional database predicates (EDBPs).
+        insert(RepId, Ctr, ParentRepId, ParentCtr) :- .
+        assign(RepId, Ctr, Value) :- .
+        remove(RepId, Ctr) :- .
+
+        // These are intensional database predicates (IDBPs).
+        distinct hasChild(ParentRepId, ParentCtr) :-
+          insert(ParentRepId, ParentCtr).
+
+        // TODO: Back to one rule with complex predicate:
+        // SiblingCtr > ChildCtr OR (SiblingCtr == ChildCtr AND SiblingRepId > ChildRepId).
+        // Or, alternatively:
+        // (SiblingCtr > ChildCtr; (SiblingCtr == ChildCtr AND SiblingRepId > ChildRepId)).
+        distinct laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
+          insert(SiblingRepId = RepId, SiblingCtr = Ctr, ParentRepId, ParentCtr),
+          insert(ChildRepId = RepId, ChildCtr = Ctr, ParentRepId, ParentCtr),
+          SiblingCtr > ChildCtr.
+        // This branch does not contribute facts with our test data.
+        distinct laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
+          insert(SiblingRepId = RepId, SiblingCtr = Ctr, ParentRepId, ParentCtr),
+          insert(ChildRepId = RepId, ChildCtr = Ctr, ParentRepId, ParentCtr),
+          SiblingCtr == ChildCtr, SiblingRepId > ChildRepId.
+
+        firstChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
+          insert(ChildRepId = RepId, ChildCtr = Ctr, ParentRepId, ParentCtr),
+          not laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr).
+
+        distinct sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
+          insert(Child1RepId = RepId, Child1Ctr = Ctr, ParentRepId, ParentCtr),
+          insert(Child2RepId = RepId, Child2Ctr = Ctr, ParentRepId, ParentCtr).
+
+        // TODO: Back to one rule with complex predicate:
+        // Child1Ctr > Child2Ctr OR (Child1Ctr == Child2Ctr AND Child1RepId > Child2RepId).
+        distinct laterSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
+          sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
+          Child1Ctr > Child2Ctr.
+        distinct laterSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
+          sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
+          Child1Ctr == Child2Ctr, Child1RepId > Child2RepId.
+
+        // TODO: Back to one rule with complex predicate:
+        // (Child1Ctr > Child2Ctr OR (Child1Ctr == Child2Ctr AND Child1RepId > Child2RepId)),
+        // (Child2Ctr > Child3Ctr OR (Child2Ctr == Child3Ctr AND Child2RepId > Child3RepId)).
+        distinct laterTransitiveSibling(Child1RepId, Child1Ctr, Child3RepId, Child3Ctr) :-
+          sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
+          sibling(Child1RepId, Child1Ctr, Child3RepId = Child2RepId, Child3Ctr = Child2Ctr),
+          Child1Ctr > Child2Ctr,
+          Child2Ctr > Child3Ctr.
+        distinct laterTransitiveSibling(Child1RepId, Child1Ctr, Child3RepId, Child3Ctr) :-
+          sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
+          sibling(Child1RepId, Child1Ctr, Child3RepId = Child2RepId, Child3Ctr = Child2Ctr),
+          Child1Ctr == Child2Ctr, Child1RepId > Child2RepId,
+          Child2Ctr == Child3Ctr, Child2RepId > Child3RepId.
+        distinct laterTransitiveSibling(Child1RepId, Child1Ctr, Child3RepId, Child3Ctr) :-
+          sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
+          sibling(Child1RepId, Child1Ctr, Child3RepId = Child2RepId, Child3Ctr = Child2Ctr),
+          Child1Ctr > Child2Ctr,
+          Child2Ctr == Child3Ctr, Child2RepId > Child3RepId.
+        distinct laterTransitiveSibling(Child1RepId, Child1Ctr, Child3RepId, Child3Ctr) :-
+          sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
+          sibling(Child1RepId, Child1Ctr, Child3RepId = Child2RepId, Child3Ctr = Child2Ctr),
+          Child1Ctr == Child2Ctr, Child1RepId > Child2RepId,
+          Child2Ctr > Child3Ctr.
+
+        distinct nextSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
+          laterSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
+          not laterTransitiveSibling(Child1RepId, Child1Ctr, Child2RepId = Child3RepId, Child2Ctr = Child3Ctr).
+
+        distinct hasNextSibling(ChildRepId, ChildCtr) :-
+          nextSibling(ChildRepId = Child1RepId, ChildCtr = Child1Ctr).
+
+        distinct nextSiblingAnc(ChildRepId, ChildCtr, AncRepId, AncCtr) :-
+          nextSibling(ChildRepId = Child1RepId, ChildCtr = Child1Ctr, AncRepId = Child2RepId, AncCtr = Child2Ctr).
+        distinct nextSiblingAnc(ChildRepId, ChildCtr, AncRepId, AncCtr) :-
+          insert(ChildRepId = RepId, ChildCtr = Ctr, ParentRepId, ParentCtr),
+          not hasNextSibling(ChildRepId, ChildCtr),
+          nextSiblingAnc(ParentRepId = ChildRepId, ParentCtr = ChildCtr, AncRepId, AncCtr).
+
+        distinct nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
+          not hasChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr),
+          nextSiblingAnc(PrevRepId = ChildRepId, PrevCtr = ChildCtr, NextRepId = AncRepId, NextCtr = AncCtr).
+        distinct nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
+          firstChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr, NextRepId = ChildRepId, NextCtr = ChildCtr).
+    "#
+}

@@ -10,6 +10,9 @@ pub fn projection_helper(attributes: &[(String, Expr)]) -> ProjectionStrategy<'_
     let requires_projection = attributes
         .iter()
         .any(|(_, expr)| is_pickable(expr).is_none());
+    // We disable the pick optimization for now, as it may cause trouble with
+    // column ordering.
+    let requires_projection = true;
 
     if requires_projection {
         ProjectionStrategy::Projection(ProjectionHelper::new(attributes))

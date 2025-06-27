@@ -186,8 +186,7 @@ impl IncDataLog {
             }
             result => {
                 return Err(RuntimeError::new(format!(
-                    "Expected a relation as program's output, got {:?}",
-                    result
+                    "Expected a relation as program's output, got {result:?}",
                 )));
             }
         };
@@ -203,7 +202,7 @@ mod test {
         dbsp::{DbspInput, zset},
         expr::{
             AliasExpr, CartesianProductExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr,
-            FixedPointIterExpr, ProjectionExpr, SelectionExpr, UnionExpr,
+            FixPointIterExpr, ProjectionExpr, SelectionExpr, UnionExpr,
         },
         relation::TupleValue,
         scalar::ScalarTypedValue,
@@ -272,10 +271,10 @@ mod test {
         })];
 
         let result = inclog.execute(anonymous_function)?.unwrap();
-        assert_eq!(format!("{}", result), "<anonymous fn(a, b)>");
+        assert_eq!(format!("{result}"), "<anonymous fn(a, b)>");
 
         let result = inclog.execute(named_function)?.unwrap();
-        assert_eq!(format!("{}", result), "<fn add(a, b)>");
+        assert_eq!(format!("{result}"), "<fn add(a, b)>");
 
         Ok(())
     }
@@ -854,7 +853,7 @@ mod test {
                     }),
                     Stmt::from(VarStmt {
                         name: "closure".to_string(),
-                        initializer: Some(Expr::from(FixedPointIterExpr {
+                        initializer: Some(Expr::from(FixPointIterExpr {
                             circuit: root_circuit.clone(),
                             imports: ["edges"]
                                 .into_iter()
@@ -1035,7 +1034,7 @@ mod test {
                     }),
                     Stmt::from(VarStmt {
                         name: "isCausallyReady".to_string(),
-                        initializer: Some(Expr::from(FixedPointIterExpr {
+                        initializer: Some(Expr::from(FixPointIterExpr {
                             circuit: root_circuit.clone(),
                             imports: ["pred"]
                                 .into_iter()

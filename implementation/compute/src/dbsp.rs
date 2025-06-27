@@ -376,13 +376,13 @@ impl DbspOutputBatch<'_> {
                         self.schema
                             .key
                             .all_field_names(&None)
-                            .map(|name| format!("[key] {}", name).cell()),
+                            .map(|name| format!("[key] {name}").cell()),
                     )
                     .chain(
                         self.schema
                             .tuple
                             .all_field_names(&None)
-                            .map(|name| format!("[value] {}", name).cell()),
+                            .map(|name| format!("[value] {name}").cell()),
                     ),
             )
             .bold(true)
@@ -599,7 +599,7 @@ mod test {
         for _ in 0..STEPS {
             circuit.step()?;
             let x = output_handle.consolidate().iter().collect::<Vec<_>>();
-            println!("Output: {:?}", x);
+            println!("Output: {x:?}");
         }
 
         Ok(())
@@ -723,7 +723,7 @@ mod test {
             circuit.step()?;
             let result = output.take_from_all();
             let result = result.first().unwrap();
-            println!("{:?}", result);
+            println!("{result:?}");
         }
 
         Ok(())
@@ -790,7 +790,7 @@ mod test {
             circuit.step()?;
             let result = output.take_from_all();
             let result = result.first().unwrap();
-            println!("{:?}", result);
+            println!("{result:?}");
             assert_eq!(*result, expected_outputs.next().unwrap());
         }
 

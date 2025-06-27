@@ -174,19 +174,12 @@ impl AggregatedRule {
             .iter()
             .flat_map(|body| body.1.atoms.iter())
     }
-    /// Returns the head and all bodies of this aggregated rule. It provides
-    /// the invariant that the bodies are sorted such that the non-recursive
-    /// bodies come first, followed by the recursive bodies.
-    pub fn into_head_and_bodies(
-        mut self,
-    ) -> (
-        Head,
-        impl DoubleEndedIterator<Item = DistinctFlaggedBody>
-            + ExactSizeIterator<Item = DistinctFlaggedBody>,
-    ) {
-        // std::iter::chain destroys the double-ended and exact-size property..
+    /// Returns the head and all bodies of this aggregated rule. It guarantees
+    /// the bodies are sorted such that the non-recursive bodies come first,
+    /// followed by the recursive bodies.
+    pub fn into_head_and_bodies(mut self) -> (Head, Vec<DistinctFlaggedBody>) {
         self.non_recursive_bodies.extend(self.recursive_bodies);
-        (self.head, self.non_recursive_bodies.into_iter())
+        (self.head, self.non_recursive_bodies)
     }
     pub fn into_head_and_non_rec_rec_bodies(
         self,
@@ -262,7 +255,7 @@ mod test {
     fn test_build_dependency_graph() -> Result<(), SyntaxError> {
         let ast = program(mvr_crdt_store_datalog()).unwrap().1;
         let graph = PrecedenceGraph::from_ast(ast)?;
-        println!("{:#?}", graph);
+        println!("{graph:#?}");
         let order = graph.into_execution_order()?;
         let expected = [
             "pred",
@@ -276,7 +269,7 @@ mod test {
         ]
         .into_iter();
         assert!(order.iter().map(|rule| rule.name()).eq(expected));
-        println!("{:#?}", order);
+        println!("{order:#?}");
         Ok(())
     }
 }

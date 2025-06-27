@@ -41,9 +41,9 @@ impl Function {
     fn to_string_helper(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let params = format!("({})", self.declaration().parameters.join(", "));
         if let Some(name) = &self.name {
-            write!(f, "<fn {}{}>", name, params)
+            write!(f, "<fn {name}{params}>")
         } else {
-            write!(f, "<anonymous fn{}>", params)
+            write!(f, "<anonymous fn{params}>")
         }
     }
 }

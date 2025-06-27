@@ -45,8 +45,8 @@ where
         if sorted.len() == self.nodes_len() {
             Some(sorted)
         } else {
-            println!("Graph has cycles: {:?}", sorted);
-            println!("Indegrees: {:?}", in_degrees);
+            println!("Graph has cycles: {sorted:?}");
+            println!("Indegrees: {in_degrees:?}");
             None
         }
     }

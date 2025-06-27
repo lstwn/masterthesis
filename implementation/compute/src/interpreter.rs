@@ -4,7 +4,7 @@ use crate::{
     error::RuntimeError,
     expr::{
         AliasExpr, AntiJoinExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr,
-        DifferenceExpr, DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixedPointIterExpr,
+        DifferenceExpr, DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixPointIterExpr,
         FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr,
         UnionExpr, VarExpr,
     },
@@ -151,7 +151,7 @@ impl Interpreter {
             }
             Operator::Addition => {
                 if let (Value::String(left), Value::String(right)) = (&left, &right) {
-                    return Ok(Value::String(format!("{}{}", left, right)));
+                    return Ok(Value::String(format!("{left}{right}")));
                 }
                 arithmetic_helper!(left, right, +, Value::Iint, Value::Uint)
             }
@@ -192,8 +192,7 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
             Operator::Subtraction => match operand {
                 Value::Iint(value) => Ok(Value::Iint(-value)),
                 _ => Err(RuntimeError::new(format!(
-                    "expected signed int, got: {:?}",
-                    operand
+                    "expected signed int, got: {operand:?}",
                 ))),
             },
             Operator::Not => Ok(Value::Bool(!is_truthy(&operand))),
@@ -454,10 +453,10 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         let (right_indexed, _) =
             reindex_helper(&right, right_key_fields.as_slice(), ctx.environment);
 
-        let left_ref = left.borrow();
-        let right_ref = right.borrow();
-
-        let joined_schema = left_ref.schema.join(&right_ref.schema, key_fields);
+        let joined_schema = left
+            .borrow()
+            .schema
+            .join(&right.borrow().schema, key_fields);
 
         let (schema, projection) = match expr
             .attributes
@@ -518,18 +517,21 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         let (right_indexed, _) =
             reindex_helper(&right, right_key_fields.as_slice(), ctx.environment);
 
+        let anti_joined_schema = left
+            .borrow()
+            .schema
+            .anti_join(&right.borrow().schema, key_fields);
         let anti_joined = left_indexed.anti_join_index(&right_indexed);
 
         Ok(Value::Relation(new_relation(
-            // The schema of the left relation is the schema of the anti-joined relation.
-            left.borrow().schema.clone(),
+            anti_joined_schema,
             anti_joined,
         )))
     }
 
-    fn visit_fixed_point_iter_expr(
+    fn visit_fix_point_iter_expr(
         &mut self,
-        expr: &FixedPointIterExpr,
+        expr: &FixPointIterExpr,
         ctx: VisitorCtx,
     ) -> ExprVisitorResult {
         let accumulator = self

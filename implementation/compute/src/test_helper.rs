@@ -9,7 +9,7 @@ use crate::{
 use std::{collections::HashSet, fmt::Debug, num::NonZeroUsize};
 
 pub fn setup_inc_data_log() -> IncDataLog {
-    IncDataLog::new(NonZeroUsize::try_from(4).unwrap(), true)
+    IncDataLog::new(NonZeroUsize::try_from(1).unwrap(), true)
 }
 
 pub trait InputEntity: Into<TupleKey> + Into<TupleValue> + Clone + Debug {
@@ -224,6 +224,9 @@ impl From<Edge> for TupleValue {
     }
 }
 
+/// This relation represents set operations on a key-value store used in the
+/// [`parser::crdts::mvr_crdt_store_datalog`] and [`parser::crdts::mvr_store_datalog`]
+/// Datalog programs.
 #[derive(Copy, Clone, Debug)]
 pub struct SetOp {
     rep_id: u64,
@@ -262,6 +265,9 @@ impl From<SetOp> for TupleValue {
     }
 }
 
+/// This relation represents a causal predecessor relationship used in the
+/// [`parser::crdts::mvr_crdt_store_datalog`] and [`parser::crdts::mvr_store_datalog`]
+/// Datalog programs.
 #[derive(Copy, Clone, Debug)]
 pub struct PredRel {
     from_rep_id: u64,
@@ -370,6 +376,139 @@ pub fn mvr_store_operation_history() -> [(Vec<PredRel>, Vec<SetOp>); 5] {
         (vec![PredRel::new(0, 3, 0, 4)], vec![SetOp::new(0, 4, 1, 6)]),
         (vec![PredRel::new(1, 2, 0, 3)], vec![SetOp::new(0, 3, 1, 5)]),
     ]
+}
+
+/// This relation represents an insertion operation in a list and is used in the
+/// [`parser::crdts::list_crdt_datalog`] Datalog program.
+#[derive(Copy, Clone, Debug)]
+pub struct InsertOp {
+    rep_id: u64,
+    ctr: u64,
+    parent_rep_id: u64,
+    parent_ctr: u64,
+}
+
+impl InsertOp {
+    fn new(rep_id: u64, ctr: u64, parent_rep_id: u64, parent_ctr: u64) -> Self {
+        Self {
+            rep_id,
+            ctr,
+            parent_rep_id,
+            parent_ctr,
+        }
+    }
+}
+
+impl InputEntity for InsertOp {
+    fn schema() -> RelationSchema {
+        RelationSchema::new(
+            "insert_op",
+            ["RepId", "Ctr", "ParentRepId", "ParentCtr"],
+            ["RepId", "Ctr", "ParentRepId", "ParentCtr"],
+        )
+        .expect("Correct schema definition")
+    }
+}
+
+impl From<InsertOp> for TupleKey {
+    fn from(insert_op: InsertOp) -> Self {
+        TupleKey::from_iter([
+            insert_op.rep_id,
+            insert_op.ctr,
+            insert_op.parent_rep_id,
+            insert_op.parent_ctr,
+        ])
+    }
+}
+
+impl From<InsertOp> for TupleValue {
+    fn from(insert_op: InsertOp) -> Self {
+        TupleValue::from_iter([
+            insert_op.rep_id,
+            insert_op.ctr,
+            insert_op.parent_rep_id,
+            insert_op.parent_ctr,
+        ])
+    }
+}
+
+/// This relation represents an assignment operation of a value to a position in
+/// in a list and is used in the [`parser::crdts::list_crdt_datalog`] Datalog program.
+#[derive(Copy, Clone, Debug)]
+pub struct AssignOp {
+    rep_id: u64,
+    ctr: u64,
+    value: char,
+}
+
+impl InputEntity for AssignOp {
+    fn schema() -> RelationSchema {
+        RelationSchema::new("assign_op", ["RepId", "Ctr", "Value"], ["RepId", "Ctr"])
+            .expect("Correct schema definition")
+    }
+}
+
+impl From<AssignOp> for TupleKey {
+    fn from(assign_op: AssignOp) -> Self {
+        TupleKey::from_iter([assign_op.rep_id, assign_op.ctr])
+    }
+}
+
+impl From<AssignOp> for TupleValue {
+    fn from(assign_op: AssignOp) -> Self {
+        TupleValue::from_iter([assign_op.rep_id, assign_op.ctr, assign_op.value as u64])
+    }
+}
+
+/// This relation a deletion of an element in a list and is used in the
+/// [`parser::crdts::list_crdt_datalog`] Datalog program.
+#[derive(Copy, Clone, Debug)]
+pub struct RemoveOp {
+    rep_id: u64,
+    ctr: u64,
+}
+
+impl InputEntity for RemoveOp {
+    fn schema() -> RelationSchema {
+        RelationSchema::new("remove_op", ["RepId", "Ctr"], ["RepId", "Ctr"])
+            .expect("Correct schema definition")
+    }
+}
+
+impl From<RemoveOp> for TupleKey {
+    fn from(remove_op: RemoveOp) -> Self {
+        TupleKey::from_iter([remove_op.rep_id, remove_op.ctr])
+    }
+}
+
+impl From<RemoveOp> for TupleValue {
+    fn from(remove_op: RemoveOp) -> Self {
+        TupleValue::from_iter([remove_op.rep_id, remove_op.ctr])
+    }
+}
+
+/// Example tree, encoded as insert(Child, Parent) facts:
+///
+/// ```text
+///        0
+///      /   \
+///     2     1
+///   / | \   |
+///  6  5  3  4
+/// ```
+pub fn list_crdt_operation_history() -> [(Vec<InsertOp>, Vec<AssignOp>, Vec<RemoveOp>); 1] {
+    [(
+        vec![
+            InsertOp::new(0, 1, 0, 0),
+            InsertOp::new(0, 2, 0, 0),
+            InsertOp::new(0, 3, 0, 2),
+            InsertOp::new(0, 4, 0, 1),
+            InsertOp::new(0, 5, 0, 2),
+            InsertOp::new(0, 6, 0, 2),
+        ],
+        vec![],
+        vec![],
+    )]
 }
 
 // For benchmarking purposes.

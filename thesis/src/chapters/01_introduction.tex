@@ -3,43 +3,121 @@
 
 \chapter{Introduction}\label{ch:intro}
 
-Today's \ac{CRDT} implementations are built around the in-memory,
-object-oriented paradigm~\cite{laddad2022keep} in which there is an API
-in the application language with some predefined interface that
-specifies how to update and read the state of a \ac{CRDT}.
-However, there is also the idea of defining \acp{CRDT}
-as relational queries~\cite{kleppmann2018data}.
-In this alternative model, the state of a \ac{CRDT} is obtained through a query over
-relations storing operations which are gossiped across replicas.
-This research aims to explore this alternative model further and
-to utilize Datalog as a potential query language due to its elegance in
-expressing recursive queries, which I believe to be a fundamental aspect in
-successfully defining \acp{CRDT} as queries.
-Furthermore, the declarative nature of a query language may be easier to work
-with than lower-level, in-memory, object-oriented data structures.
-For this chapter, I assume familiarity with \acp{CRDT} and Datalog.
-Both topics are explained in greater detail in \autoref{ch:background}.
+\acp{CRDT} refer to a class of data structures that allow replicas in a distributed
+system to agree on a shared state without any coordination of reads and writes
+to the data structure, i.e., they can be served from the local state of a replica.
+This allows for offline writes at each replica.
+In case of concurrent writes, replicas are guaranteed to converge to the same state,
+if their ``knowledge'' is based on the same set of writes.
+This guarantee is what renders defining correct \acp{CRDT} challenging.
+Currently, \acp{CRDT} are either implemented (1) as an object-oriented library
+in an imperative programming language exposing a fixed API~\cite{automerge,yjs},
+or implemented (2) using formal verification techniques,
+sometimes exposed in a domain-specific language,
+which then guarantee their convergence~\cite{verifx,lore}.
+The former approach requires proving that the \ac{CRDT} algorithm
+(and its implementation) is commutative when applying concurrent writes,
+which is a subtle and error-prone task~\cite{gomes2017verifying,kleppmann2022assessing}.
+The latter approach either requires lots of manual effort and expertise in formal
+verification~\cite{gomes2017verifying},
+and/or working with restricted domain-specific languages,
+sometimes not expressive enough to express the desired \ac{CRDT}.
+For instance, it is still an open problem to define a list \ac{CRDT} in VeriFx.
+
+This leaves application developers wanting to use \acp{CRDT} in their applications
+facing an unfortunate trade-off:
+Either they use an existing \ac{CRDT} library, but cannot define their own \acp{CRDT}
+tailored to their specific use case,
+or they define their own \acp{CRDT} but have to invest significant efforts
+in formally verifying it or learning a domain-specific language.
+Previous work~\cite{kleppmann2018data} has proposed Datalog as a domain-specific
+language to express \acp{CRDT} as queries over a set of operations.
+Datalog's deterministic nature guarantees convergence for replicas executing it
+on the same set of operations.
+While still being a restricted language, Datalog may be more expressive
+and better known than a custom domain-specific language.
+Yet, so far the idea has only been hypothesized.
+This work aims to put the idea into practice by exploring the feasability of
+expressing \acp{CRDT} as Datalog queries through:
+
+% TODO: More explicit forward-referencing.
+\begin{itemize}
+	\item \textbf{Implementing a query engine} which can execute queries
+	      represented in an \ac{IR} (\ref{sec:incremental-query-engine}).
+	      The \ac{IR} works on top of operators from relational algebra, e.g.,
+	      joins, projections, and selections.
+	      The engine uses \ac{IVM}, by leveraging the recently released DBSP
+	      framework~\cite{budiu2025dbsp}, to incrementally maintain the state
+	      of a query over a stream of updates.
+	\item \textbf{Defining and implementing a Datalog dialect} (\ref{sec:datalog-frontend}),
+	      powerful enough to express \acp{CRDT} as queries.
+	      The dialect includes support for recursion and negation
+	      and is transpiled (\ref{sec:datalog-to-relational-algebra})
+	      to the query engine's \ac{IR}.
+	\item \textbf{Providing \ac{CRDT} definitions} of
+	      a \ac{MVR} key-value store (\ref{sec:motivating-example}),
+	      a list (\ref{sec:crdts-as-queries}),
+	      and a causal broadcast (\ref{sec:advanced_example}) in my Datalog dialect.
+	      \ref{sec:benchmarks} evaluates their performance in two settings:
+	      (1) simulating an application restart by feeding in all updates to
+	      the \ac{CRDT} at once, and (2) simulating near-real-time collaboration
+	      by feeding in recent updates on top of an existing state.
+\end{itemize}
+
+Ideally, this different approach to \acp{CRDT} may move them closer to the power,
+guarantees and flexibility of database systems.
+The higher abstraction of a query language better supports the decoupling from
+logical and physical data representations than object-oriented APIs.
+Moreover, higher abstractions allow for optimizations without breaking changes,
+something relational databases have benefitted from over the years and has
+arguably contributed towards their widespread adoption.
+The data stored in \acp{CRDT} can benefit from the durability guarantees of
+database systems, which are often not provided by \ac{CRDT} libraries.
+
+% TODO: Maybe add the read finality issue of \acp{CRDT} here and cite with
+% \cite{laddad2022keep}.
+
+Conversely, database systems can be introduced to coordination-free environments.
+In exchange for some guarantees, which cannot be upheld in such environments,
+e.g. primary key constraints~\cite{bailis2014coordination},
+coordination-free database systems can offer ultimate availability:
+As long as at least one replica is alive, the database remains available.
+This property can be useful in contexts where a system must be resilient
+against network partitions.
+For instance, a manufacturing processes may not afford to stop an entire
+production facility just because some server is not available.
+Although \acp{CRDT} are mostly discussed in the context of collaborative
+applications, they are not limited to this domain:
+Companies like Ditto~\cite{ditto} serve use cases powered by \acp{CRDT}
+in manufacturing, aviation, gastronomy and defence sectors.
+
+Applications may benefit from \ac{IVM} insofar that they receive updates
+to the views defined by their queries instead of the full state.
+That way, the idea of functional reactive programming can be extended from
+the \ac{GUI} to the whole application stack, including the database layer.
+The application can then be considered a reactive, pure function
+of some state captured in a ground truth~\cite{litt2023riffle}.
+Furthermore, showing data changes, e.g. diffs, to the user is naturally supported
+without having to (ab)use a database's write-ahead log or similar change
+data capture mechanisms.
 
 \section{Motivating Example: A Key-Value Store as a Query}\label{sec:motivating-example}
 
+This example demonstrates how a key value store,
+consisting of \acp{MVR}, can be expressed with a query language.
 A \ac{MVR} is a generalization of a \ac{LWWR}.
 Unlike the latter, a \ac{MVR} exposes conflicting values to the application
 as a consequence of concurrent writes to the register.
 Therefore, a concurrency detection mechanism is required.
 For this example, I use causal histories in which every operation specifies
-a set of predecessor operations on which it causally depends on\footnotemark{}.
-In its totality, this example demonstrates how a key value store,
-consisting of MVR registers, can be expressed with a query language.
-
-\footnotetext{
-	Version vectors are another mechanism to detect concurrency
-	but they do not play as nice with relational data models.
-}
+a set of predecessor operations that it causally depends on.
+Version vectors are another mechanism to detect concurrency
+but they do not play as nice with relational data models.
 
 I use two relations (\acp{EDBP} in Datalog terminology) to store the
 operations on the registers of the key-value store.
 The \code{set} relation contains a log of all operations
-that ever happen to the key-value store.
+that ever happened to the key-value store.
 The \code{pred} relation stores the causal dependencies between the operations.
 The schema of both relations and some example data is shown in
 \ref{fig:mvr-store-pred,fig:mvr-store-set}.
@@ -48,8 +126,9 @@ In operation-based \acp{CRDT}, a pair of \code{ReplicaId} and \code{Counter} val
 to uniquely identify an operation.
 The \code{ReplicaId} is a unique identifier for the replica that performed the
 operation, and the \code{Counter} is essentially a Lamport clock~\cite{lamport2019time}.
+Lamport clocks are useful to order concurrent operations on a register.
 Having each replica draw a \code{ReplicaId} randomly from a sufficiently large space
-to avoid the implications of the birthday paradox,
+such that the probability of a collision is negligible,
 this scheme allows replicas to generate unique identifiers without a central authority.
 
 \input{figures/mvr_store_relations.tex}
@@ -59,11 +138,11 @@ in \ref{fig:causal-history-k1,fig:causal-history-k2}.
 The edges represent the entries of the \code{pred} relation and a node's
 \setop{Counter}{ReplicaId}{Key}{Value} label denotes a tuple of the \code{set}
 relation.
-To obtain the state of the key value store, the following set must be computed:
+To obtain the state of the key-value store, the following set must be computed:
 
 \begin{align*}
 	\var{mvrStore} = \{ (\var{Key}, \var{Value}) \mid
-	 & \forall (\var{RepId}, \var{Ctr}, \var{Key}, \var{Value}) \in \var{set}              \\
+	 & (\var{RepId}, \var{Ctr}, \var{Key}, \var{Value}) \in \var{set}                      \\
 	 & \land \nexists (\var{FromRepId}, \var{FromCtr}, \var{\_}, \var{\_}) \in \var{pred}: \\
 	 & \var{RepId} = \var{FromRepId} \land \var{Ctr} = \var{FromCtr} \}
 \end{align*}
@@ -121,6 +200,8 @@ SELECT key, value FROM set WHERE (RepId, Ctr) NOT IN overwritten;
 		% \end{tabular}
 		\caption{The \ac{MVR} key-value store in SQL using a subquery and set difference.}\label{code:mvr-store-sql-subquery}
 	\end{subfigure}
+
+	\caption{The \ac{MVR} key-value store in Datalog and SQL.}\label{code:mvr-store}
 \end{figure}
 
 These examples demonstrate how little code is required to express a relatively
@@ -339,52 +420,3 @@ If the query engine is only doing work relative to the amount of operations
 accrued since the last evaluation, instead of relative to the full set of
 operations, the query can be evaluated within acceptable time budgets,
 irrespective of the size (and correlatedly age) of the operation history.
-
-\section{Contributions}
-
-Having motivated the idea of expressing \acp{CRDT} as deterministic queries to
-(1) gain a higher-level abstraction and (2) to trivially satisfy \ac{CRDT}'s
-convergence property,
-I point out the two main contributions of this work.
-First, I present an incremental Datalog query engine based on the DBSP
-framework~\cite{budiu2022dbsp}.
-Next to working incrementally, the engine also handles the conversion from
-declarative Datalog to the more imperative trees of relational algebra.
-Second, I explore expressing \acp{CRDT} as Datalog queries, and evaluate
-their performance using the incremental engine.
-Finally, I discuss the results and the implications of this approach,
-and point out avenues for future work required to render \acp{CRDT} as queries
-a feasible alternative to today's \ac{CRDT} libraries.
-
-Ideally, this different approach to \acp{CRDT} would move them closer to the power,
-guarantees and flexibility of database systems.
-The higher abstraction of a query language better supports the decoupling from
-logical and physical data representations than object-oriented APIs.
-Moreover, higher abstractions allow for optimizations without breaking changes,
-something relational databases have benefitted from over the years and has
-arguably contributed towards their widespread adoption.
-The data stored in \acp{CRDT} can benefit from the durability guarantees of
-database systems, which are often not provided by \ac{CRDT} libraries.
-Furthermore, the read finality issue of \acp{CRDT} under non-monotone queries
-may be better addressed with the support of a query language~\cite{laddad2022keep}.
-Applications, on the other hand, benefit from extending the idea of functional
-reactive programming beyond the \ac{GUI} to the whole application stack,
-\emph{including} the database layer.
-The application can then be considered a reactive, pure function
-of some state captured in a (potentially shared) ground truth~\cite{litt2023riffle}.
-
-Conversely, database systems can be introduced to coordination-free environments.
-In exchange for some guarantees, which cannot be upheld in such environments,
-for instance uniqueness constraints,
-coordination-free database systems can deliver ultimate availability
-to their clients:
-As long as the client, which \emph{is} a replica of the distributed database,
-is alive, the system is available for reads and writes.
-This property can be useful in contexts where a network partition would be
-prohibitively expensive to tolerate such as manufacturing processes,
-which cannot afford to stop an entire production facility just because
-some server is not available.
-Although \acp{CRDT} are mostly discussed in the context of collaborative
-applications, they are not limited to such contexts.
-Companies like Ditto~\cite{ditto} serve use cases powered by \acp{CRDT}
-in manufacturing, aviation, gastronomy and defence sectors.

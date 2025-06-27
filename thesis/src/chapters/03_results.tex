@@ -402,13 +402,15 @@ the relation's name and its named fields that can be accessed.
 
 To avoid the fatal cartesian product with its exponential blow-up,
 I introduce the \emph{semi-naive} query translation.
-It tries to use as many equi joins as possible and removes unnecessary projections.
+It tries to use as many equi joins as possible and eliminates unnecessary projections.
 Furthermore, because DBSP's join operator allows to include a projection the
 emitted tuples,
 the semi-naive query translation coalesces joins that are immediately followed
 by a projection into a single join operator.
 
 \input{figures/naive_vs_optimized_query_plan.tex}
+
+\input{figures/negative_query_plan.tex}
 
 % \(n \in \mathbb{N}\) number of rules with the same name with index \(i \in [n]\).
 % \(m \in \mathbb{N}\) number of a single rule's atoms with index \(j \in [m]\).
@@ -431,3 +433,5 @@ by a projection into a single join operator.
 % \]
 
 \section{\acp{CRDT} as Queries}\label{sec:crdts-as-queries}
+
+\subsection{Benchmarking}\label{sec:benchmarks}

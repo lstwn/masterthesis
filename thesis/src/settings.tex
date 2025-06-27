@@ -128,13 +128,20 @@
 \newcommand{\deltaI}[1]{\(\Delta I_{\text{#1}}\)}
 \newcommand{\deltaO}[1][]{\(\Delta O_{\text{#1}}\)}
 
+\newcommand{\joinop}[1][]{\(\bowtie_{[#1]}\)}
+\newcommand{\projop}[1][]{\(\pi_{[#1]}\)}
+\newcommand{\selop}[1][]{\(\sigma_{#1}\)}
+\newcommand{\antijoinop}[1][]{\(\triangleright_{[#1]}\)}
+\newcommand{\cartesianop}[0]{\(\times\)}
+
 % Settings for TikZ.
 \usetikzlibrary{
 	automata,
 	positioning,
-	arrows, arrows.meta,
+	arrows.meta,
 	calc, backgrounds, quotes,
-	patterns, fit
+	patterns, fit,
+	shapes.geometric,
 }
 \tikzset{
 op/.style={

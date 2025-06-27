@@ -1,0 +1,65 @@
+\begin{figure}[tpb]
+	\centering
+
+	\begin{subfigure}[b]{\textwidth}
+		\centering
+		\begin{tabular}{c}
+			\begin{lstlisting}[keepspaces]
+mvrStore(Key, Value) :- set(RepId, Ctr, Key, Value),
+                        isCausallyReady(RepId, Ctr),
+                        not overwritten(RepId, Ctr).\end{lstlisting}
+		\end{tabular}
+		\caption{The ``mvrStore'' rule with the ``isLeaf'' predicate inlined.}\label{code:mvr-store-rule-inlined}
+	\end{subfigure}
+
+	\vspace{1em}
+
+	\begin{subfigure}[b]{\textwidth}
+		\centering
+		\begin{tikzpicture}
+			\small
+
+			\tikzset{
+				node distance=38pt and 48pt,
+				on grid,
+				node/.style={rectangle,minimum width=0pt,minimum height=0pt,align=center,fill=white},
+				input/.style={edge},
+				edgelabel/.style={midway},
+				pipeline/.style={rectangle,thick,draw=gray,inner sep=2pt},
+			}
+
+			\node[node] (projection) {\(\pi_{[\mathit{Key}, \mathit{Value}]}\)};
+			\node[node,below=of projection] (antijoin) {\(\triangleright_{[\mathit{RepId}, \mathit{Ctr}]}\)};
+
+			\node[node,below left=of antijoin] (equijoin) {\(\bowtie_{[\mathit{RepId}, \mathit{Ctr}]}\)};
+			\node[node,below right=of antijoin] (overwritten) {overwritten};
+
+			\node[node,below left=of equijoin] (set) {set};
+			\node[node,below right=of equijoin] (caus) {isCausallyReady};
+
+			\begin{scope}[on background layer]
+				\draw[input] (antijoin) to[] (projection);
+
+				\draw[input] (overwritten) to[] (antijoin);
+				\draw[input] (equijoin) to[] (antijoin);
+
+				\draw[input] (set) to[] (equijoin);
+				\draw[input] (caus) to[] (equijoin);
+
+				\node[pipeline,draw=TUMAccentGreen,dashed,fit=(set) (caus) (equijoin)] (pospart) {};
+				\node[anchor=north east,color=TUMAccentGreen] at (pospart.south east) {positive part};
+
+				\node[pipeline,draw=TUMAccentOrange,dashdotted,fit=(equijoin) (antijoin) (overwritten)] (negpart) {};
+				\node[anchor=south east,color=TUMAccentOrange] at (negpart.north east) {negative part};
+
+				\node[pipeline,draw=TUMAccentBlue,densely dotted,fit=(projection)] (headpart) {};
+				\node[anchor=south east,color=TUMAccentBlue] at (headpart.north east) {head vars};
+			\end{scope}
+		\end{tikzpicture}
+		\caption{Query plan with an antijoin to handle the negative ``overwritten'' atom.}\label{fig:negative-query-plan}
+	\end{subfigure}
+
+	\caption{
+		A query plan for the modified ``mvrStore'' predicate of \ref{code:mvr-crdt-datalog}.
+	}\label{fig:query-opt-negative}
+\end{figure}

@@ -51,6 +51,12 @@
   year   = {2024},
   note   = {\url{https://github.com/automerge}}
 }
+@manual{yjs,
+  author = {{The Yjs Contributors}},
+  title  = {Yjs CRDT Library},
+  year   = {2025},
+  note   = {\url{https://github.com/yjs/yjs}}
+}
 @manual{pgivm,
   author = {{The pg\_ivm Contributors}},
   title  = {pg\_ivm PostgreSQL Extension},
@@ -313,4 +319,58 @@
   pages={558--562},
   year={1962},
   publisher={ACM New York, NY, USA}
+}
+@InProceedings{verifx,
+  author =	{De Porre, Kevin and Ferreira, Carla and Gonzalez Boix, Elisa},
+  title =	{{VeriFx: Correct Replicated Data Types for the Masses}},
+  booktitle =	{37th European Conference on Object-Oriented Programming (ECOOP 2023)},
+  pages =	{9:1--9:45},
+  series =	{Leibniz International Proceedings in Informatics (LIPIcs)},
+  ISBN =	{978-3-95977-281-5},
+  ISSN =	{1868-8969},
+  year =	{2023},
+  volume =	{263},
+  editor =	{Ali, Karim and Salvaneschi, Guido},
+  publisher =	{Schloss Dagstuhl -- Leibniz-Zentrum f{\"u}r Informatik},
+  address =	{Dagstuhl, Germany},
+  URL =		{https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.ECOOP.2023.9},
+  URN =		{urn:nbn:de:0030-drops-182028},
+  doi =		{10.4230/LIPIcs.ECOOP.2023.9},
+  annote =	{Keywords: distributed systems, eventual consistency, replicated data types, verification}
+}
+@article{lore,
+    author = {Haas, Julian and Mogk, Ragnar and Yanakieva, Elena and Bieniusa, Annette and Mezini, Mira},
+    title = {LoRe: A Programming Model for Verifiably Safe Local-first Software},
+    year = {2024},
+    issue_date = {March 2024},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    volume = {46},
+    number = {1},
+    issn = {0164-0925},
+    url = {https://doi.org/10.1145/3633769},
+    doi = {10.1145/3633769},
+    abstract = {Local-first software manages and processes private data locally while still enabling collaboration between multiple parties connected via partially unreliable networks. Such software typically involves interactions with users and the execution environment (the outside world). The unpredictability of such interactions paired with their decentralized nature make reasoning about the correctness of local-first software a challenging endeavor. Yet, existing solutions to develop local-first software do not provide support for automated safety guarantees and instead expect developers to reason about concurrent interactions in an environment with unreliable network conditions. We propose LoRe, a programming model and compiler that automatically verifies developer-supplied safety properties for local-first applications. LoRe combines the declarative data flow of reactive programming with static analysis and verification techniques to precisely determine concurrent interactions that violate safety invariants and to selectively employ strong consistency through coordination where required. We propose a formalized proof principle and demonstrate how to automate the process in a prototype implementation that outputs verified executable code. Our evaluation shows that LoRe simplifies the development of safe local-first software when compared to state-of-the-art approaches and that verification times are acceptable.},
+    journal = {ACM Trans. Program. Lang. Syst.},
+    month = jan,
+    articleno = {2},
+    numpages = {26},
+    keywords = {Local-first software, reactive programming, invariants, consistency, automatic verification}
+}
+@article{bailis2014coordination,
+author = {Bailis, Peter and Fekete, Alan and Franklin, Michael J. and Ghodsi, Ali and Hellerstein, Joseph M. and Stoica, Ion},
+title = {Coordination avoidance in database systems},
+year = {2014},
+issue_date = {November 2014},
+publisher = {VLDB Endowment},
+volume = {8},
+number = {3},
+issn = {2150-8097},
+url = {https://doi.org/10.14778/2735508.2735509},
+doi = {10.14778/2735508.2735509},
+abstract = {Minimizing coordination, or blocking communication between concurrently executing operations, is key to maximizing scalability, availability, and high performance in database systems. However, uninhibited coordination-free execution can compromise application correctness, or consistency. When is coordination necessary for correctness? The classic use of serializable transactions is sufficient to maintain correctness but is not necessary for all applications, sacrificing potential scalability. In this paper, we develop a formal framework, invariant confluence, that determines whether an application requires coordination for correct execution. By operating on application-level invariants over database states (e.g., integrity constraints), invariant confluence analysis provides a necessary and sufficient condition for safe, coordination-free execution. When programmers specify their application invariants, this analysis allows databases to coordinate only when anomalies that might violate invariants are possible. We analyze the invariant confluence of common invariants and operations from real-world database systems (i.e., integrity constraints) and applications and show that many are invariant confluent and therefore achievable without coordination. We apply these results to a proof-of-concept coordination-avoiding database prototype and demonstrate sizable performance gains compared to serializable execution, notably a 25-fold improvement over prior TPC-C New-Order performance on a 200 server cluster.},
+journal = {Proc. VLDB Endow.},
+month = nov,
+pages = {185–196},
+numpages = {12}
 }

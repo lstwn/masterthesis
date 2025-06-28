@@ -328,17 +328,28 @@ mod test {
                         name: "selected".to_string(),
                         initializer: Some(Expr::from(SelectionExpr {
                             condition: Expr::from(BinaryExpr {
-                                operator: Operator::GreaterEqual,
-                                // TODO: Try more complex logical expression with and/or.
-                                left: Expr::from(VarExpr::new("weight")),
-                                right: Expr::from(CallExpr {
-                                    callee: Expr::from(VarExpr::new("add")),
-                                    arguments: vec![
-                                        Expr::from(VarExpr::new("constant")),
-                                        Expr::from(LiteralExpr {
-                                            value: Literal::Uint(1),
-                                        }),
-                                    ],
+                                // Just to demonstrate logical operators.
+                                // A `weight >= 2` is the outcome.
+                                operator: Operator::Or,
+                                left: Expr::from(BinaryExpr {
+                                    operator: Operator::Greater,
+                                    left: Expr::from(VarExpr::new("weight")),
+                                    // Just to demonstrate that we can call a function defined
+                                    // at the buildtime context from the runtime context.
+                                    right: Expr::from(CallExpr {
+                                        callee: Expr::from(VarExpr::new("add")),
+                                        arguments: vec![
+                                            Expr::from(VarExpr::new("constant")),
+                                            Expr::from(LiteralExpr {
+                                                value: Literal::Uint(1),
+                                            }),
+                                        ],
+                                    }),
+                                }),
+                                right: Expr::from(BinaryExpr {
+                                    operator: Operator::Equal,
+                                    left: Expr::from(VarExpr::new("weight")),
+                                    right: Expr::from(LiteralExpr::from(2_u64)),
                                 }),
                             }),
                             relation: Expr::from(DbspInput::add(

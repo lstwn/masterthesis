@@ -11,7 +11,6 @@ use std::fmt::{self, Debug, Display};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Expr {
-    // TODO: factor out LogicalExpr from BinaryExpr
     Binary(Box<BinaryExpr>),
     Unary(Box<UnaryExpr>),
     Grouping(Box<GroupingExpr>),

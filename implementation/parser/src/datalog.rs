@@ -3,9 +3,9 @@
 //! program     = rule* EOF ;
 //! rule        = head ":-" body "." ;
 //! head        = "distinct"? IDENTIFIER "(" field ( "," field )* ")" ;
-//! field       = IDENTIFIER ( "=" comparison )? ;
+//! field       = IDENTIFIER ( "=" expression )? ;
 //! body        = ( atom ( "," atom )* )? ;
-//! atom        = ( "not"? predicate ) | comparison ;
+//! atom        = ( "not"? predicate ) | "(" expression ")" | comparison ;
 //! predicate   = IDENTIFIER "(" variable ( "," variable )* ")" ;
 //! variable    = IDENTIFIER ( "=" IDENTIFIER )? ;
 //! ```
@@ -15,7 +15,7 @@
 
 use crate::{
     ast::{Atom, Body, Head, Predicate, Program, Rule, VarExpr, VarStmt},
-    expr,
+    expr::{comparison, expression},
     literal::identifier,
     parser_helper::{lead_ws, lead_ws_cmt},
 };
@@ -83,8 +83,7 @@ fn head(input: &str) -> IResult<&str, Head> {
 
 fn field(input: &str) -> IResult<&str, VarStmt> {
     let (input, name) = identifier.parse(input)?;
-    let (input, expr) =
-        opt(preceded(lead_ws(tag(ASSIGN)), lead_ws(expr::comparison))).parse(input)?;
+    let (input, expr) = opt(preceded(lead_ws(tag(ASSIGN)), lead_ws(expression))).parse(input)?;
     if let Some(source_name) = expr {
         Ok((input, VarStmt::with_expr(name, source_name)))
     } else {
@@ -111,9 +110,20 @@ fn atom(input: &str) -> IResult<&str, Atom> {
             Atom::Negative(predicate)
         }
     });
-    let comparison = map(expr::comparison, Atom::Comparison);
+    // Only parenthesized expressions are allowed to contain logical operators,
+    // such as `and` and `or`, on the top level. Otherwise, we cannot escape
+    // to the next atom containing another comparison, but are forced to extend
+    // the current expression with an `and`.
+    let parenthesized_expression = delimited(
+        tag(LEFT_PAREN),
+        map(lead_ws(expression), Atom::Comparison),
+        lead_ws(tag(RIGHT_PAREN)),
+    );
+    // But we allow comparisons to use logical operators on a _nested_ level.
+    // See test [`test_program_with_complex_filters`] below.
+    let comparison = map(comparison, Atom::Comparison);
 
-    alt((positive_or_negative, comparison)).parse(input)
+    alt((positive_or_negative, parenthesized_expression, comparison)).parse(input)
 }
 
 fn predicate(input: &str) -> IResult<&str, Predicate> {
@@ -149,11 +159,11 @@ fn variable(input: &str) -> IResult<&str, VarStmt> {
 
 #[cfg(test)]
 pub mod test {
-    use crate::crdts::mvr_crdt_store_datalog;
+    use crate::crdts::{list_crdt_datalog, mvr_crdt_store_datalog};
 
     use super::*;
     use compute::{
-        expr::{BinaryExpr, Expr, LiteralExpr, VarExpr as IncLogVarExpr},
+        expr::{BinaryExpr, Expr, GroupingExpr, LiteralExpr, VarExpr as IncLogVarExpr},
         operator::Operator,
     };
 
@@ -261,8 +271,98 @@ pub mod test {
     }
 
     #[test]
+    fn test_program_with_complex_filters() {
+        let input = r#"
+            x(a, b, c) :- y(a, b, c),
+                          // This is just a comparison.
+                          a == 0,
+                          // This is a logical expression which requires parenthesis.
+                          (a > 2; b == 2, c == 3),
+                          // This comparison does use logical operators but not
+                          // on the top level, hence, no parenthesis are required.
+                          true == (a == b; b == c).
+        "#;
+        let result = program(input);
+        println!("{result:#?}");
+        let expected = Program {
+            rules: vec![Rule {
+                head: Head::new(
+                    "x",
+                    [VarStmt::new("a"), VarStmt::new("b"), VarStmt::new("c")],
+                ),
+                body: Body {
+                    atoms: vec![
+                        Atom::Positive(Predicate {
+                            name: VarExpr::new("y"),
+                            variables: vec![
+                                VarStmt::new("a"),
+                                VarStmt::new("b"),
+                                VarStmt::new("c"),
+                            ],
+                        }),
+                        Atom::Comparison(Expr::from(BinaryExpr {
+                            operator: Operator::Equal,
+                            left: Expr::from(IncLogVarExpr::new("a")),
+                            right: Expr::from(LiteralExpr::from(0_u64)),
+                        })),
+                        Atom::Comparison(Expr::from(BinaryExpr {
+                            operator: Operator::Or,
+                            left: Expr::from(BinaryExpr {
+                                operator: Operator::Greater,
+                                left: Expr::from(IncLogVarExpr::new("a")),
+                                right: Expr::from(LiteralExpr::from(2_u64)),
+                            }),
+                            right: Expr::from(BinaryExpr {
+                                operator: Operator::And,
+                                left: Expr::from(BinaryExpr {
+                                    operator: Operator::Equal,
+                                    left: Expr::from(IncLogVarExpr::new("b")),
+                                    right: Expr::from(LiteralExpr::from(2_u64)),
+                                }),
+                                right: Expr::from(BinaryExpr {
+                                    operator: Operator::Equal,
+                                    left: Expr::from(IncLogVarExpr::new("c")),
+                                    right: Expr::from(LiteralExpr::from(3_u64)),
+                                }),
+                            }),
+                        })),
+                        Atom::Comparison(Expr::from(BinaryExpr {
+                            operator: Operator::Equal,
+                            left: Expr::from(LiteralExpr::from(true)),
+                            right: Expr::from(GroupingExpr {
+                                expr: Expr::from(BinaryExpr {
+                                    operator: Operator::Or,
+                                    left: Expr::from(BinaryExpr {
+                                        operator: Operator::Equal,
+                                        left: Expr::from(IncLogVarExpr::new("a")),
+                                        right: Expr::from(IncLogVarExpr::new("b")),
+                                    }),
+                                    right: Expr::from(BinaryExpr {
+                                        operator: Operator::Equal,
+                                        left: Expr::from(IncLogVarExpr::new("b")),
+                                        right: Expr::from(IncLogVarExpr::new("c")),
+                                    }),
+                                }),
+                            }),
+                        })),
+                    ],
+                },
+            }],
+        };
+        assert_eq!(result, Ok(("", expected)));
+    }
+
+    #[test]
     fn test_mvr_store_crdt() {
         let result = program(mvr_crdt_store_datalog());
+        // Here, we just check that the parser consumes the full input.
+        assert_eq!(result.as_ref().map(|(input, program)| *input), Ok(""));
+        println!("{result:#?}");
+    }
+
+    #[test]
+    fn test_list_crdt() {
+        let result = program(list_crdt_datalog());
         // Here, we just check that the parser consumes the full input.
         assert_eq!(result.as_ref().map(|(input, program)| *input), Ok(""));
         println!("{result:#?}");

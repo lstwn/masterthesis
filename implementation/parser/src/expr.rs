@@ -1,10 +1,13 @@
 //! This module parses the following grammar of an expression language:
 //! ```ebnf
+//! expression  = logical_or ;
+//! logical_or  = logical_and ( ";" logical_and )* ;
+//! logical_and = comparison ( "," comparison )* ;
 //! comparison  = term ( ( "==" | "!=" | ">" | ">=" | "<" | "<=" ) term )? ;
 //! term        = factor ( ( "+" | "-" ) factor )* ;
 //! factor      = unary ( ( "*" | "/" ) unary )* ;
 //! unary       = ( "-" | "!" ) unary | primary ;
-//! primary     = literal | IDENTIFIER | "(" comparison ")" ;
+//! primary     = literal | IDENTIFIER | "(" expression ")" ;
 //! literal     = BOOL | UINT | IINT | STRING | NULL ;
 //! ```
 
@@ -17,13 +20,16 @@ use compute::{
     operator::Operator,
 };
 use nom::{
+    IResult, Parser,
     branch::alt,
     bytes::complete::tag,
     combinator::{map, opt},
     multi::fold_many0,
     sequence::{delimited, pair},
-    IResult, Parser,
 };
+
+const COMMA: &str = ",";
+const SEMICOLON: &str = ";";
 
 const EQUAL: &str = "==";
 const NOT_EQUAL: &str = "!=";
@@ -40,6 +46,55 @@ const BANG: &str = "!";
 
 const LEFT_PAREN: &str = "(";
 const RIGHT_PAREN: &str = ")";
+
+#[inline(always)]
+pub fn expression(input: &str) -> IResult<&str, Expr> {
+    logical_or(input)
+}
+
+fn logical_or(input: &str) -> IResult<&str, Expr> {
+    let semicolon = map(tag(SEMICOLON), |_| Operator::Or);
+    let logical_or_operator = lead_ws(semicolon);
+
+    // All the fold_many0 rules could benefit from having their logic extracted
+    // into a function but yeah, not now :D
+    logical_and.parse(input).and_then(|(input, left)| {
+        fold_many0(
+            pair(logical_or_operator, lead_ws(logical_and)),
+            // Why is this a FnMut() and not a FnOnce() to avoid the clone?
+            move || left.clone(),
+            |left, (operator, right)| {
+                Expr::from(BinaryExpr {
+                    operator,
+                    left,
+                    right,
+                })
+            },
+        )
+        .parse(input)
+    })
+}
+
+fn logical_and(input: &str) -> IResult<&str, Expr> {
+    let comma = map(tag(COMMA), |_| Operator::And);
+    let logical_and_operator = lead_ws(comma);
+
+    comparison.parse(input).and_then(|(input, left)| {
+        fold_many0(
+            pair(logical_and_operator, lead_ws(comparison)),
+            // Why is this a FnMut() and not a FnOnce() to avoid the clone?
+            move || left.clone(),
+            |left, (operator, right)| {
+                Expr::from(BinaryExpr {
+                    operator,
+                    left,
+                    right,
+                })
+            },
+        )
+        .parse(input)
+    })
+}
 
 pub fn comparison(input: &str) -> IResult<&str, Expr> {
     let equals = map(tag(EQUAL), |_: &str| Operator::Equal);
@@ -140,7 +195,7 @@ fn primary(input: &str) -> IResult<&str, Expr> {
     let grouping = map(
         delimited(
             tag(LEFT_PAREN),
-            lead_ws(comparison),
+            lead_ws(expression),
             lead_ws(tag(RIGHT_PAREN)),
         ),
         |expr| Expr::from(GroupingExpr { expr }),
@@ -152,6 +207,98 @@ fn primary(input: &str) -> IResult<&str, Expr> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_expression() {
+        let input = "Ctr1 > Ctr2; !(Ctr1 == Ctr2, RepId1 > RepId2)";
+        let result = expression(input);
+        let expected = Expr::from(BinaryExpr {
+            operator: Operator::Or,
+            left: Expr::from(BinaryExpr {
+                operator: Operator::Greater,
+                left: Expr::from(VarExpr::new("Ctr1")),
+                right: Expr::from(VarExpr::new("Ctr2")),
+            }),
+            right: Expr::from(UnaryExpr {
+                operator: Operator::Not,
+                operand: Expr::from(GroupingExpr {
+                    expr: Expr::from(BinaryExpr {
+                        operator: Operator::And,
+                        left: Expr::from(BinaryExpr {
+                            operator: Operator::Equal,
+                            left: Expr::from(VarExpr::new("Ctr1")),
+                            right: Expr::from(VarExpr::new("Ctr2")),
+                        }),
+                        right: Expr::from(BinaryExpr {
+                            operator: Operator::Greater,
+                            left: Expr::from(VarExpr::new("RepId1")),
+                            right: Expr::from(VarExpr::new("RepId2")),
+                        }),
+                    }),
+                }),
+            }),
+        });
+        assert_eq!(result, Ok(("", expected)));
+    }
+
+    #[test]
+    fn test_and_binds_stronger_than_or() {
+        let input = "x == 1; 2 != y, 3 == 3";
+        let result = logical_or(input);
+        let expected = Expr::from(BinaryExpr {
+            operator: Operator::Or,
+            // Due to the stronger binding of the `,` (logical AND) operator,
+            // trees become right-deep.
+            left: Expr::from(BinaryExpr {
+                operator: Operator::Equal,
+                left: Expr::from(VarExpr::new("x")),
+                right: Expr::from(LiteralExpr::from(1_u64)),
+            }),
+            right: Expr::from(BinaryExpr {
+                operator: Operator::And,
+                left: Expr::from(BinaryExpr {
+                    operator: Operator::NotEqual,
+                    left: Expr::from(LiteralExpr::from(2_u64)),
+                    right: Expr::from(VarExpr::new("y")),
+                }),
+                right: Expr::from(BinaryExpr {
+                    operator: Operator::Equal,
+                    left: Expr::from(LiteralExpr::from(3_u64)),
+                    right: Expr::from(LiteralExpr::from(3_u64)),
+                }),
+            }),
+        });
+        assert_eq!(result, Ok(("", expected)));
+    }
+
+    #[test]
+    fn test_logical_and() {
+        let input = "x == 1, 2 != y, 3 == 3";
+        let result = logical_and(input);
+        let expected = Expr::from(BinaryExpr {
+            operator: Operator::And,
+            // Trees become left-deep for sequences on the same level.
+            left: Expr::from(BinaryExpr {
+                operator: Operator::And,
+                left: Expr::from(BinaryExpr {
+                    operator: Operator::Equal,
+                    left: Expr::from(VarExpr::new("x")),
+                    right: Expr::from(LiteralExpr::from(1_u64)),
+                }),
+                right: Expr::from(BinaryExpr {
+                    operator: Operator::NotEqual,
+                    left: Expr::from(LiteralExpr::from(2_u64)),
+                    right: Expr::from(VarExpr::new("y")),
+                }),
+            }),
+            right: Expr::from(BinaryExpr {
+                operator: Operator::Equal,
+                left: Expr::from(LiteralExpr::from(3_u64)),
+                right: Expr::from(LiteralExpr::from(3_u64)),
+            }),
+        });
+        assert_eq!(result, Ok(("", expected)));
+    }
 
     #[test]
     fn test_grouping() {

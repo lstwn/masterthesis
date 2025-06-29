@@ -405,9 +405,9 @@ unlike consumers of non-incremental queries which are stateless
 and obtain the full output view upon every evaluation.
 The goal of \ac{IVM} is to maintain the view \emph{efficiently}, that is,
 being faster than recomputing the view from scratch upon hitting an input change.
-In theory, this allows to maintain output views in near-real-time over large
-inputs which are subject to frequent changes, and are otherwise prohibitively
-expensive to recompute from scratch every time.
+In theory, this allows maintaining output views in near-real-time over large
+inputs which are subject to frequent changes, which would otherwise be
+prohibitively expensive to recompute from scratch every time.
 In a nutshell, the promise of \ac{IVM} is to do only work proportional to the
 size of the \emph{input changes}, rather than the size of the \emph{full inputs},
 for a (re)evaluation of the output view.
@@ -425,7 +425,7 @@ it incrementally.
 Although this approach is not used in this work, I provide a small example
 for finding the derivative of a join.
 Let \(R\) and \(S\) be two relations and the view of interest is their
-equi join \(V := R \bowtie S\) on some field (not relevant here).
+equijoin \(V := R \bowtie S\) on some field (not relevant here).
 Furthermore, \(\Delta V\), \(\Delta R\) and \(\Delta S\) are the set of changes
 to \(V\), \(R\) and \(S\), respectively, since their last evaluation.
 The state of \(V\) at the last evaluation is denoted as \(V_0\) and the
@@ -443,7 +443,7 @@ state of \(V\) which includes the changes is denoted as \(V_1\). Then:
 In the transformation from the first to the second line, the definitions
 of \(V_0\) and \(V_1\) are used.
 Then, the \emph{bilinear} property (with respect to addition) of the join
-operator is used which allows to distribute the join over the addition.
+operator is used which allows the join to be distributed over the addition.
 A final transformation is applied to isolate \(\Delta V\) and the well-known
 derivative of the join~\cite{idris2017dynamic} is obtained, which can also be
 derived through the DBSP framework~\cite{budiu2025dbsp}.
@@ -480,9 +480,8 @@ First, its open-source implementation~\cite{feldera} provides a rich,
 Second, it is said to be less complex while still providing all the necessary
 ingredients to to express \acp{CRDT} for my use case.
 Third, differential dataflow's advantage of being able to handle out-of-order
-inputs is not relevant for \acp{CRDT}, as they are designed
-to be tolerant of handling out-of-order updates among replicas.
-Therefore, I turn towards DBSP specific concepts which become relevant in \ref{ch:results}.
+inputs is not relevant for my approach to \acp{CRDT}, as it is based on sets and
+set union to integrate updates, which is a commutative operation already.
 
 \footnotetext{
 	While the documentation is not perfect and the API surface quite involved,
@@ -492,9 +491,9 @@ Therefore, I turn towards DBSP specific concepts which become relevant in \ref{c
 	to improve the documentation of DBSP's tutorial on recursive queries.
 }
 
-\newcommand{\zset}{\(\mathcal{Z}\)-set}
-\newcommand{\zsets}{\(\mathcal{Z}\)-sets}
-\newcommand{\zweight}{\(\mathcal{Z}\)-weight}
+\newcommand{\zset}{\(\mathbb{Z}\)-set}
+\newcommand{\zsets}{\(\mathbb{Z}\)-sets}
+\newcommand{\zweight}{\(\mathbb{Z}\)-weight}
 
 DBSP relies on the concept of \zsets{}~\cite{green2007provenance}\footnotemark{}.
 With \zsets{}, each tuple of the \zset{} is tagged with an integer,
@@ -508,10 +507,10 @@ Hence, \zsets{} allow to represent both data and changes to data with the
 same construct.
 
 \footnotetext{
-	The paper calls them \(\mathcal{K}\)-relations because it operates
+	The paper calls them \(\mathbb{K}\)-relations because it operates
 	in a more general context of tagging tuples with elements from a
-	commutative semiring \(\mathcal{K}\).
-	As DBSP uses the integers \(\mathcal{Z}\) as an instance of the
+	commutative semiring \(\mathbb{K}\).
+	As DBSP uses the integers \(\mathbb{Z}\) as an instance of the
 	commutative semiring, they are named \zsets{}.
 }
 

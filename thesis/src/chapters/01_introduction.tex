@@ -302,10 +302,14 @@ negation.
 Hirn et al. \cite{hirn2023fix} discuss these limitations in more detail
 in the context of SQL and propose alternatives.
 Beyond this, SQL is based on multisets and Datalog on sets but Datalog can
-be extended to accomodate multisets, too.
-Hence, there is no fundamental difference in terms of their semantics and
-expressiveness.
-Therefore, I prefer Datalog's syntax which allows for compact
+be extended to accomodate multisets as well, as I do when defining
+my Datalog dialect in \ref{sec:datalog-multisets}.
+While SQL offers support for aggregates,
+Datalog requires an extension to support aggregates~\cite{green2013datalog}.
+Yet, aggregates are not required to express the \acp{CRDT} of this work.
+Hence, there is no fundamental difference for my use case
+in terms of their semantics and expressiveness.
+Therefore, I prefer Datalog because of its syntax which allows for compact
 and composable queries. Composability is key to enabling reusability.
 Furthermore, there exists some recent research about defining Datalog
 over arbitrary semirings~\cite{abo2024convergence, khamis2022datalog},

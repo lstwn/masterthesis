@@ -346,7 +346,7 @@ Otherwise, the fold function is called for each atom with the accumulator
 and the current atom as arguments and returns the new accumulator for the next
 iteration or the final result of the fold.
 Hence, when I say that a sequence of atoms is
-\emph{folded into an operator tree of a certain binary operator}, e.g., an equi join,
+\emph{folded into an operator tree of a certain binary operator}, e.g., an equijoin,
 \emph{starting from an operator tree} \(\mathit{acc}\), I mean that the initial
 accumulator is \(\mathit{acc}\) and that the fold function nests the current
 accumulator as the binary operator's left input and the current atom as the
@@ -402,7 +402,7 @@ the relation's name and its named fields that can be accessed.
 
 To avoid the fatal cartesian product with its exponential blow-up,
 I introduce the \emph{semi-naive} query translation.
-It tries to use as many equi joins as possible and eliminates unnecessary projections.
+It tries to use as many equijoins as possible and eliminates unnecessary projections.
 Furthermore, because DBSP's join operator allows to include a projection the
 emitted tuples,
 the semi-naive query translation coalesces joins that are immediately followed

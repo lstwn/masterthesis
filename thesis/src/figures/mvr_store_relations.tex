@@ -8,17 +8,17 @@
 			\centering
 			\begin{tabular}{@{}llll@{}}
 				\toprule
-				RepId   & Ctr    & Key     & Value  \\
+				RepId   & Ctr    & Key     & Value   \\
 				\midrule
-				\(r_1\) & 1      & \(k_1\) & \(x\)  \\
-				\(r_1\) & 2      & \(k_1\) & \(y\)  \\
-				\(r_2\) & 2      & \(k_1\) & \(z\)  \\
+				\(r_1\) & 1      & \(k_1\) & \(v_1\) \\
+				\(r_1\) & 2      & \(k_1\) & \(v_2\) \\
+				\(r_2\) & 2      & \(k_1\) & \(v_3\) \\
 				\midrule
-				\ldots  & \ldots & \ldots  & \ldots \\
+				\ldots  & \ldots & \ldots  & \ldots  \\
 				\midrule
-				\(r_1\) & 3      & \(k_2\) & \(a\)  \\
-				\(r_2\) & 4      & \(k_2\) & \(b\)  \\
-				\(r_2\) & 5      & \(k_2\) & \(c\)  \\
+				\(r_1\) & 3      & \(k_2\) & \(u_1\) \\
+				\(r_2\) & 4      & \(k_2\) & \(u_2\) \\
+				\(r_2\) & 5      & \(k_2\) & \(u_3\) \\
 				\bottomrule
 			\end{tabular}
 			\caption{\code{set} relation}\label{fig:mvr-store-set}
@@ -52,9 +52,9 @@
 			\centering
 			\begin{tikzpicture}[]
 				% nodes and edges
-				\node[op] (k10) {\setop{1}{r_1}{k_1}{x}};
-				\node[head,above right=\dist of k10] (k11) {\setop{2}{r_1}{k_1}{y}} edge [pred] (k10);
-				\node[head,below right=\dist of k10] (k12) {\setop{2}{r_2}{k_1}{z}} edge [pred] (k10);
+				\node[op] (k10) {\setop{1}{r_1}{k_1}{v_1}};
+				\node[head,above right=\dist of k10] (k11) {\setop{2}{r_1}{k_1}{v_2}} edge [pred] (k10);
+				\node[head,below right=\dist of k10] (k12) {\setop{2}{r_2}{k_1}{v_3}} edge [pred] (k10);
 			\end{tikzpicture}
 			\caption{Causal history of register \(k_1\)}\label{fig:causal-history-k1}
 		\end{subfigure}
@@ -64,9 +64,9 @@
 			\begin{tikzpicture}[]
 				\small
 				% nodes and edges
-				\node[op] (k20) {\setop{3}{r_1}{k_2}{a}};
-				\node[head,below right=\dist of k20] (k22) {\setop{5}{r_2}{k_2}{c}} edge [pred] (k20);
-				\node[op,below left=\dist of k22] (k21) {\setop{4}{r_2}{k_2}{b}};
+				\node[op] (k20) {\setop{3}{r_1}{k_2}{u_1}};
+				\node[head,below right=\dist of k20] (k22) {\setop{5}{r_2}{k_2}{u_3}} edge [pred] (k20);
+				\node[op,below left=\dist of k22] (k21) {\setop{4}{r_2}{k_2}{u_2}};
 				\draw [pred] (k22) edge (k21);
 			\end{tikzpicture}
 			\caption{Causal history of register \(k_2\)}\label{fig:causal-history-k2}

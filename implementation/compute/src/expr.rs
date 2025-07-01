@@ -218,7 +218,7 @@ impl CartesianProductExpr {
     }
 }
 
-/// An equi join is a join that exclusively uses equality of attribute(s).
+/// An equijoin is a join that exclusively uses equality of attribute(s).
 /// [More information on join classifications](https://stackoverflow.com/a/7870216).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EquiJoinExpr {

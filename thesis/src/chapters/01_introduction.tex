@@ -15,7 +15,7 @@ Currently, application developers wanting to use \acp{CRDT} in their application
 face an unfortunate trade-off:
 Either they resort to using an existing \ac{CRDT} library~\cite{automerge,yjs}
 which is developed by experts in the field as an object-oriented library
-in an imperative programming language but exposes a fixed API for a fixed
+in an imperative programming language but exposes a fixed \ac{API} for a fixed
 set of \acp{CRDT},
 or they define their own \acp{CRDT} tailored to their specific use case.
 If they opt for the latter, they either have to invest significant efforts
@@ -78,7 +78,7 @@ expressing \acp{CRDT} as Datalog queries through:
 Ideally, this different approach to \acp{CRDT} may move them closer to the power,
 guarantees and flexibility of database systems.
 The higher abstraction level of a query language better supports the decoupling
-from logical and physical data representations than object-oriented APIs.
+from logical and physical data representations than object-oriented \acp{API}.
 Additionally, advances in query optimization and performance improvements
 of the query engine can be introduced without breaking changes,
 something relational databases have benefitted from over the years and

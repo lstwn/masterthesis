@@ -3,6 +3,31 @@
 
 \chapter{Conclusion}\label{ch:conclusion}
 
+\section{Future Work}\label{sec:future-work}
+
+On query optimization:
+\begin{itemize}
+	\item Better join order. How to choose one in the absence of statistics
+	      and with static query plans?
+	\item Schedule antijoins as early as possible, i.e., if all variables
+	      referenced by a negative atom are in scope, then schedule the antijoin,
+	      to keep the result set small, as opposed to scheduling them at the
+	      end of the query plan.
+\end{itemize}
+
+Define and benchmark more CRDTs.
+
+Optimizations in the interpreter. Represent tuples not as vectors but
+as overflow-to-heap vectors (smallvec)?
+
+\begin{itemize}
+	\item Support for mutual recursion and aggregation.
+	\item Type checking and dead code elimination.
+	\item JSON support.
+\end{itemize}
+
+\section{Outlook}\label{sec:outlook}
+
 Similar to how queries made data retrieval and storage more accessible to
 application developers, I hope that expressing \acp{CRDT} as queries
 makes collaborative software more accessible, too.

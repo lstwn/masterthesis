@@ -167,7 +167,7 @@ As Datalog lacks a formal specification, there are many flavours of it,
 and later I define my own dialect of it which supports multisets and
 uses name-based-indexing.
 
-Due to the use of relational algebra as an \ac{IR} in \ref{ch:results},
+Due to the use of relational algebra as an \ac{IR} in \ref{ch:implementation},
 I point out some connections to it, as well as to SQL,
 because the latter is the predominant frontend to relational algebra.
 The equivalent of a \emph{relation} in Datalog is a predicate:
@@ -393,7 +393,7 @@ I only make the basic assumption of some network topology and protocol
 which ensures that each update will eventually be delivered to all replicas.
 Furthermore, replicas are assumed to be non-byzantine.
 
-\section{\Acl{IVM}}\label{sec:ivm}
+\section{Incremental View Maintenance}\label{sec:ivm}
 
 \Acf{IVM}~\cite{gupta1995maintenance} deals with the problem of maintaining
 an output view derived from a set of input relations in response to changes
@@ -476,7 +476,7 @@ In contrast, there is no general recipe to express an arbitrary operator
 as a differential dataflow operator.
 This work chooses DBSP over differential dataflow for three reasons.
 First, its open-source implementation~\cite{feldera} provides a rich,
-(somewhat) documented API\footnotemark{} to build upon.
+(somewhat) documented \ac{API}\footnotemark{} to build upon.
 Second, it is said to be less complex while still providing all the necessary
 ingredients to to express \acp{CRDT} for my use case.
 Third, differential dataflow's advantage of being able to handle out-of-order
@@ -484,7 +484,7 @@ inputs is not relevant for my approach to \acp{CRDT}, as it is based on sets and
 set union to integrate updates, which is a commutative operation already.
 
 \footnotetext{
-	While the documentation is not perfect and the API surface quite involved,
+	While the documentation is not perfect and the \ac{API} surface quite involved,
 	it is sufficient to start building with DBSP.
 	As part of this work, I have contributed a
 	\href{https://github.com/feldera/feldera/pull/3893}{pull request}

@@ -1,0 +1,151 @@
+% !TeX root = ../main.tex
+% Add the above to each chapter to make compiling the PDF easier in some editors.
+
+\chapter{Evaluation}\label{ch:evaluation}
+
+\section{\acp{CRDT} as Queries}\label{sec:crdts-as-queries}
+
+\subsection{Key-Value Stores}\label{sec:key-value-stores-datalog-dialect}
+
+\begin{figure}[htpb]
+	\begin{lstlisting}[keepspaces]
+// EDBPs:
+pred(FromRepId, FromCtr, ToRepId, ToCtr) :- .
+set(RepId, Ctr, Key, Value)              :- .
+
+// IDBPs:
+distinct overwritten(RepId, Ctr)
+                    :- pred(RepId = FromRepId, Ctr = FromCtr).
+mvrStore(Key, Value)
+                    :- set(RepId, Ctr, Key, Value),
+                       not overwritten(RepId, Ctr).\end{lstlisting}
+	\caption{The \ac{MVR} key-value store in my Datalog dialect.}\label{code:mvr-store-datalog-dialect}
+\end{figure}
+
+\begin{figure}[htpb]
+	\begin{lstlisting}[keepspaces]
+// EDBPs are omitted because they are shared with the earlier example. IDBPs:
+distinct overwritten(RepId, Ctr)
+                    :- pred(RepId = FromRepId, Ctr = FromCtr).
+distinct overwrites(RepId, Ctr)
+                    :- pred(RepId = ToRepId, Ctr = ToCtr).
+isRoot(RepId, Ctr)  :- set(RepId, Ctr, _Key, _Value),
+                       not overwrites(RepId, Ctr).
+isLeaf(RepId, Ctr)  :- set(RepId, Ctr, _Key, _Value),
+                       not overwritten(RepId, Ctr).
+isCausallyReady(RepId, Ctr)
+                    :- isRoot(RepId, Ctr).
+isCausallyReady(RepId, Ctr)
+                    :- isCausallyReady(FromRepId = RepId, FromCtr = Ctr),
+                       pred(FromRepId, FromCtr, RepId = ToRepId, Ctr = ToCtr).
+mvrStore(Key, Value)
+                    :- isLeaf(RepId, Ctr),
+                       isCausallyReady(RepId, Ctr),
+                       set(RepId, Ctr, Key, Value).\end{lstlisting}
+	\caption{The \ac{MVR} key-value \ac{CRDT} store in my Datalog dialect.}\label{code:mvr-crdt-datalog-dialect}
+\end{figure}
+
+\subsection{List \ac{CRDT}}\label{sec:list-crdt-datalog-dialect}
+
+\begin{figure}[htpb]
+	\begin{lstlisting}[keepspaces]
+// EDBPs:
+insert(RepId, Ctr, ParentRepId, ParentCtr) :- .
+
+// IDBPs:
+distinct hasChild(ParentRepId, ParentCtr) :-
+    insert(ParentRepId, ParentCtr).
+
+distinct laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
+    insert(SiblingRepId = RepId, SiblingCtr = Ctr, ParentRepId, ParentCtr),
+    insert(ChildRepId = RepId, ChildCtr = Ctr, ParentRepId, ParentCtr),
+    (SiblingCtr > ChildCtr; (SiblingCtr == ChildCtr, SiblingRepId > ChildRepId)).
+
+firstChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
+    insert(ChildRepId = RepId, ChildCtr = Ctr, ParentRepId, ParentCtr),
+    not laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr).
+
+distinct sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
+    insert(Child1RepId = RepId, Child1Ctr = Ctr, ParentRepId, ParentCtr),
+    insert(Child2RepId = RepId, Child2Ctr = Ctr, ParentRepId, ParentCtr).
+
+distinct laterSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
+    sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
+    (Child1Ctr > Child2Ctr; (Child1Ctr == Child2Ctr, Child1RepId > Child2RepId)).
+
+distinct laterTransitiveSibling(Child1RepId, Child1Ctr, Child3RepId, Child3Ctr) :-
+    sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
+    sibling(Child1RepId, Child1Ctr, Child3RepId = Child2RepId, Child3Ctr = Child2Ctr),
+    (Child1Ctr > Child2Ctr; (Child1Ctr == Child2Ctr, Child1RepId > Child2RepId)),
+    (Child2Ctr > Child3Ctr; (Child2Ctr == Child3Ctr, Child2RepId > Child3RepId)).
+
+distinct nextSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
+    laterSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
+    not laterTransitiveSibling(Child1RepId, Child1Ctr, Child2RepId = Child3RepId, Child2Ctr = Child3Ctr).
+
+distinct hasNextSibling(ChildRepId, ChildCtr) :-
+    nextSibling(ChildRepId = Child1RepId, ChildCtr = Child1Ctr).
+
+distinct nextSiblingAnc(ChildRepId, ChildCtr, AncRepId, AncCtr) :-
+    nextSibling(ChildRepId = Child1RepId, ChildCtr = Child1Ctr, AncRepId = Child2RepId, AncCtr = Child2Ctr).
+distinct nextSiblingAnc(ChildRepId, ChildCtr, AncRepId, AncCtr) :-
+    insert(ChildRepId = RepId, ChildCtr = Ctr, ParentRepId, ParentCtr),
+    not hasNextSibling(ChildRepId, ChildCtr),
+    nextSiblingAnc(ParentRepId = ChildRepId, ParentCtr = ChildCtr, AncRepId, AncCtr).
+
+distinct nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
+    not hasChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr),
+    nextSiblingAnc(PrevRepId = ChildRepId, PrevCtr = ChildCtr, NextRepId = AncRepId, NextCtr = AncCtr).
+distinct nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
+    firstChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr, NextRepId = ChildRepId, NextCtr = ChildCtr).\end{lstlisting}
+	\caption{A list \ac{CRDT} in my Datalog dialect, adapted from~\cite{kleppmann2018data}.}\label{code:list-crdt-datalog-dialect}
+\end{figure}
+
+\section{Performance Evaluation}\label{sec:benchmarks}
+
+\begin{itemize}
+	\item Benchmark hydration setting for modeling application restarts.
+	      Show that the causal broadcast does not benefit from parallelization
+	      as it is inherently sequential by benchmarking the non-causal CRDT
+	      as reference.
+	\item Benchmark applying just some updates for modeling near-real time collaboration.
+	      Again, how expensive is the causal broadcast?
+\end{itemize}
+
+- Lots of dependent joins in the fixed point iteration. How to optimize?
+- Partial synchronization.
+
+\subsection{Near-Real-Time Setting}\label{sec:near-real-time-benchmark}
+
+\subsection{Hydration Setting}\label{sec:hydration-benchmark}
+
+\section{Related Work}\label{sec:related-work}
+
+% TODO
+In general, there are two predominant approaches to query execution,
+\emph{interpreted} and \emph{compiled} query execution.
+The former executes a query by interpreting its query plan at run-time,
+usually on the granularity level of an operator of the query plan.
+It exists in three main variants: Tuple-at-a-time (``volcano model''),
+column-at-a-time and vector-at-a-time execution,
+of which the last one is the most efficient~\cite{zukowski2005monetdb}.
+Compiled query execution has been pioneered by the HyPer main memory database
+system~\cite{neumann2011efficiently}.
+It compiles a query plan into an executable tailored to the specific query,
+can therefore take advantage of, e.g., combining multiple non-blocking operators
+into a single loop, and avoids interpretation overhead.
+While compiled query execution sounds more promising in terms of performance,
+it is more complex to implement, debug, and, surprisingly, its performance
+is not necessarily better~\cite{kersten2018everything}.
+
+Feldera, the company behind the commercial offering building upon the
+open-source DBSP library, offers a SQL-to-DBSP compiler which emits
+a Rust executable to execute a specific query~\cite{feldera}.
+The now-abandoned Differential Datalog project~\cite{ddlog}, which relies on
+differential dataflow, also compiles a query plan into a Rust executable.
+
+\begin{itemize}
+	\item VeriFX (SAT-solver based), LoRe
+	\item Automerge
+	\item LiveStore
+\end{itemize}

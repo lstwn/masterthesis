@@ -1,41 +1,35 @@
 % !TeX root = ../main.tex
 % Add the above to each chapter to make compiling the PDF easier in some editors.
 
-\chapter{Results}\label{ch:results}
+\chapter{Implementation}\label{ch:implementation}
 
 This chapter outlines my solution to the problem motivated in \ref{ch:intro}.
-Next to describing the implementation, I also discuss design choices
-and the reasoning behind them.
-\ref{sec:incremental-query-engine} deals with the incremental query engine,
-which is the core of the solution.
-\ref{sec:crdts-as-queries} shows another \ac{CRDT} expressed with Datalog.
+A fundamental prerequisite to assessing if \acp{CRDT}-as-a-query on an
+incremental query engine is a viable approach, is to have such a query
+engine available.
+Unfortunately, the landscape of incremental Datalog query engines is sparse
+and I had to implement one myself.
 
-\section{Incremental Query Engine}\label{sec:incremental-query-engine}
+At the core of my query engine is a tree-walk interpreter that executes a
+query plan by delegating all relational computations to the DBSP library,
+while handling all operations on scalars, such as arithmetic and boolean
+expressions, itself.
+The query plan is represented in an \acf{IR} which is a small programming
+language that supports variables, functions, and static scopes.
+Particularly, the \ac{IR} supports relational operations,
+such as selections, projections, and joins, to represent a query plan.
+The \ac{IR} and the interpreter are described in \ref{sec:ir}.
+Furthermore, the engine has a Datalog frontend.
+Due to Datalog's lack of standardization, I design a Datalog dialect which is
+discussed in \ref{sec:datalog-frontend}.
+Finally, the transpilation from an \ac{AST} of a Datalog program to a reasonably
+efficient query plan expressed in the \ac{IR} is described
+in \ref{sec:datalog-to-relational-algebra}.
 
-Query execution refers to the process of executing a query plan to retrieve
-the results of a query.
-In general, there are two predominant approaches to query execution,
-\emph{interpreted} and \emph{compiled} query execution.
-The former executes a query by interpreting its query plan at run-time,
-usually on the granularity level of an operator of the query plan.
-It exists in three main variants: Tuple-at-a-time (``volcano model''),
-column-at-a-time and vector-at-a-time execution,
-of which the last one is the most efficient~\cite{zukowski2005monetdb}.
-Compiled query execution has been pioneered by the HyPer main memory database
-system~\cite{neumann2011efficiently}.
-It compiles a query plan into an executable tailored to the specific query,
-can therefore take advantage of, e.g., combining multiple non-blocking operators
-into a single loop, and avoids interpretation overhead.
-While compiled query execution sounds more promising in terms of performance,
-it is more complex to implement, debug, and, surprisingly, its performance
-is not strictly better~\cite{kersten2018everything}.
-
-Feldera, the company behind the commercial offering building upon the
-open-source DBSP library, offers a SQL-to-DBSP compiler which emits
-a Rust executable to execute a specific query~\cite{feldera}.
-The now-abandoned Differential Datalog project~\cite{ddlog}, which relies on
-differential dataflow, also compiles a query plan into a Rust executable.
-Yet, in this work, I chose to implement an interpreter. This has several reasons:
+In general, query engines either interpret a query plan or compile the query
+plan into an executable program tailored to the specific query.
+I choose to implement a query engine based on interpretation for several
+reasons:
 
 \begin{enumerate}
 	\item \textbf{Less complexity.}
@@ -43,29 +37,13 @@ Yet, in this work, I chose to implement an interpreter. This has several reasons
 	      For an explorative project, this is a significant advantage.
 	\item \textbf{No compile time overhead.}
 	      Rust is known for its long compile times, potentially offsetting some
-	      of the performance gains of compiled query execution.
+	      potential performance gains of compiled query execution.
 	\item \textbf{Easier integration.}
 	      A library is easier to integrate into a larger system than a compiler.
 	      I think this is particularly relevant for applications that do not
 	      exclusively run on big servers but may be accomotated on smaller
 	      edge devices, which may not afford bundling a full compiler.
 \end{enumerate}
-
-The incremental query engine works as follows.
-At its core is a tree-walk interpreter that executes a query plan by delegating
-all relational computations to the DBSP library but handling all operations
-on scalars, such as arithmetic and boolean expressions, itself.
-The query plan is represented in an \acf{IR} which is a small programming
-language that supports variables, functions, and static scopes.
-Particularly, the \ac{IR} supports relational operations,
-such as selections, projections, and joins, to represent a query plan.
-The \ac{IR} and the interpreter is described in detail in \ref{sec:ir}.
-Furthermore, the engine has a Datalog frontend.
-Due to Datalog's lack of standardization, I design a Datalog dialect which is
-discussed in \ref{sec:datalog-frontend}.
-Finally, the translation from a Datalog \ac{AST} to a reasonably efficient
-query plan expressed in the \ac{IR} is described
-in \ref{sec:datalog-to-relational-algebra}.
 
 My motivation to use an \ac{IR} based on relational algebra is twofold.
 The first one is query optimization possibilities.
@@ -74,21 +52,22 @@ algebra has been studied for decades~\cite{selinger1979access} and this approach
 opens the gate to leverage this research.
 Query optimization on Datalog has also been studied but to a lesser extent.
 Its results could also be applied as part of the Datalog frontend prior to the
-translation into the \ac{IR}.
+transpilation into the \ac{IR}.
 Second, an \ac{IR} provides a layer of abstraction in two ways.
-It allows to implement multiple frontends, such as a SQL frontend, as long as
-the frontend can be translated into the relational algebra \ac{IR}.
-Moreover, it eases changing the underlying incremental computation framework.
+It implement multiple frontends to be implemented, such as a SQL frontend,
+as long as the frontend can be translated into the relational algebra \ac{IR}.
+Moreover, it makes it easier to change the underlying incremental computation
+framework.
 If there is a way to implement the relational operators with differential
-dataflow, the \ac{IR} can be executed with it.
+dataflow for example, the \ac{IR} can be executed with it.
 This presents an interesting future work direction, to better understand
 both approaches' differences and performance characteristics.
 Another possibility is to additionally offer a non-incremental query engine
 and let the user choose which one to use.
 
-\subsection{Intermediate Representation Relational Algebra}\label{sec:ir}
+\section{Intermediate Representation in Relational Algebra}\label{sec:ir}
 
-The language supports the following scalar types: string, integer, boolean, and null.
+My language supports the following scalar types: string, integer, boolean, and null.
 Operations on scalars match what most of today's programming languages offer.
 There is support for arithmetic operations (\texttt{*, /, +, -}),
 logical operations (\texttt{and, or, not}),
@@ -106,11 +85,16 @@ These functions are also known as closures.
 
 To generalize over arbitrary relations, relations' tuples are represented as
 a sequence of scalars together with a schema for accessing its fields by name.
-The schema is represented as another sequence of the same length as the tuple.
+The schema is represented as another sequence of the same length as of the tuple.
 Each entry contains the name of the field and if it is active or not.
-The latter allows for an optimization which I explain later.
+I refer to the schema of relation \(R\) as \(\mathit{sch}(R)\).
 \ref{tab:ir-operators} lists the supported relational operators of the \ac{IR}.
 These are enough to express a wide range of queries and support my use case.
+To be able to execute queries correctly, the engine needs to keep track of
+the evolution of relations' schemas, as they are influenced by the operators
+of a query plan.
+\ref{tab:ir-schema-operators} shows the output schema of the operators from
+\ref{tab:ir-operators}.
 
 \begin{figure}[htpb]
 	\centering
@@ -132,32 +116,116 @@ These are enough to express a wide range of queries and support my use case.
 	\caption{Relational operators of the \ac{IR}.}\label{tab:ir-operators}
 \end{figure}
 
-Schema tracking.
+\begin{figure}[htpb]
+	\centering
+	\begin{tabular}{@{}l@{}}
+		\toprule
+		\(\mathit{sch}(\mathit{distinct}(R)) = \mathit{sch}(R)\)                                                   \\
+		\(\mathit{sch}(R \cup S) = \mathit{sch}(R)\) (or \(= \mathit{sch}(S)\))                                    \\
+		\(\mathit{sch}(R \setminus S) = \mathit{sch}(R)\) (or \(= \mathit{sch}(S)\))                               \\
+		\(\mathit{sch}(\sigma_{\mathit{pred}}(R)) = \mathit{sch}(R)\)                                              \\
+		\(\mathit{sch}(\pi_{[(\mathit{name},\mathit{expr})]}(R)) = [name]\) (projection's list of field names)     \\
+		\(\mathit{sch}(R \times S) = \mathit{sch}(R) \circ \mathit{sch}(S)\) (\(\circ\) denotes concatenation)     \\
+		\(\mathit{sch}(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S) = \mathit{sch}(R) \circ \mathit{sch}(S)\) \\
+		\(\mathit{sch}(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S) = \mathit{sch}(R) \)               \\
+		\(\mathit{sch}(\mu) = \mathit{sch}(A)\)                                                                    \\
+		\bottomrule
+	\end{tabular}
+	\caption{The schema of the output of the operators of the \ac{IR}.}\label{tab:ir-schema-operators}
+\end{figure}
 
-Running example: Transitive closure.
-
-Compile-time vs run-time.
-Compile-time: Query plan build time.
-Run-time: Query plan execution time.
-
-The interpreter is invoked at different stages of the query execution.
+The interpreter is invoked at two different stages of a query execution.
 First, it is invoked to construct a DBSP circuit, i.e., a query plan in
-Database speak, which can then be executed by DBSP.
+Database terminology, from the input \ac{IR} program, which can then be
+executed by DBSP's runtime. I refer to this invocation as \emph{query build-time}.
 Second, while DBSP executes the circuit, the interpreter is invoked to
 evaluate expressions and to access the values of variables. For instance,
-this happens when a selection's predicate or a projection's expression
-is evaluated.
-We built an intermediate representation (IR) that supports both operations
-on scalars and relations. Moreover, the IR supports a variety of programming
-language constructs, such as variables, functions, and lexical scopes.
+this happens whenever a selection's predicate or the expressions of a projection
+are evaluated. I refer to this as \emph{query execution-time}.
 
-Mention optimizations:
-\begin{itemize}
-	\item The static variable resolver pass.
-	\item The optimizations around projections.
-\end{itemize}
+\input{figures/ir_transitive_closure.tex}
 
-\subsection{Datalog Frontend}\label{sec:datalog-frontend}
+\ref{code:trans-closure-ir} shows the computation of a graph's transitive closure
+from \ref{sec:datalog-syntax-semantics} expressed in pseudocode which resembles
+the real representation of the \ac{IR} but with Rust-specific boilerplate omitted.
+On the top level, it shows the main statements of the \ac{IR} program which
+are all variable assignments in this case.
+The defined variables, ``edges'', ``base'', and ``closure'', can then be referenced
+in subsequent statements, respectively.
+The ``edges'' variable is referenced by both the ``ProjectionExpr'' and the
+``FixPointIterExpr''.
+The ``base'' variable is referenced by the ``FixPointIterExpr''.
+Due to statements returning their value as well (as long as they produce any),
+the ``closure'' variable's value is also the output of the \ac{IR} program,
+resembling implicit returns known from Rust or Ruby.
+The ``FixPointIterExpr'' requires to specify all relations it wants to use within
+its ``step'' body because DBSP can only import relations from parent circuits
+into child circuits via its \emph{delta0} operator.
+To provide this, the ``imports'' and ``accumulator'' fields are used to
+specify the relations which have to be injected into the context of the fixpoint
+iteration's body.
+Note that the ``EquiJoinExpr'' supports including a projection step,
+making a trailing ``ProjectionExpr'' of the fixpoint iteration's body obsolete.
+TODO SHOW WHICH CODE IS RUN AT QUERY BUILD-TIME AND WHICH AT EXECUTION-TIME
+AFTER HIGHLIGHTING IN THE CODE SNIPPET.
+
+Prior to the execution an \ac{IR} program, the program first undergoes a
+static pass to resolve all references to variables and functions except for
+tuples' variables.
+Tuples' variables are not yet available at query build-time but are injected
+later during query execution-time. Hence, they require dynamic resolution.
+Yet, resolving regular variables and functions statically has the advantage that
+the interpreter can avoid dynamic lookups, which require to walk the program's
+static scope tree, at both query build and execution-time.
+Moreover, the static variable resolver pass fixes a problem with closures
+capturing their environment, which exists if environments are implemented with
+mutable instead of immutable data structures~\cite{nystrom2021crafting}.
+
+The ability to mark fields as active or inactive allows to optimize projections:
+If a projection only wants to pick a subset of a relation's fields and does not
+contain any expressions which require evaluations, the projection can be executed
+by just changing the relation's schema without having to run the interpreter
+on the relation's tuples during query execution-time.
+
+\section{Datalog Frontend}\label{sec:datalog-frontend}
+
+\begin{figure}[htpb]
+	\centering
+	\begin{tabular}{c}
+		\begin{lstlisting}[keepspaces]
+// Core Datalog grammar.
+program     = rule* EOF ;
+rule        = head ":-" body "." ;
+head        = "distinct"? IDENTIFIER "(" field ( "," field )* ")" ;
+field       = IDENTIFIER ( "=" expression )? ;
+body        = ( atom ( "," atom )* )? ;
+atom        = ( "not"? predicate ) | "(" expression ")" | comparison ;
+predicate   = IDENTIFIER "(" variable ( "," variable )* ")" ;
+variable    = IDENTIFIER ( "=" IDENTIFIER )? ;
+
+// Scalar expressions grammar.
+expression  = logical_or ;
+logical_or  = logical_and ( ";" logical_and )* ;
+logical_and = comparison ( "," comparison )* ;
+comparison  = term ( ( "==" | "!=" | ">" | ">=" | "<" | "<=" ) term )? ;
+term        = factor ( ( "+" | "-" ) factor )* ;
+factor      = unary ( ( "*" | "/" ) unary )* ;
+unary       = ( "-" | "!" ) unary | primary ;
+primary     = literal | IDENTIFIER | "(" expression ")" ;
+literal     = BOOL | UINT | IINT | STRING | NULL ;
+
+// Primitives and literals.
+BOOL        = "true" | "false" ;
+UINT        = DIGIT+ ;
+IINT        = ( "-" | "+" )? DIGIT+ ;
+STRING      = "\""<any char except "\"">*"\"" ;
+IDENTIFIER  = ALPHA ( ALPHA | DIGIT )* ;
+ALPHA       = "a".."z" | "A".."Z" | "_" ;
+DIGIT       = "0".."9" ;
+NULL        = "null" ;\end{lstlisting}
+	\end{tabular}
+	\caption{The grammar of my Datalog Variant.}\label{code:datalog-grammar}
+\end{figure}
 
 \ref{code:datalog-grammar} shows the grammar of my Datalog dialect\footnotemark{},
 along with the syntax for literals as well as for a small expression language
@@ -181,7 +249,7 @@ database schemas, rendering positional indexing cumbersome to use.
 Moreover, variables starting with an underscore are ignored but can be used
 to make things more explicit.
 
-The grammar also allows to prepend the ``distinct'' keyword to the name
+The grammar also allows the ``distinct'' keyword to be prepended to the name
 of a rule's head.
 This causes the facts of the rule to be distinct, i.e., it removes duplicates
 from the rule's output.
@@ -200,83 +268,23 @@ of a rule's head.
 Yet, due to name-based indexing, a name must be provided.
 The expressions can reference all variables which are in scope of the rule's body.
 
-\begin{figure}[htpb]
-	\centering
-	\begin{tabular}{c}
-		\begin{lstlisting}[keepspaces]
-		// Core Datalog grammar.
-		program     = rule* EOF ;
-        rule        = head ":-" body "." ;
-        head        = "distinct"? IDENTIFIER "(" field ( "," field )* ")" ;
-        field       = IDENTIFIER ( "=" comparison )? ;
-        body        = ( atom ( "," atom )* )? ;
-        atom        = ( "not"? predicate ) | comparison ;
-        predicate   = IDENTIFIER "(" variable ( "," variable )* ")" ;
-        variable    = IDENTIFIER ( "=" IDENTIFIER )? ;
-
-        // Scalar expressions and arithmetic grammar.
-		comparison  = term ( ( "==" | "!=" | ">" | ">=" | "<" | "<=" ) term )? ;
-		term        = factor ( ( "+" | "-" ) factor )* ;
-		factor      = unary ( ( "*" | "/" ) unary )* ;
-		unary       = ( "-" | "!" ) unary | primary ;
-		primary     = literal | IDENTIFIER | "(" comparison ")" ;
-		literal     = BOOL | UINT | IINT | STRING | NULL ;
-
-		// Primitives and literals.
-		BOOL        = "true" | "false" ;
-		UINT        = DIGIT+ ;
-		IINT        = ( "-" | "+" )? DIGIT+ ;
-		STRING      = "\""<any char except "\"">*"\"" ;
-		IDENTIFIER  = ALPHA ( ALPHA | DIGIT )* ;
-		ALPHA       = "a".."z" | "A".."Z" | "_" ;
-		DIGIT       = "0".."9" ;
-		NULL        = "null" ;
-        \end{lstlisting}
-	\end{tabular}
-	\caption{Grammar of the Datalog Variant.}\label{code:datalog-grammar}
-\end{figure}
-
-The dialect prohibits mutual recursion and only permits self-recursion, i.e.,
+My dialect prohibits mutual recursion and only permits self-recursion, i.e.,
 any program's precedence graph must be acyclic except for self-loops.
-This is stricter than stratified Datalog which allows for cycles,
+This is stricter than stratified Datalog which allows cycles,
 provided that these cycles do not contain a negative edge.
-This is a deliberate design choice to keep the implementation complexity in check
+This is a deliberate design choice to keep the implementation complexity manageable
 while still being sufficient for my \ac{CRDT} use case.
 
 \ref{code:mvr-crdt-datalog-dialect} shows the familiar \ac{MVR} key-value store
-\ac{CRDT} from \ref{ch:intro} in the Datalog dialect.
+\ac{CRDT} from \ref{ch:intro} in my Datalog dialect.
 Except for the inclusion of \acp{EDBP}, name-based indexing, and the explicit
 use of the ``distinct'' operator, the query is similar to the one
 in \ref{code:mvr-crdt-datalog}.
 The \acp{EDBP} need to be included to make the their fields known to the
 query engine.
 
-\begin{figure}[htpb]
-	\begin{lstlisting}[keepspaces]
-// These are extensional database predicates (EDBPs).
-pred(FromRepId, FromCtr, ToRepId, ToCtr) :- .
-set(RepId, Ctr, Key, Value)              :- .
-
-// These are intensional database predicates (IDBPs).
-distinct overwritten(RepId, Ctr)
-                    :- pred(RepId = FromRepId, Ctr = FromCtr, _ToRepId, _ToCtr).
-distinct overwrites(RepId, Ctr)
-                    :- pred(_FromRepId, _FromCtr, RepId = ToRepId, Ctr = ToCtr).
-isRoot(RepId, Ctr)  :- set(RepId, Ctr, _Key, _Value),
-                       not overwrites(RepId, Ctr).
-isLeaf(RepId, Ctr)  :- set(RepId, Ctr, _Key, _Value),
-                       not overwritten(RepId, Ctr).
-isCausallyReady(RepId, Ctr)
-                    :- isRoot(RepId, Ctr).
-isCausallyReady(RepId, Ctr)
-                    :- isCausallyReady(FromRepId = RepId, FromCtr = Ctr),
-                       pred(FromRepId, FromCtr, RepId = ToRepId, Ctr = ToCtr).
-mvrStore(Key, Value)
-                    :- isLeaf(RepId, Ctr),
-                       isCausallyReady(RepId, Ctr),
-                       set(RepId, Ctr, Key, Value).\end{lstlisting}
-	\caption{The \ac{MVR} key-value store in my Datalog dialect.}\label{code:mvr-crdt-datalog-dialect}
-\end{figure}
+\ref{sec:crdts-as-queries} shows the familiar key-value stores from \ref{ch:intro}
+as well as a list \ac{CRDT} in my Datalog dialect.
 
 The parser itself is implemented with the help of the ``nom'' library~\cite{nom}
 which is a parser combinator framework for Rust.
@@ -285,7 +293,7 @@ from smaller parsers, which makes writing a parser for an existing grammar
 relatively straightforward, as long as unit tests are written for the input
 parsers first. Otherwise, the origin of a parsing bug may be hard to identify.
 
-\subsection{Translating Datalog to Relational Algebra}\label{sec:datalog-to-relational-algebra}
+\section{Translating Datalog to Relational Algebra}\label{sec:datalog-to-relational-algebra}
 
 Due to Datalog's declarative nature, it does not specify how to execute a query
 and leaves the problem of finding a valid execution order to the query engine.
@@ -309,10 +317,8 @@ The topologically sorted predicates are mapped into a sequence of statements
 which assign the output of an aggregated rule to a variable with the same name.
 Then, subsequent rules which depend on the output of a previous rule can refer
 to the variable of a previous rule if necessary.
-During interpretation, the \ac{IR} implicitly returns the effect
-of the last statement as if it was an expression,
-resembling implicit returns in Rust or Ruby.
-That way, the last predicate in the topological sort order becomes the output
+Due to implicit returns and statements producing values, too,
+the last predicate in the topological sort order becomes the output
 of an \ac{IR} program.
 Due to the nature of topological sortings, the last predicate is the
 predicate with the most dependencies and implicitly assumed to be the
@@ -431,7 +437,3 @@ by a projection into a single join operator.
 % 	\ldots
 % 	output(v_1, \ldots, v_p) \leftarrow \ldots .
 % \]
-
-\section{\acp{CRDT} as Queries}\label{sec:crdts-as-queries}
-
-\subsection{Benchmarking}\label{sec:benchmarks}

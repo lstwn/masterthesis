@@ -78,7 +78,7 @@ relations. How to translate between the two representations?
 ## Query Optimization
 
 Start from Cartesian product with subsequent filters and employ predicate
-pushdown and equi joins wherever applicable.
+pushdown and equijoins wherever applicable.
 
 [dlog_survey]:
   https://dl.acm.org/doi/10.1561/1900000017

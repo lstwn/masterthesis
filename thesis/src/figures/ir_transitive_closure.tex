@@ -3,102 +3,73 @@
 
 	\begin{tabular}{c}
 		\begin{lstlisting}[keepspaces,escapechar=!]
-edges   <-  LiteralExpr(Relation { schema: ["from", "to", "weight"] })
-base    <-  ProjectionExpr {
-                relation: VarExpr("edges"),
-                attributes: [
-                   ("from", !\tikzmark{basestart}!VarExpr("from")!\tikzmark{baseend}!),
-                   ("to", !\tikzmark{basestart}!VarExpr("to")!\tikzmark{baseend}!),
-                   ("cweight", !\tikzmark{basestart}!VarExpr("weight")!\tikzmark{baseend}!),
-                   ("hopcnt", !\tikzmark{basestart}!LiteralExpr(UInt(1))!\tikzmark{baseend}!),
-                ]
-            }
-closure <-  FixPointIterExpr {
-                imports: ["edges"],
-                accumulator: ("acc", VarExpr("base")),
-                step: BlockStmt {
-                    stmts: [
-                        ExprStmt {
-                            expr: EquiJoinExpr {
-                                left: AliasExpr {
-                                    relation: VarExpr("acc"),
-                                    alias: "cur",
-                                },
-                                right: AliasExpr {
-                                    relation: VarExpr("edges"),
-                                    alias: "next",
-                                },
-                                on: [(VarExpr("cur.to"), VarExpr("next.from"))],
-                                attributes: [
-                                    ("from", VarExpr("cur.from")),
-                                    ("to", VarExpr("next.to")),
-                                    ("cweight", BinaryExpr {
-                                        op: Operator::Add,
-                                        left: VarExpr("cur.cweight"),
-                                        right: VarExpr("next.weight")
-                                    }),
-                                    ("hopcnt", BinaryExpr {
-                                        op: Operator::Add,
-                                        left: VarExpr("cur.hopcnt"),
-                                        right: LiteralExpr(UInt(1))
-                                    })
-                                ]
-            }}]}}\end{lstlisting}
+edges   <- LiteralExpr(Relation { schema: ["from", "to", "weight"] })
+base    <- ProjectionExpr {
+             relation: VarExpr("edges"),
+             attributes: [
+               ("from", !\tikzmark{qtimes1}!VarExpr("from")!\tikzmark{qtimee1}!),
+               ("to", !\tikzmark{qtimes2}!VarExpr("to")!\tikzmark{qtimee2}!),
+               ("cweight", !\tikzmark{qtimes3}!VarExpr("weight")!\tikzmark{qtimee3}!),
+               ("hopcnt", !\tikzmark{qtimes4}!LiteralExpr(UInt(1))!\tikzmark{qtimee4}!),
+             ]
+           }
+closure <- FixPointIterExpr {
+             imports: ["edges"],
+             accumulator: ("acc", VarExpr("base")),
+             step: BlockStmt {
+               stmts: [
+                 ExprStmt {
+                   expr: EquiJoinExpr {
+                     left: AliasExpr { relation: VarExpr("acc"), alias: "cur" },
+                     right: AliasExpr { relation: VarExpr("edges"), alias: "next" },
+                     on: [(!\tikzmark{qtimes5}!VarExpr("cur.to")!\tikzmark{qtimee5}!, !\tikzmark{qtimes6}!VarExpr("next.from")!\tikzmark{qtimee6}!)],
+                     attributes: [
+                       ("from", !\tikzmark{qtimes7}!VarExpr("cur.from")!\tikzmark{qtimee7}!),
+                       ("to", !\tikzmark{qtimes8}!VarExpr("next.to")!\tikzmark{qtimee8}!),
+                       (
+                         "cweight",
+                         !\tikzmark{qtime91}!BinaryExpr
+                           op: Operator::Add,
+                           left: VarExpr("cur.cweight"),
+                           right: VarExpr("next.weight")!\tikzmark{qtime92}!
+                         }!\tikzmark{qtime93}!
+                       ),
+                       (
+                         "hopcnt",
+                         !\tikzmark{qtime101}!BinaryExpr {
+                           op: Operator::Add,
+                           left: VarExpr("cur.hopcnt"),!\tikzmark{qtime102}!
+                           right: LiteralExpr(UInt(1))
+                         }!\tikzmark{qtime103}!
+                       )
+                     ]
+           }}]}}\end{lstlisting}
 	\end{tabular}
 
 	\begin{tikzpicture}[remember picture,overlay]
-		\draw[red,rounded corners]
-		([shift={(-3pt,2ex)}]pic cs:basestart)
-		rectangle
-		([shift={(3pt,-0.65ex)}]pic cs:baseend);
+		\tikzset{
+			qtime/.style={
+					rectangle,draw,
+					TUMAccentBlue,
+					rounded corners=2pt,
+					line width=0.8pt,
+					font=\footnotesize,align=center,
+					minimum height=2.2ex,
+					yshift=0.55ex,
+					xshift=-0.1ex,
+					inner sep=0.5pt,
+				},
+		}
+		\begin{scope}[on background layer]
+			\foreach \i in {1,...,8}
+				{\node[qtime,fit=(pic cs:qtimes\i) (pic cs:qtimee\i)] (sadf) {};}
+
+			\foreach \i in {9,10}
+				{\node[qtime,minimum height=6*2.0ex,
+						fit=(pic cs:qtime\i1) (pic cs:qtime\i2) (pic cs:qtime\i3)
+					] (sadf) {};}
+		\end{scope}
 	\end{tikzpicture}
-
-	% \vspace{1em}
-
-	% \begin{subfigure}[b]{\textwidth}
-	% 	\centering
-	% 	\begin{tikzpicture}
-	% 		\small
-
-	% 		\tikzset{
-	% 			node distance=38pt and 48pt,
-	% 			on grid,
-	% 			node/.style={rectangle,minimum width=0pt,minimum height=0pt,align=center,fill=white},
-	% 			input/.style={edge},
-	% 			edgelabel/.style={midway},
-	% 			pipeline/.style={rectangle,thick,draw=gray,inner sep=2pt},
-	% 		}
-
-	% 		\node[node] (projection) {\(\pi_{[\mathit{Key}, \mathit{Value}]}\)};
-	% 		\node[node,below=of projection] (antijoin) {\(\triangleright_{[\mathit{RepId}, \mathit{Ctr}]}\)};
-
-	% 		\node[node,below left=of antijoin] (equijoin) {\(\bowtie_{[\mathit{RepId}, \mathit{Ctr}]}\)};
-	% 		\node[node,below right=of antijoin] (overwritten) {overwritten};
-
-	% 		\node[node,below left=of equijoin] (set) {set};
-	% 		\node[node,below right=of equijoin] (caus) {isCausallyReady};
-
-	% 		\begin{scope}[on background layer]
-	% 			\draw[input] (antijoin) to[] (projection);
-
-	% 			\draw[input] (overwritten) to[] (antijoin);
-	% 			\draw[input] (equijoin) to[] (antijoin);
-
-	% 			\draw[input] (set) to[] (equijoin);
-	% 			\draw[input] (caus) to[] (equijoin);
-
-	% 			\node[pipeline,draw=TUMAccentGreen,dashed,fit=(set) (caus) (equijoin)] (pospart) {};
-	% 			\node[anchor=north east,color=TUMAccentGreen] at (pospart.south east) {positive part};
-
-	% 			\node[pipeline,draw=TUMAccentOrange,dashdotted,fit=(equijoin) (antijoin) (overwritten)] (negpart) {};
-	% 			\node[anchor=south east,color=TUMAccentOrange] at (negpart.north east) {negative part};
-
-	% 			\node[pipeline,draw=TUMAccentBlue,densely dotted,fit=(projection)] (headpart) {};
-	% 			\node[anchor=south east,color=TUMAccentBlue] at (headpart.north east) {head vars};
-	% 		\end{scope}
-	% 	\end{tikzpicture}
-	% 	\caption{Query plan with an antijoin to handle the negative ``overwritten'' atom.}\label{fig:negative-query-plan}
-	% \end{subfigure}
 
 	\caption{The computation of a transitive closure in the \ac{IR}.}\label{code:trans-closure-ir}
 \end{figure}

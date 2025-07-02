@@ -45,6 +45,14 @@ mvrStore(Key, Value)
 	\caption{The \ac{MVR} key-value \ac{CRDT} store in my Datalog dialect.}\label{code:mvr-crdt-datalog-dialect}
 \end{figure}
 
+\ref{code:mvr-crdt-datalog-dialect} shows the familiar \ac{MVR} key-value store
+\ac{CRDT} from \ref{ch:intro} in my Datalog dialect.
+Except for the inclusion of \acp{EDBP}, name-based indexing, and the explicit
+use of the ``distinct'' operator, the query is similar to the one
+in \ref{code:mvr-crdt-datalog}.
+The \acp{EDBP} need to be included to make the their fields known to the
+query engine.
+
 \subsection{List \ac{CRDT}}\label{sec:list-crdt-datalog-dialect}
 
 \begin{figure}[htpb]

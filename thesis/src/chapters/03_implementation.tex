@@ -54,7 +54,7 @@ Query optimization on Datalog has also been studied but to a lesser extent.
 Its results could also be applied as part of the Datalog frontend prior to the
 transpilation into the \ac{IR}.
 Second, an \ac{IR} provides a layer of abstraction in two ways.
-It implement multiple frontends to be implemented, such as a SQL frontend,
+It allows multiple frontends to be implemented, such as a SQL frontend,
 as long as the frontend can be translated into the relational algebra \ac{IR}.
 Moreover, it makes it easier to change the underlying incremental computation
 framework.
@@ -104,13 +104,14 @@ of a query plan.
 		\midrule
 		Distinct           & \(\mathit{distinct}(R)\)                                    & Removes duplicate tuples from its input relation \(R\).                                                                                                                                                                                                                                                           \\
 		Union              & \(R \cup S\)                                                & Merges its input relations \(R\) and \(S\).                                                                                                                                                                                                                                                                       \\
-		Difference         & \(R \setminus S\)                                           & Removes tuples from the first input relation \(R\) which are also present in the second input relation \(S\).                                                                                                                                                                                                     \\
+		Difference         & \(R \setminus S\)                                           & Removes tuples from the left input relation \(R\) which are also present in the right input relation \(S\).                                                                                                                                                                                                       \\
+		Alias              & \(\rho_\mathit{name}(R)\)                                   & Renames its input relation \(R\) to \(\mathit{name}\) and allows referring to it (and its fields) by that name in subsequent operators.                                                                                                                                                                           \\
 		Selection          & \(\sigma_{\mathit{pred}}(R)\)                               & Filters tuples from its input relation \(R\) based on the predicate \(\mathit{pred}\).                                                                                                                                                                                                                            \\
 		Projection         & \(\pi_{[(\mathit{name},\mathit{expr})]}(R)\)                & Produces a new relation with fields defined by the list of name-expression pairs. All expressions are evaluated in the context of a tuple from its input relation \(R\).                                                                                                                                          \\
-		Cartesian Product  & \(R \times S\)                                              & Combines two relations by pairing every tuple from the first input relation \(R\) with every tuple from the second input relation \(S\).                                                                                                                                                                          \\
+		Cartesian Product  & \(R \times S\)                                              & Combines two relations by pairing every tuple from the left input relation \(R\) with every tuple from the right input relation \(S\).                                                                                                                                                                            \\
 		Equijoin           & \(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S\)        & Like the cartesian product but it only emits a pair if all left-hand-side expressions of the list of pairs (\(\mathit{lexpr}\); evaluated in the context of a tuple from \(R\)) evaluate to equal values as all right-hand-side expressions (\(\mathit{rexpr}\); evaluated in the context of a tuple from \(S\)). \\
-		Antijoin           & \(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S\) & Returns all tuples from the first input relation \(R\) that do \emph{not} match any tuple from the second input relation \(S\) based on the list of expression pairs (which is evaluated as for the equi join).                                                                                                   \\
-		Fixpoint Iteration & \(\mu\) TODO                                                & Executes its body as long as there are changes to its up-to-now computed output, i.e., it stops once the \emph{least fixpoint} is attained.                                                                                                                                                                       \\
+		Antijoin           & \(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S\) & Returns all tuples from the left input relation \(R\) that do \emph{not} match any tuple from the right input relation \(S\) based on the list of expression pairs (which is evaluated as for the equi join).                                                                                                     \\
+		Fixpoint Iteration & \(\mu(\mathit{acc}, \mathit{step})\)                        & Executes \(\mathit{step}\) starting from \(\mathit{acc}\) for as long as there are changes to its up-to-now computed output, i.e., it stops once the \emph{least fixpoint} is attained.                                                                                                                           \\
 		\bottomrule
 	\end{tabular}
 	\caption{Relational operators of the \ac{IR}.}\label{tab:ir-operators}
@@ -123,12 +124,13 @@ of a query plan.
 		\(\mathit{sch}(\mathit{distinct}(R)) = \mathit{sch}(R)\)                                                   \\
 		\(\mathit{sch}(R \cup S) = \mathit{sch}(R)\) (or \(= \mathit{sch}(S)\))                                    \\
 		\(\mathit{sch}(R \setminus S) = \mathit{sch}(R)\) (or \(= \mathit{sch}(S)\))                               \\
+		\(\mathit{sch}(\rho_{\mathit{name}}(R)) = \mathit{sch}(R)\)                                                \\
 		\(\mathit{sch}(\sigma_{\mathit{pred}}(R)) = \mathit{sch}(R)\)                                              \\
 		\(\mathit{sch}(\pi_{[(\mathit{name},\mathit{expr})]}(R)) = [name]\) (projection's list of field names)     \\
 		\(\mathit{sch}(R \times S) = \mathit{sch}(R) \circ \mathit{sch}(S)\) (\(\circ\) denotes concatenation)     \\
 		\(\mathit{sch}(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S) = \mathit{sch}(R) \circ \mathit{sch}(S)\) \\
 		\(\mathit{sch}(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S) = \mathit{sch}(R) \)               \\
-		\(\mathit{sch}(\mu) = \mathit{sch}(A)\)                                                                    \\
+		\(\mathit{sch}(\mu(\mathit{acc}, \mathit{step})) = \mathit{sch}(\mathit{acc})\)                            \\
 		\bottomrule
 	\end{tabular}
 	\caption{The schema of the output of the operators of the \ac{IR}.}\label{tab:ir-schema-operators}
@@ -159,15 +161,16 @@ Due to statements returning their value as well (as long as they produce any),
 the ``closure'' variable's value is also the output of the \ac{IR} program,
 resembling implicit returns known from Rust or Ruby.
 The ``FixPointIterExpr'' requires to specify all relations it wants to use within
-its ``step'' body because DBSP can only import relations from parent circuits
+its ``step'' body because DBSP requires to import relations from parent circuits
 into child circuits via its \emph{delta0} operator.
 To provide this, the ``imports'' and ``accumulator'' fields are used to
 specify the relations which have to be injected into the context of the fixpoint
 iteration's body.
 Note that the ``EquiJoinExpr'' supports including a projection step,
 making a trailing ``ProjectionExpr'' of the fixpoint iteration's body obsolete.
-TODO SHOW WHICH CODE IS RUN AT QUERY BUILD-TIME AND WHICH AT EXECUTION-TIME
-AFTER HIGHLIGHTING IN THE CODE SNIPPET.
+The highlighted code in blue shows the code which is executed at query
+execution-time in the context of a tuple.
+The other code is executed at query build-time to construct the DBSP circuit.
 
 Prior to the execution an \ac{IR} program, the program first undergoes a
 static pass to resolve all references to variables and functions except for
@@ -181,7 +184,7 @@ Moreover, the static variable resolver pass fixes a problem with closures
 capturing their environment, which exists if environments are implemented with
 mutable instead of immutable data structures~\cite{nystrom2021crafting}.
 
-The ability to mark fields as active or inactive allows to optimize projections:
+The ability to mark fields as active or inactive allows optimizing projections:
 If a projection only wants to pick a subset of a relation's fields and does not
 contain any expressions which require evaluations, the projection can be executed
 by just changing the relation's schema without having to run the interpreter
@@ -257,9 +260,9 @@ As Datalog uses set semantics traditionally, an explicit distinct operator
 is usually not necessary because it is implicitly given.
 Nevertheless, I deviate to allow for bag semantics for two reasons:
 First, in practice it may be useful to be able to work with duplicates.
-Second, enforcing set semantics can be costly performance-wise
+Second, enforcing set semantics can be costly performance-wise,
 as it requires maintaining an index to check for duplicates.
-This is very similar to the situation with relational algebra and SQL.
+This is similar to the situation with relational algebra and SQL.
 In most formal settings, relational algebra uses set semantics but nearly
 every SQL implementation in practice uses bag semantics.
 
@@ -267,22 +270,12 @@ Besides that, new fields can be defined through expressions in the list of field
 of a rule's head.
 Yet, due to name-based indexing, a name must be provided.
 The expressions can reference all variables which are in scope of the rule's body.
-
 My dialect prohibits mutual recursion and only permits self-recursion, i.e.,
 any program's precedence graph must be acyclic except for self-loops.
 This is stricter than stratified Datalog which allows cycles,
 provided that these cycles do not contain a negative edge.
 This is a deliberate design choice to keep the implementation complexity manageable
 while still being sufficient for my \ac{CRDT} use case.
-
-\ref{code:mvr-crdt-datalog-dialect} shows the familiar \ac{MVR} key-value store
-\ac{CRDT} from \ref{ch:intro} in my Datalog dialect.
-Except for the inclusion of \acp{EDBP}, name-based indexing, and the explicit
-use of the ``distinct'' operator, the query is similar to the one
-in \ref{code:mvr-crdt-datalog}.
-The \acp{EDBP} need to be included to make the their fields known to the
-query engine.
-
 \ref{sec:crdts-as-queries} shows the familiar key-value stores from \ref{ch:intro}
 as well as a list \ac{CRDT} in my Datalog dialect.
 
@@ -295,19 +288,21 @@ parsers first. Otherwise, the origin of a parsing bug may be hard to identify.
 
 \section{Translating Datalog to Relational Algebra}\label{sec:datalog-to-relational-algebra}
 
-Due to Datalog's declarative nature, it does not specify how to execute a query
-and leaves the problem of finding a valid execution order to the query engine.
+Due its declarative nature, Datalog does not specify how to execute a query
+and, in particular, leaves the problem of finding a valid execution order
+to the query engine.
 Therefore, a precedence graph is constructed as described in \ref{sec:datalog-negation}
 from the \emph{aggregated} rules of a Datalog program.
 Aggregated means that all rules with the same head are combined into an
 aggregated rule which contains all bodies of the original rules.
 This has the advantage that every predicate is now represented by a single
-aggregated rule and not by multiple rules anymore.
+aggregated rule.
 Then, a topological sort is computed on top of the precedence graph using
 Kahn's algorithm~\cite{kahn1962topological}.
-Next to yielding a valid execution order that respects which predicate has
+In addition to yielding a valid execution order that respects which predicate has
 to be computed before which other predicate, the algorithm also aborts in
-case of a cycle in the precedence graph, thereby detecting invalid programs.
+case of a cycle in the precedence graph, thereby detecting programs that are
+invalid due to use of mutual recursion.
 To avoid a false positive in case of a self-recursive predicate,
 the construction of the precedence graph omits self-loops.
 
@@ -317,55 +312,39 @@ The topologically sorted predicates are mapped into a sequence of statements
 which assign the output of an aggregated rule to a variable with the same name.
 Then, subsequent rules which depend on the output of a previous rule can refer
 to the variable of a previous rule if necessary.
-Due to implicit returns and statements producing values, too,
-the last predicate in the topological sort order becomes the output
-of an \ac{IR} program.
-Due to the nature of topological sortings, the last predicate is the
+The last predicate in the topological sort order implicitly becomes the output
+of the \ac{IR} program because the \ac{IR} supports implicit returns as well as
+statements (potentially) producing values.
+Due to the nature of topological sorting, the last predicate is the
 predicate with the most dependencies and implicitly assumed to be the
 \emph{main predicate of interest} of the Datalog program.
 In case of a tie between multiple predicates, the discovery order of Kahn's
-algorithm is used to break the tie\footnotemark{}.
+algorithm is used to break the tie.
+This is a limitation in the implementation, as it does not support multiple
+main predicates.
+Yet, these may be useful in contexts where computations share dependencies
+for performance or code maintainability, or where the results of multiple
+predicates are needed at the same time.
 
-\footnotetext{
-	I argue that queries with multiple main predicates deserve separate
-	Datalog programs, as they are not related to each other beyond sharing
-	some dependencies.
-}
+\subsection{Translation of Aggregated Rules to the \ac{IR}}
 
 This leaves the question of how to translate an individual aggregated rule
 (predicate) into its \ac{IR} representation.
 The representation is similar to an operator tree in relational algebra.
-To illustrate the translation, I first discuss a naive translation
+To illustrate the translation, I first discuss a \emph{naive} translation
 which emerges from Datalog's reliance on first-order logic that can be
 translated to set-theoretic operations.
+Then, I introduce a more efficient translation which is I have implemented
+for the query engine, called \emph{semi-naive} translation.
 At first, the discussion precludes negative atoms and is limited to
-non-recursive predicates, both which I introduce later.
-Finally, I discuss a more efficient translation which I have implemented for
-the query engine.
-
-The translations often require to \emph{fold} a sequence of atoms into
-nested binary operators, forming an operator tree of the \ac{IR}.
-Next to the sequence, a fold requires an \emph{accumulator} and a \emph{fold function}.
-The accumulator is the starting value of the fold and in case of an empty
-sequence, the fold returns the accumulator.
-Otherwise, the fold function is called for each atom with the accumulator
-and the current atom as arguments and returns the new accumulator for the next
-iteration or the final result of the fold.
-Hence, when I say that a sequence of atoms is
-\emph{folded into an operator tree of a certain binary operator}, e.g., an equijoin,
-\emph{starting from an operator tree} \(\mathit{acc}\), I mean that the initial
-accumulator is \(\mathit{acc}\) and that the fold function nests the current
-accumulator as the binary operator's left input and the current atom as the
-binary operator's right input and returns that new binary operator,
-which has a nesting level one deeper than its input accumulator.
-The real translation in the Rust implementation relies on fold operations as well.
+non-recursive predicates, both of which I introduce successively.
 
 \textbf{Rules with only positive atoms}.
 Non-recursive rules without negative atoms can be naively translated
 into a cartesian product of all predicates in the rule's body followed by
 a selection.
 To handle potential name collisions among the fields,
-each relation is aliased with a unique prefix.
+each positive predicate atom is aliased with a unique prefix.
 Moreover, each referenced predicate is projected to only include the listed
 fields and to potentially rename them.
 The selection's predicate consists of \emph{conjunctions}
@@ -379,6 +358,38 @@ side of the comparison but prefixed with the relations' aliases, respectively.
 Finally, the list of expressions of the rule's head are projected from the
 selection's output.
 
+\ref{fig:naive-plan} shows the naive query plan for the ``mvrStore'' predicate
+(depicted in \ref{code:mvr-store-rule})
+from the \ac{MVR} key-value \ac{CRDT} store from \ref{code:mvr-crdt-datalog}.
+After combining the three positive atoms ``set'', ``isCausallyReady'', and
+``isLeaf'' through a cartesian product, the selection filters out all tuples that
+do not match with the variable reuse stated in the rule's body.
+As the last step, the projection confines the output to the ``Key'' and ``Value''
+fields given by the rule's head.
+
+The \emph{semi-naive} query translation improves upon the naive translation
+by avoiding the cartesian product where possible and instead folding the positive
+atoms into an operator tree of equijoins.
+This avoids large intermediate results of the cartesian products through
+exploiting the selectivity of the join conditions.
+The engine does not, however, optimize join ordering which is why I call it
+\emph{semi-naive}.
+Additionally, the semi-naive translation also eliminates unnecessary projections
+in two cases:
+If the input relations are not renamed, their projections can be omitted.
+Furthermore, any projection that is immediately preceded by a join can be
+coalesced into the join operator, as the join operator of the \ac{IR}
+allows specifying a projection to apply onto its emitted tuples.
+
+\ref{fig:optimized-plan} shows the semi-naive query plan for the ``mvrStore''
+predicate.
+It eliminates all cartesian products and replaces them with equijoins.
+The projections and aliases can also be omitted, reducing the operator count
+from ten to two,
+while also avoiding cartesian products' large intermediate results.
+
+\input{figures/naive_vs_optimized_query_plan.tex}
+
 \textbf{Rules with positive and negative atoms}.
 To handle rules with both positive and negative atoms,
 all atoms in the rule's body are partioned into positive and negative atoms.
@@ -387,53 +398,63 @@ Then, the negative atoms are folded into an operator tree of antijoins,
 starting from the positive atoms' operator tree.
 The partitioning ensures that the positive atoms are evaluated first.
 Due to the \emph{safety condition} of negative Datalog (\ref{sec:datalog-negation}),
-it is then guaranteed that all variables referenced in the negative atoms are
-occuring at least once in the positive atoms, too, rendering the antijoins well-defined.
+it is guaranteed that all variables referenced in the negative atoms occur
+at least once in the positive atoms, too, rendering the antijoins well-defined.
 For the negative atoms, the antijoin operator is useful, as it does not
 require schema equality between its input relations, unlike the set difference operator.
 In theory, the set difference operator could also be used but it may result
 in projections cutting off fields to ensure schema equality between its inputs.
 Yet, in some cases, the previously cut off fields have to be joined back in later.
-To avoid this, I use the antijoin operator which allows to specify set difference
-with respect to a list of expressions.
+To avoid this, I use the antijoin operator, which allows a set difference
+to be specified with respect to a list of expressions.
 
-\textbf{Self-recursive rules}.
-Recursive vs non-recursive predicates.
+\ref{fig:negative-query-plan} shows a query plan for a variant of the
+``mvrStore'' predicate which inlines the ``isLeaf'' predicate
+(see \ref{code:mvr-store-rule-inlined}).
+This causes the ``mvrStore'' rule to contain the negative ``overwritten''
+predicate atom in its body.
+The colored rectangles highlight the partitioning of the atoms into positive
+and negative parts with their respective translations.
+The query plan for the positive atoms is the input to the antijoin operation
+to cover the negative ``overwritten'' atom.
+The final projection to the ``Key'' and ``Value'' fields remains the same as
+before.
+Yet, unlike the equijoin, the antijoin does not support including a projection
+step.
 
 In case of multiple rules with the same head,
 every rule's translated operator tree is folded into a union.
+The use of the union is unproblematic here, as the equal heads of the rules
+ensure that the outputs of the operator trees share the same schema.
+If a rule's head is marked as ``distinct'', its output (after the projection
+to the heads' variables) is wrapped in a distinct operator to eliminate
+duplicates.
+Should \emph{all} rules, which share the same head, be marked as ``distinct'',
+the union is performed first and only a single distinct is applied to the union's
+output, as opposed to applying a distinct operator to each rule's output and
+then performing the union, which would not only be less efficient but also
+semantically incorrect:
+If multiple rules produce the same output tuple, the union operator would
+not eliminate duplicates, as it is not a set operator but a multiset operator.
 Moreover, each rule with an empty body (defining an \ac{EDBP})
-is translated into a relation literal of the \ac{IR}, specifying
-the relation's name and its named fields that can be accessed.
+is translated into a relation literal of the \ac{IR},
+specifying the relation's name and its field names which can be accessed.
 
-To avoid the fatal cartesian product with its exponential blow-up,
-I introduce the \emph{semi-naive} query translation.
-It tries to use as many equijoins as possible and eliminates unnecessary projections.
-Furthermore, because DBSP's join operator allows to include a projection the
-emitted tuples,
-the semi-naive query translation coalesces joins that are immediately followed
-by a projection into a single join operator.
-
-\input{figures/naive_vs_optimized_query_plan.tex}
+\textbf{Self-recursive rules}.
+Self-recursive predicates are translated into a fixpoint iteration of the \ac{IR},
+as shown in \ref{code:trans-closure-ir}.
+To do so, the fixpoint iteration's ``imports'', ``accumulator'', and ``step''
+(iteration body) have to be defined.
+They require to partition the aggregated rule's bodies into \emph{non-recursive}
+and \emph{recursive} bodies, which are individually translated into operator trees
+as described above.
+The accumulator is the initial value of the fixpoint iteration and given by
+the union of the \emph{non-recursive} bodies' operator trees of the aggregated rule.
+The imports are all predicates that are referenced in the rule's \emph{recursive}
+bodies, except for the recursive predicate itself, which does not require importing.
+The iteration body is the union of the \emph{recursive} bodies' operator trees
+of the aggregated rule.
+In case any of the unions only contains a single input, the union is omitted
+and the sole input is used instead.
 
 \input{figures/negative_query_plan.tex}
-
-% \(n \in \mathbb{N}\) number of rules with the same name with index \(i \in [n]\).
-% \(m \in \mathbb{N}\) number of a single rule's atoms with index \(j \in [m]\).
-% \(p \in \mathbb{N}\) number of the rule's head's variables with index \(k \in [p]\).
-% \(p_m \in \mathbb{N}\) number of the \(m\)-th atom's variables with index \(k_m \in [p_m]\).
-
-% \[
-% 	output(v_1, \ldots, v_p) \leftarrow
-% 	input_1(v_1_1, \ldots, v_v_p_1),
-% 	input_2(v_2_1, \ldots, v_2_p_2),
-% 	\ldots
-% 	input_m(v_m_1, \ldots, v_m_p_m),
-% 	filters.
-% \]
-
-% \[
-% 	output(v_1, \ldots, v_p) \leftarrow \ldots .
-% 	\ldots
-% 	output(v_1, \ldots, v_p) \leftarrow \ldots .
-% \]

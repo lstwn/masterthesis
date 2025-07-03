@@ -6,11 +6,14 @@
 \section{Datalog}\label{sec:datalog}
 
 Datalog~\cite{green2013datalog} is a declarative logic programming language
-invented in the 1980s and was influenced by Prolog.
+invented in the 1980s and is a subset of Prolog.
 It is primarily used for expressing queries to retrieve data in database systems.
 A Datalog program (or query) consists of a set of rules, which are used to
 derive new facts from existing ones.
-Unlike SQL, Datalog has not been standardized, and several dialects are in use.
+Unlike SQL, Datalog has not been attempted to be formally standardized,
+and several dialects of it exist.
+The explanations of this section focus on ``conventional'' Datalog
+and in \ref{sec:datalog-frontend} I define my own dialect of it.
 
 \subsection{Syntax and Semantics}\label{sec:datalog-syntax-semantics}
 
@@ -75,7 +78,13 @@ does not introduce anything new.
 edge(from, to, active) :- .
 closure(from, to)      :- edge(from, to, active), active = true.
 closure(from, to)      :- closure(from, via), edge(via, to, active),
-                          active = true.\end{lstlisting}
+                          active = true.
+// Instead use:
+edge(from, to, weight)       :- .
+closure(from, to, weight, 1) :- edge(from, to, weight), from = 2.
+closure(from, to, cweight + weight, hopcnt + 1)
+                             :- closure(from, via, cweight, hopcnt),
+                                edge(via, to, weight).\end{lstlisting}
 	% \end{tabular}
 	\caption{An exemplary computation of a graph's transitive closure with Datalog.}\label{code:trans-closure-datalog}
 \end{figure}

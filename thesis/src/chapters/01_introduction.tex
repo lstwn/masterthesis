@@ -54,7 +54,7 @@ expressing \acp{CRDT} as Datalog queries through:
 % TODO: More explicit forward-referencing.
 \begin{itemize}
 	\item \textbf{Implementing a query engine} which can execute queries
-	      represented in an \ac{IR} (\ref{sec:incremental-query-engine}).
+	      represented in an \ac{IR} (\ref{sec:ir}).
 	      The \ac{IR} works on top of operators from relational algebra, e.g.,
 	      joins, projections, and selections.
 	      The engine uses \ac{IVM}, by leveraging the recently released DBSP
@@ -303,7 +303,7 @@ Hirn et al. \cite{hirn2023fix} discuss these limitations in more detail
 in the context of SQL and propose alternatives.
 Beyond this, SQL is based on multisets and Datalog on sets but Datalog can
 be extended to accomodate multisets as well, as I do when defining
-my Datalog dialect in \ref{sec:datalog-multisets}.
+my Datalog dialect in \ref{sec:datalog-frontend}.
 While SQL offers support for aggregates,
 Datalog requires an extension to support aggregates~\cite{green2013datalog}.
 Yet, aggregates are not required to express the \acp{CRDT} of this work.

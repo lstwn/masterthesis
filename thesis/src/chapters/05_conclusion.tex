@@ -5,29 +5,67 @@
 
 \section{Future Work}\label{sec:future-work}
 
-On query optimization:
-\begin{itemize}
-	\item Better join order. How to choose one in the absence of statistics
-	      and with static query plans?
-	\item Schedule antijoins as early as possible, i.e., if all variables
-	      referenced by a negative atom are in scope, then schedule the antijoin,
-	      to keep the result set small, as opposed to scheduling them at the
-	      end of the query plan.
-\end{itemize}
+This work has laid the groundwork for an incremental query engine
+that can be used to express \acp{CRDT} as Datalog queries.
+Many open questions remain.
+Differential dataflow.
+Non-incremental query processing for hydration use case and then hydrate
+incremental operators in the background?
 
-Define and benchmark more CRDTs.
-
-Optimizations in the interpreter. Represent tuples not as vectors but
-as overflow-to-heap vectors (smallvec)?
+Applying serious query optimization has the potential to improve
+the performance of the query engine but this is a challenge in its own right.
+Particularly, in the context of \ac{IVM} and transpilation from Datalog to
+relational algebra, I want to emphasize two aspects:
 
 \begin{itemize}
-	\item Support for mutual recursion and aggregation.
-	\item Type checking and dead code elimination.
-	\item JSON support.
+	\item \textbf{Join ordering}.
+	      As discussed in \ref{sec:ivm}, changing a query plan for a continuously
+	      evaluated query can be costly.
+	      Also, the query plan has to be chosen upfront and with the absence of
+	      statistics about the data.
+	      Hence, to what extent is an automated join ordering algorithm useful
+	      in this context? Possibly, it may be better to let the query
+	      author choose a definitive join order or allow them to provide
+	      information about data distributions in case of automated join ordering.
+	\item \textbf{Scheduling of antijoins}.
+	      Negative atoms are handled with antijoins in the query engine.
+	      So far, they are scheduled after the query plan covering the
+	      positive atoms.
+	      However, antijoins may actually be scheduled better by placing them
+	      as early as possible, i.e., if all variables referenced by a
+	      negative atom are in scope, to keep the intermediate result set small.
+	      This is  because in the worst case, antijoins leave the intermediate
+	      result set unchanged but in the average case they filter tuples out.
+	      This is similar to predicate pushdown and, therefore, I call this
+	      problem \emph{antijoin pushdown}.
 \end{itemize}
+
+The query engine itself could benefit from performance engineering.
+Tuples are currently represented as vectors and, hence, each tuple access
+may cause a cache miss.
+Testing different tuple data layouts, e.g., overflow-to-heap vectors
+(such as \texttt{smallvec} in Rust), could be an interesting direction in
+practical performance engineering.
+
+Feature-wise, the query engine could be extended to support mutual recursion
+and aggregation but I do not consider these features essential for the
+\ac{CRDT} use case. On the other hand, native JSON support may be useful for
+defining a JSON \ac{CRDT} like Automerge does.
+To improve practical usability of the Datalog frontend,
+a type checking pass, better error reporting, and dead code elimination
+could be added to the query engine.
+The latter may be useful to detect and eliminate unnecessary predicates
+that do not contribute to the main predicate(s) of interest of a Datalog program.
+
+\ref{sec:crdts-as-queries} defines map and list \acp{CRDT} as queries.
+More research is needed to define and benchmark further \acp{CRDT} as queries
+before putting this idea into practice.
+It is especially important to better understand their performance under various
+workloads, e.g., different concurrency patterns, to guide future directions for
+optimizing the query engine.
 
 \section{Outlook}\label{sec:outlook}
 
 Similar to how queries made data retrieval and storage more accessible to
 application developers, I hope that expressing \acp{CRDT} as queries
-makes collaborative software more accessible, too.
+makes \acp{CRDT} and thereby collaborative applications more accessible, too.

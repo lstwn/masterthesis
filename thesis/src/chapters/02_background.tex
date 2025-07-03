@@ -8,8 +8,8 @@
 Datalog~\cite{green2013datalog} is a declarative logic programming language
 invented in the 1980s and is a subset of Prolog.
 It is primarily used for expressing queries to retrieve data in database systems.
-A Datalog program (or query) consists of a set of rules, which are used to
-derive new facts from existing ones.
+A Datalog program (or query) consists of a set of rules,
+which are used to derive new facts from existing ones.
 Unlike SQL, Datalog has not been attempted to be formally standardized,
 and several dialects of it exist.
 The explanations of this section focus on ``conventional'' Datalog
@@ -17,8 +17,9 @@ and in \ref{sec:datalog-frontend} I define my own dialect of it.
 
 \subsection{Syntax and Semantics}\label{sec:datalog-syntax-semantics}
 
-Rules define \emph{predicates} and are syntactially expressed in the form of
-Horn clauses, which are logical implications adhering to this structure:
+Rules define \emph{predicates} which contain facts (also called tuples).
+Syntactically, rules are expressed in the form of Horn clauses,
+which are logical implications adhering to this structure:
 
 \begin{equation}
 	\underbrace{
@@ -38,56 +39,19 @@ A head consists of an identifier, which also defines the name of the predicate
 whose definition the rule contributes to, as well as a comma-separated list of expressions
 which may reference variables defined in the rule's body.
 A body is a comma-separated sequence of \emph{atoms} followed by a trailing ``.'' (dot).
-An atom is either referencing another \emph{predicate} (hereafter predicate atoms)
-to bring some of its variables into scope or imposing a boolean condition
+An atom either references another \emph{predicate} (hereafter predicate atoms)
+to bring some of its variables into scope or imposes a boolean condition
 (hereafter condition atom).
 A condition can either restrict a variable's value range (e.g. \(x = 3\))
 or specify a relationship with another variable (e.g. \(x = y\)).
 
+It is permitted to have multiple rules share the same head, that is,
+they have the same identifier and arity of expressions.
+In that case, they jointly define the predicate named after their heads' identifier.
 A rule (a predicate) is said to be \emph{self-recursive}
 if it references itself in its (one of its) body (bodies).
-Moreover, it is possible to have multiple rules share the same head, that is,
-they have the same identifier and list of expressions.
-In that case, they jointly define the predicate named after their heads' identifier.
-
-\ref{code:trans-closure-datalog} illustrates the concepts for the
-computation of a graph's transitive closure with Datalog.
-It contains three rules which define the two predicates, ``edge'' and ``closure''.
-The ``edge'' predicate has an empty body,
-leaving just the dot on the rule's right-hand side.
-The ``closure'' predicate is defined through the last two rules sharing
-the same head.
-The last rule's body consists of three atoms: The first one references itself,
-rendering the rule self-recursive, the second one references the ``edge'' predicate,
-and the last atom defines a condition, restricting the value range of the
-``active'' variable.
-The first two atoms bring the variables ``from'', ``via'', ``to'', and ``active''
-into scope.
-The appearance of the same variable ``via'' in both atoms implies that their
-values must be equal, i.e.,
-\(a_1(x), a_2(x)\) is a shorthand for \(a_1(x_1), a_2(x_2), x_1 = x_2\).
-Next to defining the name of the predicate, the head specifies that the ``from''
-and ``to'' variables are exposed for the ``closure'' predicate.
-The second rule's body consists of two atoms but, syntactically,
-does not introduce anything new.
-
-\begin{figure}[htpb]
-	\centering
-	% \begin{tabular}{c}
-	\begin{lstlisting}[keepspaces]
-edge(from, to, active) :- .
-closure(from, to)      :- edge(from, to, active), active = true.
-closure(from, to)      :- closure(from, via), edge(via, to, active),
-                          active = true.
-// Instead use:
-edge(from, to, weight)       :- .
-closure(from, to, weight, 1) :- edge(from, to, weight), from = 2.
-closure(from, to, cweight + weight, hopcnt + 1)
-                             :- closure(from, via, cweight, hopcnt),
-                                edge(via, to, weight).\end{lstlisting}
-	% \end{tabular}
-	\caption{An exemplary computation of a graph's transitive closure with Datalog.}\label{code:trans-closure-datalog}
-\end{figure}
+Similarly, several distinct rules (distinct predicates) are said to be
+\emph{mutually recursive} if they reference each other in their bodies.
 
 Semantically, a rule can be read from right to left: The body's atoms are
 connected with conjunctions and all variable assignments that satisfy that term
@@ -109,48 +73,90 @@ Mathematically, a rule can be expressed as\footnotemark{}:
 If there are multiple rules with the same head, their bodies' conjunctions
 are connected through a disjunction~\cite{abo2024convergence}.
 \emph{Fact rules} are special rules without a body (with $n=0$), e.g.
-\( r \text{ :- } .\), and they are assumed to be unconditionally true.
-Unlike \emph{derived facts}, \emph{base facts} of fact rules are externally
-given and not derived from other rules.
-Hence, the predicates defined by fact rules and the predicates defined by regular
-rules (those with a body) can be partioned into two disjoint sets:
-\emph{\acfp{EDBP}} and \emph{\acfp{IDBP}}. Only \acp{IDBP} may reference \acp{EDBP}
-but not vice-versa.
-Facts contain \emph{fields} that can assume basic scalar types such as strings,
-numbers, or booleans.
+\( r \text{ :- } .\), and define \acp{EDBP}, whose facts are called
+\emph{base facts}, are externally given, and assumed to be unconditionally true.
+Regular rules with a non-empty body (with $n>0$) define \acp{IDBP}
+and their facts are called \emph{derived facts}.
+Only \acp{IDBP} may reference \acp{EDBP}.
+Facts are an \emph{ordered} list of \emph{fields} that can assume basic scalar
+types such as strings, numbers, or booleans.
+Due to their ordered nature, fields are accessed through positional indexing.
 Moreover, for a regular rule to be valid the \emph{range-restriction property}
 must be satisfied~\cite{green2013datalog}:
 It demands that every variable occuring in the head of a rule must also occur
-at least once in a predicate atom of its body.
+at least once in a predicate atom of its body, to avoid a dangling reference
+to a variable.
 
-Allowing rules to be self-recursive equips Datalog with the ability to express
+Allowing rules to be recursive equips Datalog with the ability to express
 repeated computations, therefore requiring a termination condition.
 Datalog uses least-fixpoint semantics, under which the computation terminates
-if an additional iteration of the repeated computation does not alter the result
-anymore \emph{for the first time}.
-This has some consequences but before discussing them I am now in position
-to illustrate the semantics of the example query in \ref{code:trans-closure-datalog}.
+if an additional iteration of applying a program's rules does contribute further
+derived facts to its result anymore \emph{for the first time}.
 For a more formal treatment of Datalog's semantics, I refer to \cite{green2013datalog}
 which provides an overview on three equivalent formalisms to precisely define
 Datalog's semantics: Model-theoretic, fixpoint-theoretic, and proof-theoretic.
 
-The ``edge'' \ac{EDBP} contains all edges of a graph and these are given
-externally, e.g., through an insertion into the database.
-The predicate defines the fields ``from'', ``to'', and ``active''.
-The former two specify \emph{from which node to which other node} an edge points to.
-The latter field can be used to enable or disable an edge but this is just
-a contrived example to demonstrate a condition on a variable.
+Due to the use of relational algebra as the basis for an \ac{IR}
+in \ref{ch:implementation}, I point out some similarities and differences to it,
+as well as to SQL, because it is the predominant frontend to relational algebra.
+The counterpart of a predicate in relational algebra is a \emph{relation}, while
+the equivalent in SQL is a \emph{table}.
+They all define a name under which facts (tuples in relational algebra;
+rows in SQL) are made available, whose fields contain scalar values.
+Datalog uses positional indexing to access fields, whereas in
+relational algebra and SQL, fields are accessed by their name.
+Furthermore, Datalog's predicates usually offer set semantics,
+and SQL's tables are defined as \emph{multisets} (bags) which permit duplicates.
+The semantics of relations in relational algebra depend on the context and
+can be either set-based or multiset-based.
+
+\begin{figure}[htpb]
+	\centering
+	\begin{lstlisting}[keepspaces]
+edge(from, to, weight)       :- .
+closure(from, to, weight, 1) :- edge(from, to, weight), from = 2.
+closure(from, to, cweight + weight, hopcnt + 1)
+                             :- closure(from, via, cweight, hopcnt),
+                                edge(via, to, weight).\end{lstlisting}
+	\caption{An exemplary computation of a graph's transitive closure with Datalog.}\label{code:trans-closure-datalog}
+\end{figure}
+
+\ref{code:trans-closure-datalog} illustrates the concepts for the
+computation of a graph's transitive closure with Datalog.
+It contains three rules which define the two predicates, ``edge'' and ``closure''.
+Due its empty body, the ``edge'' rule defines an \ac{EDBP} whose facts
+contain the fields ``from'', ``to'', and ``weight'' and define an edge
+in a directed, weighted graph.
+The first two fields specify \emph{from which node to which other node} an edge
+points to, while the third field specifies \emph{the weight of the edge}.
+Their types are not specified here but can be assumed to be (non-negative) integers.
+The facts of the ``edge'' predicate are not computed by Datalog but
+are assumed to be given externally, e.g., through an insertion into the database.
+The ``closure'' \ac{IDBP} is defined through the last two rules sharing
+the same head.
+The last rule's body consists of two atoms: The first one references itself,
+rendering the rule self-recursive, and the second one references the ``edge'' predicate.
+Together they bring the variables ``from'', ``via'', ``cweight'', ``hopcnt'',
+``to'', and ``weight'' into scope.
+The appearance of the same variable ``via'' in both atoms implies that their
+values must be equal, i.e.,
+\(a_1(x), a_2(x)\) is a shorthand for \(a_1(x_1), a_2(x_2), x_1 = x_2\).
+Next to defining the name of the predicate, the head specifies that the ``from''
+and ``to'' variables are exposed as the first two fields of the ``closure'' predicate,
+and that its third and fourth field are defined through their respective expressions.
+The second rule's body also contains the ``edge'' predicate atom and a condition
+atom which restricts the ``from'' variable to be equal to the value ``2''.
 The ``closure'' \ac{IDBP} specifies the actual computation of the graph's
 transitive closure.
-The first rule of its definition specifies the computation's starting point,
+The second rule specifies the computation's starting point,
 that is, all pairs of nodes which are reachable through a path of length 1
-and which are marked as ``active''.
-The second rule takes all node pairs identified so far, which are reachable
+(direct edge), whose first entry is the node with id ``2''.
+The third rule takes all node pairs identified so far, which are reachable
 through paths of length \(n\), and discovers new node pairs connected
 through a path of length \(n + 1\),
-again while restricting the edges to be marked as ``active''.
+while keeping track of the cumulated weight of the path and the number of hops.
 The computation terminates if a (re)application of the rules on top of the
-currently derived facts does not produce more facts,
+currently derived facts does not produce new facts,
 upon which the least-fixpoint is attained.
 
 Least-fixpoint computations can only solve problems whose solutions
@@ -161,49 +167,28 @@ a global optimum in non-convex optimization.
 Another issue, not necessarily tied to least-fixpoint computations but shared
 with all termination criteria, is that it is impossible to prevent
 non-terminating computations in general.
-Consider a small variation on the computation in \ref{code:trans-closure-datalog}.
-If every edge carried a non-negative weight and the query should additionally
-keep track of the cumulated weight for each node pair of the transitive closure,
-the computation's termination hinges on the graph being cycle-free.
+Due to keeping track of the cumulated weight and the number of hops,
+the computation in \ref{code:trans-closure-datalog} is only guaranteed to terminate
+if the graph is cycle-free.
 With cycles, the computation would walk cycles endlessly and constantly discover
 higher cumulated weights, for node pairs which are part of a cycle.
 A discussion of alternatives to fixpoints in the context of SQL
 can be found in \cite{hirn2023fix}.
 
-Traditionally, Datalog offers set semantics and does not support multisets.
-Moreover, it does not use name-based-indexing but positional-indexing.
-As Datalog lacks a formal specification, there are many flavours of it,
-and later I define my own dialect of it which supports multisets and
-uses name-based-indexing.
-
-Due to the use of relational algebra as an \ac{IR} in \ref{ch:implementation},
-I point out some connections to it, as well as to SQL,
-because the latter is the predominant frontend to relational algebra.
-The equivalent of a \emph{relation} in Datalog is a predicate:
-They both define a name under which \emph{tuples} (facts in Datalog; rows in SQL)
-are made available. SQL calls this construct a \emph{table}.
-Yet, relational algebra does not distinguish between base facts and derived facts
-the same way Datalog does.
-The closest counterpart to derived facts are the tuples of a materialized view
-in SQL.
-I suspect that this is due to the little emphasis on composition in SQL.
-
 \subsection{Negation Extension}\label{sec:datalog-negation}
 
 The Datalog semantics presented so far are not sufficient to express,
-for instance, relational algebra's set difference operator or the advanced example
-in \ref{code:mvr-crdt-datalog} from \ref{ch:intro} due to its lack of negation.
+for instance, relational algebra's set difference operator or the advanced
+example in \ref{code:mvr-crdt-datalog} due to its lack of negation.
 However, introducing negation without any restrictions to Datalog causes
 semantic issues, as \ref{code:negative-datalog-issue} demonstrates:
 
 \begin{figure}[htpb]
 	\centering
-	% \begin{tabular}{c}
 	\begin{lstlisting}[keepspaces]
 // TODO: Is there a better example? Maybe with some real-world ties?
 r_1 :- not r_2.
 r_2 :- not r_1.\end{lstlisting}
-	% \end{tabular}
 	\caption{A negative Datalog program with unclear semantics~\cite{green2013datalog}.}\label{code:negative-datalog-issue}
 \end{figure}
 

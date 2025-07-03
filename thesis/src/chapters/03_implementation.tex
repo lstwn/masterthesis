@@ -147,9 +147,10 @@ are evaluated. I refer to this as \emph{query execution-time}.
 
 \input{figures/ir_transitive_closure.tex}
 
-\ref{code:trans-closure-ir} shows the computation of a graph's transitive closure
-from \ref{sec:datalog-syntax-semantics} expressed in pseudocode which resembles
-the real representation of the \ac{IR} but with Rust-specific boilerplate omitted.
+\ref{code:trans-closure-ir} shows the same computation of a graph's transitive
+closure from \ref{sec:datalog-syntax-semantics} but expressed in pseudocode which
+resembles the real representation of the \ac{IR} but with some Rust-specific
+boilerplate omitted.
 On the top level, it shows the main statements of the \ac{IR} program which
 are all variable assignments in this case.
 The defined variables, ``edges'', ``base'', and ``closure'', can then be referenced

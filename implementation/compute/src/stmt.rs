@@ -58,8 +58,6 @@ pub struct VarStmt {
     pub initializer: Option<Expr>,
 }
 
-// NOTE: When parsing, allow it to behave just like an expression if it is
-// the last statement
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExprStmt {
     pub expr: Expr,

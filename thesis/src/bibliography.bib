@@ -380,3 +380,31 @@
     year={2021},
     publisher={Genever Benning}
 }
+@article{moveop1,
+  author={Kleppmann, Martin and Mulligan, Dominic P. and Gomes, Victor B. F. and Beresford, Alastair R.},
+  journal={IEEE Transactions on Parallel and Distributed Systems},
+  title={A Highly-Available Move Operation for Replicated Trees},
+  year={2022},
+  volume={33},
+  number={7},
+  pages={1711-1724},
+  keywords={Internet;Synchronization;Computer bugs;XML;Software;Drives;Data models;Conflict-free replicated data types (CRDTs);formal verification;distributed filesystems;distributed collaboration},
+  doi={10.1109/TPDS.2021.3118603}
+}
+@inproceedings{moveop2,
+  author = {Da, Liangrun and Kleppmann, Martin},
+  title = {Extending JSON CRDTs with Move Operations},
+  year = {2024},
+  isbn = {9798400705441},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3642976.3653030},
+  doi = {10.1145/3642976.3653030},
+  abstract = {Conflict-Free Replicated Data Types (CRDTs) for JSON allow users to concurrently update a JSON document and automatically merge the updates into a consistent state. Moving a subtree in a map or reordering elements in a list within a JSON CRDT is challenging: naive merge algorithms may introduce unexpected results such as duplicates or cycles. In this paper, we introduce an algorithm for move operations in a JSON CRDT that handles the interaction with concurrent non-move operations, and uses novel optimisations to improve performance. We plan to integrate this algorithm into the Automerge CRDT library.},
+  booktitle = {Proceedings of the 11th Workshop on Principles and Practice of Consistency for Distributed Data},
+  pages = {8–14},
+  numpages = {7},
+  keywords = {conflict-free replicated data types, replica consistency, JSON, tree data structures, move operation},
+  location = {Athens, Greece},
+  series = {PaPoC '24}
+}

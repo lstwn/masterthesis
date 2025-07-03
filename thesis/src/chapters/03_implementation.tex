@@ -335,7 +335,7 @@ To illustrate the translation, I first discuss a \emph{naive} translation
 which emerges from Datalog's reliance on first-order logic that can be
 translated to set-theoretic operations.
 Then, I introduce a more efficient translation which is I have implemented
-for the query engine, called \emph{semi-naive} translation.
+for the query engine, called \emph{subpar} translation.
 At first, the discussion precludes negative atoms and is limited to
 non-recursive predicates, both of which I introduce successively.
 
@@ -367,12 +367,12 @@ do not match with the variable reuse stated in the rule's body.
 As the last step, the projection confines the output to the ``Key'' and ``Value''
 fields given by the rule's head.
 
-The \emph{semi-naive} query translation improves upon the naive translation
+The \emph{subpar} query translation improves upon the naive translation
 by avoiding the cartesian product where possible and instead folding the positive
 atoms into an operator tree of equijoins.
 This avoids large intermediate results of the cartesian products through
 exploiting the selectivity of the join conditions.
-Additionally, the semi-naive translation eliminates unnecessary projections
+Additionally, the subpar translation eliminates unnecessary projections
 in two cases:
 If the input relations are not renamed, their projections can be omitted.
 Furthermore, any projection that is immediately preceded by a join can be
@@ -380,9 +380,9 @@ coalesced into the join operator, as the join operator of the \ac{IR}
 allows specifying a projection to apply onto its emitted tuples.
 The engine does not, however, optimize join ordering or apply other
 optimization techniques, such as predicate pushdown or expression simplification,
-which is why I call it \emph{semi-naive}.
+which is why I call it \emph{subpar}.
 
-\ref{fig:optimized-plan} shows the semi-naive query plan for the ``mvrStore''
+\ref{fig:optimized-plan} shows the subpar query plan for the ``mvrStore''
 predicate.
 It eliminates all cartesian products and replaces them with equijoins.
 The projections and aliases can also be omitted, reducing the operator count

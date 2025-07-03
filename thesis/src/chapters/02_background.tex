@@ -296,18 +296,37 @@ the program contains \emph{mutually recursive} predicates.
 
 \section{\acsp{CRDT} and Coordination-Free Environments}\label{sec:crdt-coordination-free}
 
-\acfp{CRDT}\footnotemark{} try to solve the problems arising from asynchronous
-collaboration over message-passing networks on the data structure level and
-without the help of a central entity coordinating replicas and message flows.
-In these coordination-free environments, in which replicas can be offline
-for extended periods of time but are still permitted to write (and read)
-to (from) their local state at any time,
-the naive delivery of messages allows messages to be arbitrarily delayed,
-to be reordered, and the same message may be delivered multiple times.
-\acp{CRDT} address these challenges by augmenting messages (hereafter updates
-to the \ac{CRDT}) with additional metadata (1) to preserve the user's intention
+Some distributed applications require to continue to operate in the presence of
+network partitions because they want to support offline use cases (high availability).
+Additionally, they may want support fast local writes because they cannot afford
+to wait for a network round trip to happen until the write becomes
+visible (low latency).
+For instance, collaborative editors may want both properties to allow users
+to work regardless of their network connectivity as well as to provide a
+responsive user experience offering a latency within the order of magnitude
+of local disk access instead of that of a network round trip.
+The high availability and low latency properties define coordination-free
+environments and set them apart from distributed systems that require coordination.
+Yet, reads may be stale insofar that they do not always reflect the full global state.
+As a consequence, application specific invariants may be violated on the aggregate
+level after convergence, even though each write individually respected the invariants,
+based on their respective replica's state at write creation time.
+As long as applications can tolerate temporary violations of their invariants,
+they can take advantage of the high availability and low latency properties
+of coordination-free environments.
+
+\acfp{CRDT}\footnotemark{} are one solution for implementing coordination-free
+environments.
+They address the challenges by coordination-free environments by augmenting
+writes with additional metadata (1) to preserve the user's intention
 in the ``best'' possible manner and (2) to ensure the convergence of replicas,
 even after temporary divergence.
+\acp{CRDT} allow replicas to be offline for extended periods of time
+while still permitting them to write (and read) to (from) their local state
+at any time without having to coordinate with other replicas.
+When replicas come back online, they exchange their local state
+and converge to a common state, which is guaranteed to be the same for all
+replicas that have delivered the same set of updates.
 
 \footnotetext{
 	Although \acp{CRDT} are often referred to as \emph{Conflict-free} Replicated
@@ -321,19 +340,6 @@ even after temporary divergence.
 	(and their order).
 }
 
-Compared to distributed systems that require coordination,
-this model has some advantages and disadvantages.
-First, it offers excellent availability and latency for writes because
-they do not have to coordinate over the network with other replicas.
-Second, reads also offer excellent latency as they can just read local state.
-Yet, reads may be stale insofar that they do not always reflect the full global state.
-As a consequence of allowing offline writes,
-application specific invariants (beyond the ones guaranteed by the concrete \ac{CRDT})
-may be violated on the aggregate level after convergence,
-even though each write individually respected the invariants (based on their
-respective replica's state at write creation time).
-This has to be addressed by the application.
-
 The literature defines two classes of \acp{CRDT}: state-based and operation-based
 which both have different requirements for correctness.
 Let \( S \) be the set of all possible states of a \ac{CRDT}.
@@ -341,7 +347,7 @@ State-based \acp{CRDT} require a merge function \( \sqcup: S \times S \to S \)
 which must be commutative, associative, and idempotent.
 Operation-based \acp{CRDT} require that the operation functions \( op_i: S \to S \)
 are commutative and applied exactly once.
-Both models must adhere to these properties under the strong eventual consistency
+Both models must adhere to these properties under the \emph{strong eventual consistency}
 model which demands three properties~\cite{shapiro2011comprehensive}:
 
 \begin{enumerate}
@@ -356,16 +362,14 @@ Verifying the correctness of a \ac{CRDT} is a complex,
 error-prone task~\cite{gomes2017verifying, kleppmann2022assessing},
 even for people familiar with distributed systems,
 and currently has to be done for each \ac{CRDT} individually.
-If, however, the set of operations on a \ac{CRDT} \emph{is} the state,
+If, however, the set of operations performed on a \ac{CRDT} \emph{is} the state,
 the merge function can be defined as the set union,
-for which the properties of commutativity, associativity, and idempotency hold.
-The critical convergence property demanded by the strong eventual consistency
+for which the properties of commutativity, associativity, and idempotence hold.
+The convergence property demanded by the strong eventual consistency
 model is then also trivially satisfied because the state is by definition
 the set of all (delivered) operations.
-Moreover, applying any \emph{pure}\footnote{
-	That is, the function is deterministic and side-effect-free.
-}
-function \( f: S \to T \) on the state does not impede the convergence property,
+Moreover, applying any \emph{pure}, i.e., deterministic and side-effect-free,
+function \( f: S \to T \) on the state preserves the convergence property,
 as the function is applied on all replicas in the same deterministic way.
 \( T \) is an arbitrary set of all possible derived states \( f \) can map to.
 This approach to \acp{CRDT} is known in the literature as
@@ -382,23 +386,21 @@ The \emph{database layer} maintains the views \deltaO{},
 as defined by the \ac{CRDT} Datalog queries formulated on the \emph{application layer},
 in response to updates from both the local \deltaI{local} and remote replicas
 \deltaI{remote}.
-In this presentation, the application layer is responsible for forwarding updates
-to the database layer but forwarding could equally well happen on the database layer.
+The application layer is responsible for forwarding updates to the database layer
+but forwarding could equally well happen on the database layer.
 As explained in \ref{sec:advanced_example}, the database layer must be capable
 of atomically updating all relations of a write to safeguard the \ac{CRDT} queries
-against reading inconsistent state.
+against reading inconsistent input state.
 
 Although \ref{fig:system-arch} illustrates a peer to peer architecture,
-different network topologies are also possible due to the lack of hierarchy.
+different network topologies are also possible.
 For instance, a star network topology with a central server could be used
-for more efficient update gossiping.
-However, the issue of update propagation (and update integrity) is not the focus
+for more efficient update dissemination.
+However, the issue of update dissemination (and update integrity) is not the focus
 of this work and various approaches are discussed in the literature~\cite{
 	auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
 	kleppmann2022making}.
-This also precludes the question of how to efficiently send just the minimum
-set of missing updates to each replica.
-I only make the basic assumption of some network topology and protocol
+I only make the basic assumption of some network and protocol
 which ensures that each update will eventually be delivered to all replicas.
 Furthermore, replicas are assumed to be non-byzantine.
 

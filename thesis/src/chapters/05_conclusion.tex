@@ -63,6 +63,12 @@ before putting this idea into practice.
 It is especially important to better understand their performance under various
 workloads, e.g., different concurrency patterns, to guide future directions for
 optimizing the query engine.
+Finally, the question remains if there are \acp{CRDT} that cannot be expressed
+with Datalog's restricted expressiveness with stratified negation.
+A move operation in replicated trees~\cite{moveop1,moveop2} may be a challenging
+candidate, as it requires rolling back updates to a previous state,
+applying the move operation, then reapplying the previously undone updates,
+and potentially aborting if a cycle is detected.
 
 \section{Outlook}\label{sec:outlook}
 

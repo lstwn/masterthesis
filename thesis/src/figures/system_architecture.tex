@@ -1,5 +1,6 @@
 \newcommand{\replica}{
 	\begin{tikzpicture}
+		\scriptsize
 		\tikzset{
 		layer/.style={
 				rectangle, draw, minimum height=1.5cm, minimum width=2.3cm,
@@ -13,12 +14,12 @@
 		\node[layer,right=of app] (db) {
 			\textbf{Database Layer}\\
 			Maintains Datalog\\
-			Queries \(\delta I \to \delta O\)
+			Queries \deltaI{} \(\to\) \deltaO{}
 		};
-		\node[layer,above=2.0cm of app] (user) {\textbf{User}};
+		\node[layer,above=2.0cm of app] (user) {\textbf{\ac{GUI}}};
 
-		\draw[rel] (user) to[bend left] node[midway,near start,auto=left,yshift=-7pt]{issues \deltaI{local}} (app);
-		\draw[rel] (app) to[bend left] node[auto,sloped]{sees \deltaO{}} (user);
+		\draw[rel] (user) to[bend left] node[midway,near start,auto=left,yshift=-7pt]{emits new \deltaI{local}} (app);
+		\draw[rel] (app) to[bend left] node[auto,sloped]{integrates \deltaO{}} (user);
 
 		\draw[rel] (app)
 		to[bend right=45, auto=right]
@@ -26,7 +27,7 @@
 		(db);
 		\draw[rel] (db)
 		to[bend right=45, auto=right]
-		node[midway, near start]{provides \deltaO{}}
+		node[midway, near start]{derives \deltaO{}}
 		(app);
 	\end{tikzpicture}
 }

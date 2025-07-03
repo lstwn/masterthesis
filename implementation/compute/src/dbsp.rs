@@ -796,4 +796,83 @@ mod test {
 
         Ok(())
     }
+
+    #[test]
+    fn multiple_outputs() -> Result<(), anyhow::Error> {
+        const STEPS: usize = 2;
+
+        let (circuit, (filter_output, join_output)) = RootCircuit::build(|root_circuit| {
+            let mut left = ([
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                    Tup2(1, 1) => { Tup2(1, 1) => 1 },
+                    Tup2(2, 1) => { Tup2(1, 1) => 1 },
+                    Tup2(2, 3) => { Tup2(1, 1) => 1 },
+                },
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                    Tup2(1, 2) => { Tup2(1, 1) => 1 },
+                    Tup2(2, 2) => { Tup2(1, 1) => 1 },
+                },
+            ] as [_; STEPS])
+                .into_iter();
+            let left = root_circuit.add_source(Generator::new(move || left.next().unwrap()));
+
+            let mut right = ([
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                    Tup2(2, 1) => { Tup2(2, 2) => 1 },
+                    Tup2(2, 2) => { Tup2(2, 2) => 1 },
+                },
+                indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                    Tup2(2, 3) => { Tup2(2, 2) => 1 },
+                },
+            ] as [_; STEPS])
+                .into_iter();
+            let right = root_circuit.add_source(Generator::new(move || right.next().unwrap()));
+
+            let left_filtered = left.filter(|(k, v)| k.0 == 2);
+
+            let joined = left_filtered.join_index(&right, |k, Tup2(l1, l2), Tup2(r1, r2)| {
+                // Merge left and right tuples.
+                Some((*k, Tup4(*l1, *l2, *r1, *r2)))
+            });
+
+            // We output both the intermediate filter result and the final join result.
+            Ok((left_filtered.output(), joined.output()))
+        })?;
+
+        let mut expected_join_outputs = ([
+            indexed_zset! {Tup2<usize, usize> => Tup4<usize, usize, usize, usize>:
+                Tup2(2, 1) => { Tup4(1, 1, 2, 2) => 1 },
+            },
+            indexed_zset! {Tup2<usize, usize> => Tup4<usize, usize, usize, usize>:
+                Tup2(2, 2) => { Tup4(1, 1, 2, 2) => 1 },
+                Tup2(2, 3) => { Tup4(1, 1, 2, 2) => 1 },
+            },
+        ] as [_; STEPS])
+            .into_iter();
+
+        let mut expected_filter_outputs = ([
+            indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                Tup2(2, 1) => { Tup2(1, 1) => 1 },
+                Tup2(2, 3) => { Tup2(1, 1) => 1 },
+            },
+            indexed_zset! {Tup2<usize, usize> => Tup2<usize, usize>:
+                Tup2(2, 2) => { Tup2(1, 1) => 1 },
+            },
+        ] as [_; STEPS])
+            .into_iter();
+
+        for i in 1..=STEPS {
+            circuit.step()?;
+            let filter_result = filter_output.take_from_all();
+            let filter_result = filter_result.first().unwrap();
+            println!("FILTER {filter_result:?}");
+            assert_eq!(*filter_result, expected_filter_outputs.next().unwrap());
+            let join_result = join_output.take_from_all();
+            let join_result = join_result.first().unwrap();
+            println!("JOIN {join_result:?}");
+            assert_eq!(*join_result, expected_join_outputs.next().unwrap());
+        }
+
+        Ok(())
+    }
 }

@@ -177,34 +177,48 @@ can be found in \cite{hirn2023fix}.
 
 \subsection{Negation Extension}\label{sec:datalog-negation}
 
-The Datalog semantics presented so far are not sufficient to express,
-for instance, relational algebra's set difference operator or the advanced
-example in \ref{code:mvr-crdt-datalog} due to its lack of negation.
-However, introducing negation without any restrictions to Datalog causes
+So far I presented \emph{positive} Datalog, which does not allow to negate
+variables.
+This leaves Datalog's expressiveness quite limited, as, for instance, it cannot
+express relational algebra's set difference operator or the advanced
+example in \ref{code:mvr-crdt-datalog}.
+However, introducing negation without any restrictions onto Datalog causes
 semantic issues, as \ref{code:negative-datalog-issue} demonstrates:
 
 \begin{figure}[htpb]
 	\centering
 	\begin{lstlisting}[keepspaces]
-// TODO: Is there a better example? Maybe with some real-world ties?
-r_1 :- not r_2.
-r_2 :- not r_1.\end{lstlisting}
-	\caption{A negative Datalog program with unclear semantics~\cite{green2013datalog}.}\label{code:negative-datalog-issue}
+human(name)    :- .
+isLiar(name)   :- human(name), not isHonest(name).
+isHonest(name) :- human(name), not isLiar(name).
+\end{lstlisting}
+	\caption{A Datalog program with negation but unclear semantics.}\label{code:negative-datalog-issue}
 \end{figure}
 
-TODO: Exlain the issue.
+Assuming that the ``human'' \ac{EDBP} only contains the fact
+\(\{ \mathit{epimenides} \}\)\footnotemark{}, and trying to intuitively evaluate the
+``isLiar'' \ac{IDBP}, forces the evaluation to assess the ``isHonest'' \ac{IDBP}
+for \textit{epimenides}, which in turn triggers the evaluation of the
+``isLiar'' \ac{IDBP} for \textit{epimenides} again, and so forth.
+Hence, carelessly introducing negation in Datalog causes undefined semantics
+in case of recursive rules which use negation as part of their recursive definition.
+To (quite literally) break this cycle, \emph{semipositive} Datalog is introduced
+first, which is just a vehicle to capture the semantics of \emph{stratified}
+Datalog, both of which are syntactic restrictions on the use of negation and
+recursion~\cite{green2013datalog}.
+While there are other approaches to reimpart unambiguous semantics to
+Datalog with negation, \emph{stratified negation} is the predominant
+one~\cite{green2013datalog}.
 
-The most common resolution to reimpart unambiguous semantics to negative Datalog
-is called \emph{stratified negation}~\cite{green2013datalog} which is a syntactic
-restriction on the use of negation together with recursion:
-For a \emph{recursive} rule, it disallows negation in its body
-(or in any of its predicates' bodies it references in its body).
-To characterize the semantics of stratified negation,
-an even stricter syntactic restriction called \emph{semipositive Datalog}
-is introduced first.
+\footnotetext{
+	This is inspired by the
+	\href{https://en.wikipedia.org/wiki/Liar_paradox}{liars paradox},
+	whose first instance is (not quite correctly) attributed to the Cretan
+	philosopher Epimenides.
+}
 
 Semipositive Datalog only allows the negation of \acp{EDBP}, but not \acp{IDBP},
-in the body of a rule defining an \ac{IDBP}.
+as part of the body of a rule defining an \ac{IDBP}.
 Furthermore, it demands that every variable occuring in the body of a rule must
 occur in at least one positive (non-negative) predicate atom,
 which is referred to as the \emph{safety condition}~\cite{green2013datalog}.
@@ -212,14 +226,14 @@ If it was not satisfied, the result of a query would not just depend on the
 actual content of a database anymore, and may be infinite.
 The semantics of negative \acp{EDBP} follows the intuition that
 the negation of an \ac{EDBP} within the body of an \ac{IDBP} (together with
-the safety condition) behaves like the set difference operator
+the safety condition) behaves similar to the set difference operator
 in relational algebra.
 
-Datalog with stratified negation relaxes the restriction and allows the
-negation of \acp{IDBP} within a rule, as long as the rule's predicates
+Stratified datalog relaxes the restriction a bit and allows the
+negation of \acp{IDBP} within a rule, as long as the predicates
 are \emph{stratifiable}.
-A Datalog program is stratifiable if it can be partitioned into \emph{ordered}
-strata \(P_1, \ldots, P_n\) such that:
+A Datalog program is stratifiable if its predicates can be partitioned into
+\emph{ordered} strata \(P_1, \ldots, P_n\) such that:
 
 \begin{itemize}
 	\item If the predicate \(p_b\) occurs in the body of a rule defining
@@ -260,13 +274,15 @@ the strongly connected components have to be topologically sorted.
 The resulting order of strata is what imparts the semantics to stratifiable
 Datalog programs:
 Every stratum \(P_{i+1}\) is evaluated after its previous stratum \(P_{i}\)
-as if it was a \emph{semipositive} Datalog program with those \acp{IDBP}
+as if it was a \emph{semipositive} Datalog program with the \acp{IDBP}
 of \(P_{i+1}\), which are defined in a lower stratum,
 treated as if they were \acp{EDBP}.
 The semantics are well-defined because next to their existence,
 which is given by construction, they are also unique: Any freedom
 in choosing the strata and their order does not lead to different results,
 as long as the underlying data is the same~\cite{apt1988towards}.
+
+\input{figures/precedence_graph.tex}
 
 \ref{fig:precedence-graph-mvr-crdt} shows the precedence graph
 of \ref{code:mvr-crdt-datalog}.
@@ -276,8 +292,10 @@ The only cycle is the self-recursion of the ``isCausallyReady'' predicate,
 denoted by a positive self-loop edge.
 In general, if a precedence graph contains a cycle involving multiple nodes,
 the program contains \emph{mutually recursive} predicates.
-
-\input{figures/precedence_graph.tex}
+The Datalog dialect I define in \ref{sec:datalog-frontend} sits in between
+semipositive and stratified Datalog:
+While it allows the negation of \acp{IDBP} in the body of a rule just like
+stratified Datalog, it does not support mutually recursive predicates.
 
 \section{\acsp{CRDT} and Coordination-Free Environments}\label{sec:crdt-coordination-free}
 

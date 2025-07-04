@@ -3,9 +3,26 @@
 
 \chapter{Evaluation}\label{ch:evaluation}
 
+This chapter assesses the suitability of my Datalog dialect from
+\ref{sec:datalog-frontend} to express \acp{CRDT}-as-queries
+in \ref{sec:crdts-as-queries} by implementing two classes of \acp{CRDT} in it.
+To evaluate the approach's viability in practice,
+\ref{sec:benchmarks} presents benchmarks of the implemented \acp{CRDT}
+on my query engine.
+
 \section{\acp{CRDT} as Queries}\label{sec:crdts-as-queries}
 
+\ref{sec:key-value-stores-datalog-dialect} shows the familiar \ac{MVR} key-value
+stores from \ref{ch:intro} in my Datalog dialect.
+\ref{sec:list-crdt-datalog-dialect} implements a list \ac{CRDT} in my Datalog
+dialect, which is adapted from~\cite{kleppmann2018data}.
+
 \subsection{Key-Value Stores}\label{sec:key-value-stores-datalog-dialect}
+
+\ref{code:mvr-store-datalog-dialect} shows the equivalent of the \ac{MVR}
+key-value store from \ref{code:mvr-store-datalog} in my Datalog dialect.
+Examples in this chapter explicitly state the \acp{EDBP} to communicate the
+predicates' schema to the query engine.
 
 \begin{figure}[htpb]
 	\begin{lstlisting}[keepspaces]
@@ -22,9 +39,14 @@ mvrStore(Key, Value)
 	\caption{The \ac{MVR} key-value store in my Datalog dialect.}\label{code:mvr-store-datalog-dialect}
 \end{figure}
 
+\ref{code:mvr-crdt-datalog-dialect} provides a definition of the \ac{MVR}
+key-value store \ac{CRDT} from \ref{code:mvr-store-datalog} in my Datalog dialect.
+The query differentiates itself from the previous example by including the
+causal broadcast mechanism.
+
 \begin{figure}[htpb]
 	\begin{lstlisting}[keepspaces]
-// EDBPs are omitted because they are shared with the earlier example. IDBPs:
+// EDBPs are omitted because they are shared with the previous example. IDBPs:
 distinct overwritten(RepId, Ctr)
                     :- pred(RepId = FromRepId, Ctr = FromCtr).
 distinct overwrites(RepId, Ctr)
@@ -45,15 +67,50 @@ mvrStore(Key, Value)
 	\caption{The \ac{MVR} key-value \ac{CRDT} store in my Datalog dialect.}\label{code:mvr-crdt-datalog-dialect}
 \end{figure}
 
-\ref{code:mvr-crdt-datalog-dialect} shows the familiar \ac{MVR} key-value store
-\ac{CRDT} from \ref{ch:intro} in my Datalog dialect.
-Except for the inclusion of \acp{EDBP}, name-based indexing, and the explicit
-use of the ``distinct'' operator, the query is similar to the one
-in \ref{code:mvr-crdt-datalog}.
-The \acp{EDBP} need to be included to make the their fields known to the
-query engine.
+Both examples are similar to their counterparts from \ref{ch:intro}
+expressed in ``conventional'' Datalog.
+Key differences are the inclusion of \acp{EDBP}, the use of name-based indexing,
+and the explicit use of the ``distinct'' operator to ensure that a predicate
+has set (instead of multiset) semantics.
 
 \subsection{List \ac{CRDT}}\label{sec:list-crdt-datalog-dialect}
+
+List \acp{CRDT} are more complex than key-value stores because they have to
+converge to the \emph{same order} of elements across replicas under concurrent
+updates.
+In the more specific context of text editing, Treedoc~\cite{treedoc},
+Logoot~\cite{logoot}, RGA~\cite{rga}, and Fugue~\cite{fugue} have been proposed,
+among others.
+The list \ac{CRDT} presented here resembles RGA's design,
+which is based on the idea that insertions do not specify an unstable list index
+for their position but instead each list element is assigned a stable identifier,
+and each insertion references the identifier of the element after which it wants
+to be inserted.
+This implies that deletions cannot fully remove an element, but have to leave
+\emph{tombstones} behind, to avoid dangling references in case of an
+insertion after element \(x\) and a concurrent deletion of \(x\).
+The stable identifiers can again be replica id and counter pairs.
+In case of concurrent insertions after the same element \(x\),
+the inserted elements are ordered according to the total order induced
+by the stable identifiers.
+This exact ordering brings up the issue of \emph{non-interleaving}
+the elements from the same replica with elements from other replicas,
+a desirable property for maintaining the users' intents in the best
+``possible'' manner, and is discussed in~\cite{fugue}.
+
+Logically, insertions in RGA can be represented in a tree stucture,
+where each node's \emph{parent} is the element after which it is supposed to be
+inserted (but may not in the final list order due to concurrent insertions).
+The root element is some sentinel element that is always present and does not
+contribute to the list's content.
+A node's \emph{children} are \emph{descendingly} ordered by their identifiers.
+The number of children corresponds to the number of concurrent insertions
+after the parent element, i.e., siblings are a result of concurrency.
+The final list order is given by a depth-first, pre-order traversal of the tree.
+At its core, the Datalog query has to implement this depth-first, pre-order
+traversal of the tree.
+
+Example.
 
 \begin{figure}[htpb]
 	\begin{lstlisting}[keepspaces]
@@ -111,21 +168,36 @@ distinct nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
 
 \section{Performance Evaluation}\label{sec:benchmarks}
 
-\begin{itemize}
-	\item Benchmark hydration setting for modeling application restarts.
-	      Show that the causal broadcast does not benefit from parallelization
-	      as it is inherently sequential by benchmarking the non-causal CRDT
-	      as reference.
-	\item Benchmark applying just some updates for modeling near-real time collaboration.
-	      Again, how expensive is the causal broadcast?
-\end{itemize}
+\ref{sec:near-real-time-benchmark} and \ref{sec:hydration-benchmark}
+provide benchmarks of the three \acp{CRDT} from the previous section.
+Benchmarking happens in two different settings which are distinguished by
+the operators of the query plan being ``warm'' or ``cold'':
 
-- Lots of dependent joins in the fixed point iteration. How to optimize?
-- Partial synchronization.
+\begin{itemize}
+	\item \textbf{Near-real time setting} (\ref{sec:near-real-time-benchmark}).
+	      In this setting, the operators are assumed to be ``warm'' and only
+	      a small number of updates are new to them.
+	      This benchmark measures the common operation mode of \acp{CRDT} and
+	      is therefore the most relevant for practical applications. It asks
+	      how much time it takes to process a small number of updates on top of
+	      an already ``hydrated'' query plan.
+	\item \textbf{Hydration setting} (\ref{sec:hydration-benchmark}).
+	      As outlined in \ref{sec:ivm}, all bilinear operators are stateful.
+	      Hence, all stateful operators of the query plan have to restore
+	      their state before processing any new updates, e.g., in case of ``cold''
+	      application restarts. This benchmark measures the time it takes
+	      until the application can process \emph{new} updates again on top of
+	      an existing history of operations.
+\end{itemize}
 
 \subsection{Near-Real-Time Setting}\label{sec:near-real-time-benchmark}
 
 \subsection{Hydration Setting}\label{sec:hydration-benchmark}
+
+Show that the causal broadcast does not benefit from parallelization
+as it is inherently sequential by benchmarking the non-causal CRDT
+as reference.
+Lots of dependent joins in the fixed point iteration. How to optimize?
 
 \section{Related Work}\label{sec:related-work}
 

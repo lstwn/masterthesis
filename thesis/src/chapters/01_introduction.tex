@@ -190,26 +190,22 @@ notation.
 	\centering
 
 	\begin{subfigure}[b]{\textwidth}
-		% \begin{tabular}{c}
 		\begin{lstlisting}[keepspaces]
 overwritten(RepId, Ctr) :- pred(RepId, Ctr, _, _).
 mvrStore(Key, Value)    :- set(RepId, Ctr, Key, Value),
                            not overwritten(RepId, Ctr).\end{lstlisting}
-		% \end{tabular}
 		\caption{The \ac{MVR} key-value store in Datalog.}\label{code:mvr-store-datalog}
 	\end{subfigure}
 
 	\vspace{1em}
 
 	\begin{subfigure}[b]{\textwidth}
-		% \begin{tabular}{c}
 		\begin{lstlisting}[language=SQL]
 SELECT key, value
 FROM set LEFT JOIN pred ON set.RepId = pred.FromRepId
                         AND set.Ctr = pred.FromCtr
 WHERE pred.FromRepId IS NULL;
         \end{lstlisting}
-		% \end{tabular}
 		\caption{The \ac{MVR} key-value store in SQL using a left join.}\label{code:mvr-store-sql-left-join}
 	\end{subfigure}
 

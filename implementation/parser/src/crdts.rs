@@ -53,12 +53,11 @@ pub fn mvr_store_datalog() -> &'static str {
 /// This is an implementation of the replicated growable array (RGA) CRDT in Datalog.
 /// Credits are due to Martin Kleppmann.
 pub fn list_crdt_datalog() -> &'static str {
-    // These two EDBPs are included in Martin's example.
-    // assign(RepId, Ctr, Value) :- .
-    // remove(RepId, Ctr) :- .
     r#"
         // These are extensional database predicates (EDBPs).
         insert(RepId, Ctr, ParentRepId, ParentCtr) :- .
+        assign(RepId, Ctr, Value) :- .
+        remove(RepId, Ctr) :- .
 
         // These are intensional database predicates (IDBPs).
         distinct hasChild(ParentRepId, ParentCtr) :-

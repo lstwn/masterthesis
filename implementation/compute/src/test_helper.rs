@@ -487,16 +487,18 @@ impl From<RemoveOp> for TupleValue {
     }
 }
 
-/// Example tree, encoded as insert(Child, Parent) facts:
+/// Example tree, encoded as `insert(Child, Parent)` facts. Below, the example
+/// only shows counters but no replica ids because all updates emanate from
+/// the same replica.
 ///
 /// ```text
-///        0
+///        0 <- sentinel element
 ///      /   \
 ///     2     1
 ///   / | \   |
 ///  6  5  3  4
 /// ```
-pub fn list_crdt_operation_history() -> [(Vec<InsertOp>, Vec<AssignOp>, Vec<RemoveOp>); 1] {
+pub fn list_crdt_operation_history_martin() -> [(Vec<InsertOp>, Vec<AssignOp>, Vec<RemoveOp>); 1] {
     [(
         vec![
             InsertOp::new(0, 1, 0, 0),
@@ -505,6 +507,32 @@ pub fn list_crdt_operation_history() -> [(Vec<InsertOp>, Vec<AssignOp>, Vec<Remo
             InsertOp::new(0, 4, 0, 1),
             InsertOp::new(0, 5, 0, 2),
             InsertOp::new(0, 6, 0, 2),
+        ],
+        vec![],
+        vec![],
+    )]
+}
+
+/// Example tree, encoded as `insert(ChildRepId, ChildCtr, ParentRepId, ParentCtr)`
+/// facts. Below, a node depicts `(RepId, Ctr)`:
+///
+/// ```text
+///             (0,0) <- sentinel element
+///         /           \
+///       (2,1)        (1,1)
+///     /   |   \        |
+/// (2,3) (1,3) (3,2)  (2,2)
+/// ```
+pub fn list_crdt_operation_history_multi_replicas()
+-> [(Vec<InsertOp>, Vec<AssignOp>, Vec<RemoveOp>); 1] {
+    [(
+        vec![
+            InsertOp::new(2, 1, 0, 0),
+            InsertOp::new(1, 1, 0, 0),
+            InsertOp::new(2, 2, 1, 1),
+            InsertOp::new(2, 3, 2, 1),
+            InsertOp::new(1, 3, 2, 1),
+            InsertOp::new(3, 2, 2, 1),
         ],
         vec![],
         vec![],

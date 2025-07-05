@@ -48,7 +48,8 @@ mod test {
         relation::TupleValue,
         scalar::ScalarTypedValue,
         test_helper::{
-            PlainRelation, list_crdt_operation_history, mvr_store_operation_history,
+            PlainRelation, list_crdt_operation_history_martin,
+            list_crdt_operation_history_multi_replicas, mvr_store_operation_history,
             setup_inc_data_log,
         },
         tuple,
@@ -153,7 +154,7 @@ mod test {
     }
 
     #[test]
-    fn test_list_crdt() -> Result<(), anyhow::Error> {
+    fn test_list_crdt_martin() -> Result<(), anyhow::Error> {
         let inc_data_log = setup_inc_data_log();
 
         let (mut handle, inputs, output) =
@@ -175,7 +176,47 @@ mod test {
         }]
         .into_iter();
 
-        for (insert_op_step, assert_op_step, remove_op_step) in list_crdt_operation_history() {
+        for (insert_op_step, assert_op_step, remove_op_step) in list_crdt_operation_history_martin()
+        {
+            insert_op_input.insert_with_same_weight(&insert_op_step, 1);
+            assert_op_input.insert_with_same_weight(&assert_op_step, 1);
+            remove_op_input.insert_with_same_weight(&remove_op_step, 1);
+
+            handle.step()?;
+
+            let batch = output.to_batch();
+            println!("{}", batch.as_table());
+            assert_eq!(batch.as_zset(), expected.next().unwrap());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_list_crdt_multi_replicas() -> Result<(), anyhow::Error> {
+        let inc_data_log = setup_inc_data_log();
+
+        let (mut handle, inputs, output) =
+            inc_data_log.build_circuit_from_parser(|root_circuit| {
+                Parser::new(root_circuit).parse(list_crdt_datalog())
+            })?;
+
+        let insert_op_input = inputs.get("insert").unwrap();
+        let assert_op_input = inputs.get("assign").unwrap();
+        let remove_op_input = inputs.get("remove").unwrap();
+
+        let mut expected = [zset! {
+            tuple!(0_u64, 0_u64, 2_u64, 1_u64) => 1,
+            tuple!(2_u64, 1_u64, 2_u64, 3_u64) => 1,
+            tuple!(2_u64, 3_u64, 1_u64, 3_u64) => 1,
+            tuple!(1_u64, 3_u64, 3_u64, 2_u64) => 1,
+            tuple!(3_u64, 2_u64, 1_u64, 1_u64) => 1,
+            tuple!(1_u64, 1_u64, 2_u64, 2_u64) => 1,
+        }]
+        .into_iter();
+
+        for (insert_op_step, assert_op_step, remove_op_step) in
+            list_crdt_operation_history_multi_replicas()
+        {
             insert_op_input.insert_with_same_weight(&insert_op_step, 1);
             assert_op_input.insert_with_same_weight(&assert_op_step, 1);
             remove_op_input.insert_with_same_weight(&remove_op_step, 1);

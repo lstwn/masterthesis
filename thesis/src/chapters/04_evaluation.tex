@@ -89,12 +89,14 @@ to be inserted.
 This implies that deletions cannot fully remove an element, but have to leave
 \emph{tombstones} behind, to avoid dangling references in case of an
 insertion after element \(x\) and a concurrent deletion of \(x\).
-The stable identifiers can again be replica id and counter pairs.
 In case of concurrent insertions after the same element \(x\),
 the inserted elements are ordered according to the total order induced
 by the stable identifiers.
-This exact ordering brings up the issue of \emph{non-interleaving}
-the elements from the same replica with elements from other replicas,
+The stable identifiers can again be replica id and counter pairs,
+and they provide a total order by first comparing the counters and,
+in case of ties, by breaking them through comparing the replica ids.
+The ordering brings up the issue of \emph{non-interleaving} the elements from
+the same replica with elements from other replicas under concurrent insertions,
 a desirable property for maintaining the users' intents in the best
 ``possible'' manner, and is discussed in~\cite{fugue}.
 
@@ -110,7 +112,34 @@ The final list order is given by a depth-first, pre-order traversal of the tree.
 At its core, the Datalog query has to implement this depth-first, pre-order
 traversal of the tree.
 
-Example.
+\input{figures/list_crdt.tex}
+
+\ref{code:list-crdt-datalog-dialect} shows the definition of an RGA-like
+list \ac{CRDT} in my Datalog dialect.
+To explain the query, I use \ref{fig:list-crdt} as an example in which
+three replicas, with id 1, 2, and 3, insert elements into the list.
+\ref{fig:list-crdt} visualizes the ``insert(RepId, Ctr, ParentRepId, ParentCtr)''
+\ac{EDBP} with entries:
+
+\[\{ (2,1,0,0), (2,3,2,1), (1,3,2,1), (3,2,2,1), (1,1,0,0), (2,2,1,1) \}\]
+
+Every node label shows a (\textit{RepId}, \textit{Ctr}) pair and its black edge
+points to its parent (\textit{ParentRepId}, \textit{ParentCtr}) pair.
+Siblings are ordered \emph{descendingly} according to their stable identifiers.
+The result of the depth-first, pre-order traversal is:
+
+\[[ (0,0), (2,1), (2,3), (1,3), (3,2), (1,1), (2,2) ]\]
+
+To obtain this result with Datalog, the ``nextElem'' \ac{IDBP} is used in
+\ref{code:list-crdt-datalog-dialect}.
+Its definition is divided into three parts.
+First, the ``firstChild'' \ac{IDBP} finds the first child of each parent
+(marked xxx in \ref{code:list-crdt-datalog-dialect}).
+Second, the ``nextSibling'' \ac{IDBP} provides the next sibling of each child
+(marked xxx in \ref{code:list-crdt-datalog-dialect}).
+Third, the ``nextSiblingAnc'' \ac{IDBP} gives the next sibling of each child
+or, recursively, the next sibling of the parent if a child has no next sibling
+(marked xxx in \ref{code:list-crdt-datalog-dialect}).
 
 \begin{figure}[htpb]
 	\begin{lstlisting}[keepspaces]
@@ -171,7 +200,7 @@ distinct nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
 \ref{sec:near-real-time-benchmark} and \ref{sec:hydration-benchmark}
 provide benchmarks of the three \acp{CRDT} from the previous section.
 Benchmarking happens in two different settings which are distinguished by
-the operators of the query plan being ``warm'' or ``cold'':
+the operators of the query plan being either ``warm'' or ``cold'':
 
 \begin{itemize}
 	\item \textbf{Near-real time setting} (\ref{sec:near-real-time-benchmark}).

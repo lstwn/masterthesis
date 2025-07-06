@@ -20,18 +20,35 @@ startup (the hydration setting) and then switch to incremental execution for
 processing updates (the near-real time setting).
 The required hydration of the operators for the incremental execution could be
 moved to a background thread.
-Alternatively, how could the operators' state be persisted to disk such that
+Alternatively, the operators' state could somehow be persisted to disk such that
 the query engine can resume from a previous state and does not have to
-feed in all updates again, in which case the query engine would not need
+feed in all updates again, in which case the query engine may not need
 to support a non-incremental mode at all.
 
-To use this approach in practice, some more engineering effort is required.
-The query engine is currently just a computation engine and does not provide
-a durable storage layer for the underlying data.
-Additionally, it remains unclear how compatible this approach is with
-partial synchronization and update compaction, to keep storage sizes manageable
-on smaller edge devices which cannot afford to store a monotonically growing
-set of updates.
+To minimize the interpretation overhead of the query engine, it could
+benefit from some performance engineering.
+Tuples are currently represented as vectors and, hence, each tuple access
+may cause a cache miss.
+Testing different physical data layouts for tuples, e.g., overflow-to-heap
+vectors\footnotemark{}, could be an interesting direction to explore.
+To further optimize away cache misses, the physical representation of an
+\ac{IR} program could be adapted to use a more cache-friendly data layout, too:
+Instead of expressions storing references to other expressions in their
+input fields, they could be flattened by storing an index into a vector of
+expressions, as laid out in~\cite{sampson2023flattening}.
+This may improve spatial locality, thereby reducing cache misses, and is
+particularly relevant for code that is run at query execution-time because
+it is executed frequently (per tuple) instead of just once at query build-time
+for creating the query plan.
+
+\footnotetext{
+	Overflow-to-heap vectors are vectors that store their elements
+	in a contiguous memory region, but if the vector grows beyond a certain
+	threshold, it allocates a new memory region on the heap and moves new
+	elements there.
+	Rust's \href{https://docs.rs/smallvec/latest/smallvec/}{\texttt{smallvec}}
+	library implements this concept.
+}
 
 Applying serious query optimization has the potential to improve
 the performance of the query engine but this is a challenge in its own right.
@@ -61,31 +78,6 @@ relational algebra, I want to emphasize two aspects:
 	      problem \emph{antijoin pushdown}.
 \end{itemize}
 
-To minimize the interpretation overhead of the query engine, it could
-benefit from some performance engineering.
-Tuples are currently represented as vectors and, hence, each tuple access
-may cause a cache miss.
-Testing different physical data layouts for tuples, e.g., overflow-to-heap
-vectors\footnotemark{}, could be an interesting direction to explore.
-To further optimize away cache misses, the physical representation of an
-\ac{IR} program could be adapted to use a more cache-friendly data layout, too:
-Instead of expressions storing references to other expressions in their
-input fields, they could be flattened by storing an index into a vector of
-expressions, as laid out in~\cite{sampson2023flattening}.
-This may improve spatial locality, thereby reducing cache misses, and is
-particularly relevant for code that is run at query execution-time because
-it is executed frequently (per tuple) instead of just once at query build-time
-for creating the query plan.
-
-\footnotetext{
-	Overflow-to-heap vectors are vectors that store their elements
-	in a contiguous memory region, but if the vector grows beyond a certain
-	threshold, it allocates a new memory region on the heap and moves new
-	elements there.
-	Rust's \href{https://docs.rs/smallvec/latest/smallvec/}{\texttt{smallvec}}
-	library implements this concept.
-}
-
 Feature-wise, the query engine could be extended to support mutual recursion
 and aggregation but I do not consider these features essential for the
 \ac{CRDT} use case. On the other hand, native JSON support may be useful for
@@ -95,6 +87,13 @@ a type checking pass, better error reporting, and supporting tuples as a scalar
 type could be added to the query engine.
 The latter allows collapsing operations' replica id and counter fields
 into a single field, to make Datalog \ac{CRDT} queries more concise.
+To use this approach in practice, some more engineering effort is required.
+The query engine is currently just a computation engine and does not provide
+a durable storage layer for the underlying data.
+Additionally, it remains unclear how compatible this approach is with
+partial synchronization and update compaction, to keep storage sizes manageable
+on smaller edge devices which cannot afford to store a monotonically growing
+set of updates.
 
 \ref{sec:crdts-as-queries} defines map and list \acp{CRDT} as queries.
 More research is needed to define and benchmark further \acp{CRDT} as queries

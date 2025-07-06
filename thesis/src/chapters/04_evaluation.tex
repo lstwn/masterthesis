@@ -123,8 +123,9 @@ three replicas, with id 1, 2, and 3, insert elements into the list.
 
 \[\{ (2,1,0,0), (2,3,2,1), (1,3,2,1), (3,2,2,1), (1,1,0,0), (2,2,1,1) \}\]
 
-Every node label shows a (\textit{RepId}, \textit{Ctr}) pair and its black edge
-points to its parent (\textit{ParentRepId}, \textit{ParentCtr}) pair.
+Every node (except for the sentinel root) depicts a (\textit{RepId}, \textit{Ctr})
+pair and its black edge points to its parent defined by
+a (\textit{ParentRepId}, \textit{ParentCtr}) pair.
 Siblings are ordered \emph{descendingly} according to their stable identifiers.
 The result of the depth-first, pre-order traversal is:
 
@@ -133,65 +134,117 @@ The result of the depth-first, pre-order traversal is:
 To obtain this result with Datalog, the ``nextElem'' \ac{IDBP} is used in
 \ref{code:list-crdt-datalog-dialect}.
 Its definition is divided into three parts.
-First, the ``firstChild'' \ac{IDBP} finds the first child of each parent
-(marked xxx in \ref{code:list-crdt-datalog-dialect}).
-Second, the ``nextSibling'' \ac{IDBP} provides the next sibling of each child
-(marked xxx in \ref{code:list-crdt-datalog-dialect}).
-Third, the ``nextSiblingAnc'' \ac{IDBP} gives the next sibling of each child
-or, recursively, the next sibling of the parent if a child has no next sibling
-(marked xxx in \ref{code:list-crdt-datalog-dialect}).
+First, the ``firstChild'' \ac{IDBP} (\ref{code:list-crdt-datalog-dialect-part1})
+finds the first child of each parent
+(the dotted, green edges in \ref{fig:list-crdt}).
+To do so, it relies on the ``laterChild'' \ac{IDBP} to find all parents with
+their children such that the children are not their first but a later child.
+Second, the ``nextSibling'' \ac{IDBP} (\ref{code:list-crdt-datalog-dialect-part2})
+provides the next sibling of each child
+(the dashed, orange edges in \ref{fig:list-crdt}).
+Its definition makes use of the ``laterSibling'' and ``laterIndirectSibling''
+\acp{IDBP}. The former finds all later siblings of a child, and the latter
+finds all later siblings of a child that are not direct siblings but have
+at least one sibling in between them.
+Then, the next sibling of a child is given by filtering out all later
+\emph{indirect} siblings from the later siblings.
+Third, the ``nextSiblingAnc'' \ac{IDBP} (\ref{code:list-crdt-datalog-dialect-part3})
+gives the next sibling of each child, or, recursively,
+the next sibling of the parent if a child has no next sibling
+(the dashdotted, blue edges in \ref{fig:list-crdt}).
+Finally, the ``nextElem'' \ac{IDBP} defines the depth-first, pre-order traversal
+by either yielding a link from the parent to its first child (as ``previous''
+and ``next'', respectively) or a link defined by the ``nextSiblingAnc'' \ac{IDBP}
+if the ``previous'' node has no child.
+This outputs the above result as a linked list of nodes where each node is
+defined by a (\textit{RepId}, \textit{Ctr}) pair:
+
+\[[ (0,0,2,1), (2,1,2,3), (2,3,1,3), (1,3,3,2), (3,2,1,1), (1,1,2,2) ]\]
+
+TODO:
+How to assign values to the list?
+How to handle deletions?
+How to output the order with the values?
+Distinct necessary?
 
 \begin{figure}[htpb]
-	\begin{lstlisting}[keepspaces]
-// EDBPs:
+	\centering
+
+	\begin{subfigure}[b]{\textwidth}
+		\begin{lstlisting}[keepspaces,escapechar=!]
+// Black edges in !\ref{fig:list-crdt}!.
 insert(RepId, Ctr, ParentRepId, ParentCtr) :- .
 
-// IDBPs:
-distinct hasChild(ParentRepId, ParentCtr) :-
-    insert(ParentRepId, ParentCtr).
-
-distinct laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
+laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
     insert(SiblingRepId = RepId, SiblingCtr = Ctr, ParentRepId, ParentCtr),
     insert(ChildRepId = RepId, ChildCtr = Ctr, ParentRepId, ParentCtr),
     (SiblingCtr > ChildCtr; (SiblingCtr == ChildCtr, SiblingRepId > ChildRepId)).
 
+// Dotted, green edges in !\ref{fig:list-crdt}!.
 firstChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
     insert(ChildRepId = RepId, ChildCtr = Ctr, ParentRepId, ParentCtr),
-    not laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr).
+    not laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr).\end{lstlisting}
+		\caption{Part 1: Definition of ``insert'' \ac{EDBP} and ``firstChild'' \ac{IDBP}.}\label{code:list-crdt-datalog-dialect-part1}
+	\end{subfigure}
 
-distinct sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
+	\vspace{1em}
+
+	\begin{subfigure}[b]{\textwidth}
+		\begin{lstlisting}[keepspaces,escapechar=!]
+sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
     insert(Child1RepId = RepId, Child1Ctr = Ctr, ParentRepId, ParentCtr),
     insert(Child2RepId = RepId, Child2Ctr = Ctr, ParentRepId, ParentCtr).
 
-distinct laterSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
+laterSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
     sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
     (Child1Ctr > Child2Ctr; (Child1Ctr == Child2Ctr, Child1RepId > Child2RepId)).
 
-distinct laterTransitiveSibling(Child1RepId, Child1Ctr, Child3RepId, Child3Ctr) :-
+laterIndirectSibling(Child1RepId, Child1Ctr, Child3RepId, Child3Ctr) :-
     sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
-    sibling(Child1RepId, Child1Ctr, Child3RepId = Child2RepId, Child3Ctr = Child2Ctr),
+    sibling(Child1RepId, Child1Ctr,
+        Child3RepId = Child2RepId, Child3Ctr = Child2Ctr),
     (Child1Ctr > Child2Ctr; (Child1Ctr == Child2Ctr, Child1RepId > Child2RepId)),
     (Child2Ctr > Child3Ctr; (Child2Ctr == Child3Ctr, Child2RepId > Child3RepId)).
 
-distinct nextSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
+// Dashed, orange edges in !\ref{fig:list-crdt}!.
+nextSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
     laterSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
-    not laterTransitiveSibling(Child1RepId, Child1Ctr, Child2RepId = Child3RepId, Child2Ctr = Child3Ctr).
+    not laterIndirectSibling(Child1RepId, Child1Ctr,
+        Child2RepId = Child3RepId, Child2Ctr = Child3Ctr).\end{lstlisting}
+		\caption{Part 2: Definition of ``nextSibling'' \ac{IDBP}.}\label{code:list-crdt-datalog-dialect-part2}
+	\end{subfigure}
+\end{figure}
 
+\begin{figure}[htpb]\ContinuedFloat
+	\centering
+
+	\begin{subfigure}[b]{\textwidth}
+		\begin{lstlisting}[keepspaces,escapechar=!]
 distinct hasNextSibling(ChildRepId, ChildCtr) :-
     nextSibling(ChildRepId = Child1RepId, ChildCtr = Child1Ctr).
 
-distinct nextSiblingAnc(ChildRepId, ChildCtr, AncRepId, AncCtr) :-
-    nextSibling(ChildRepId = Child1RepId, ChildCtr = Child1Ctr, AncRepId = Child2RepId, AncCtr = Child2Ctr).
-distinct nextSiblingAnc(ChildRepId, ChildCtr, AncRepId, AncCtr) :-
+// Dashdotted, blue edges in !\ref{fig:list-crdt}!.
+nextSiblingAnc(ChildRepId, ChildCtr, AncRepId, AncCtr) :-
+    nextSibling(ChildRepId = Child1RepId, ChildCtr = Child1Ctr,
+        AncRepId = Child2RepId, AncCtr = Child2Ctr).
+nextSiblingAnc(ChildRepId, ChildCtr, AncRepId, AncCtr) :-
     insert(ChildRepId = RepId, ChildCtr = Ctr, ParentRepId, ParentCtr),
     not hasNextSibling(ChildRepId, ChildCtr),
-    nextSiblingAnc(ParentRepId = ChildRepId, ParentCtr = ChildCtr, AncRepId, AncCtr).
+    nextSiblingAnc(ParentRepId = ChildRepId, ParentCtr = ChildCtr,
+        AncRepId, AncCtr).
 
-distinct nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
+distinct hasChild(ParentRepId, ParentCtr) :-
+    insert(ParentRepId, ParentCtr).
+
+nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
+    firstChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr,
+        NextRepId = ChildRepId, NextCtr = ChildCtr).
+nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
     not hasChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr),
-    nextSiblingAnc(PrevRepId = ChildRepId, PrevCtr = ChildCtr, NextRepId = AncRepId, NextCtr = AncCtr).
-distinct nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
-    firstChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr, NextRepId = ChildRepId, NextCtr = ChildCtr).\end{lstlisting}
+    nextSiblingAnc(PrevRepId = ChildRepId, PrevCtr = ChildCtr,
+        NextRepId = AncRepId, NextCtr = AncCtr).\end{lstlisting}
+		\caption{Part 3: Definition of ``nextSiblingAnc'' and ``nextElem'' \acp{IDBP}.}\label{code:list-crdt-datalog-dialect-part3}
+	\end{subfigure}
 	\caption{A list \ac{CRDT} in my Datalog dialect, adapted from~\cite{kleppmann2018data}.}\label{code:list-crdt-datalog-dialect}
 \end{figure}
 
@@ -230,6 +283,12 @@ Lots of dependent joins in the fixed point iteration. How to optimize?
 
 \section{Related Work}\label{sec:related-work}
 
+\begin{itemize}
+	\item VeriFX (SAT-solver based), LoRe
+	\item Automerge
+	\item LiveStore
+\end{itemize}
+
 % TODO
 In general, there are two predominant approaches to query execution,
 \emph{interpreted} and \emph{compiled} query execution.
@@ -250,11 +309,5 @@ is not necessarily better~\cite{kersten2018everything}.
 Feldera, the company behind the commercial offering building upon the
 open-source DBSP library, offers a SQL-to-DBSP compiler which emits
 a Rust executable to execute a specific query~\cite{feldera}.
-The now-abandoned Differential Datalog project~\cite{ddlog}, which relies on
+The unmaintained Differential Datalog project~\cite{ddlog}, which relies on
 differential dataflow, also compiles a query plan into a Rust executable.
-
-\begin{itemize}
-	\item VeriFX (SAT-solver based), LoRe
-	\item Automerge
-	\item LiveStore
-\end{itemize}

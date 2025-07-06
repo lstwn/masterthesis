@@ -26,6 +26,8 @@ pub enum ScalarTypedValue {
     Iint(i64),
     /// Boolean.
     Bool(bool),
+    /// A sinle character.
+    Char(char),
     /// Null.
     Null(()),
 }
@@ -45,6 +47,7 @@ impl TryFrom<Value> for ScalarTypedValue {
             Value::Uint(value) => Ok(ScalarTypedValue::Uint(value)),
             Value::Iint(value) => Ok(ScalarTypedValue::Iint(value)),
             Value::Bool(value) => Ok(ScalarTypedValue::Bool(value)),
+            Value::Char(value) => Ok(ScalarTypedValue::Char(value)),
             Value::Null(()) => Ok(ScalarTypedValue::Null(())),
             _ => Err(()),
         }
@@ -75,6 +78,12 @@ impl From<i64> for ScalarTypedValue {
     }
 }
 
+impl From<char> for ScalarTypedValue {
+    fn from(value: char) -> Self {
+        ScalarTypedValue::Char(value)
+    }
+}
+
 impl From<bool> for ScalarTypedValue {
     fn from(value: bool) -> Self {
         ScalarTypedValue::Bool(value)
@@ -94,6 +103,7 @@ impl Display for ScalarTypedValue {
             ScalarTypedValue::Uint(value) => write!(f, "{value}"),
             ScalarTypedValue::Iint(value) => write!(f, "{value}"),
             ScalarTypedValue::Bool(value) => write!(f, "{value}"),
+            ScalarTypedValue::Char(value) => write!(f, "{value}"),
             ScalarTypedValue::Null(()) => write!(f, "null"),
         }
     }

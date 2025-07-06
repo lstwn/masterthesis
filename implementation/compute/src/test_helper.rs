@@ -5,6 +5,7 @@ use crate::{
     IncDataLog,
     relation::{RelationSchema, TupleKey, TupleValue},
     scalar::ScalarTypedValue,
+    tuple,
 };
 use std::{collections::HashSet, fmt::Debug, num::NonZeroUsize};
 
@@ -441,6 +442,12 @@ pub struct AssignOp {
     value: char,
 }
 
+impl AssignOp {
+    fn new(rep_id: u64, ctr: u64, value: char) -> Self {
+        Self { rep_id, ctr, value }
+    }
+}
+
 impl InputEntity for AssignOp {
     fn schema() -> RelationSchema {
         RelationSchema::new("assign_op", ["RepId", "Ctr", "Value"], ["RepId", "Ctr"])
@@ -456,7 +463,7 @@ impl From<AssignOp> for TupleKey {
 
 impl From<AssignOp> for TupleValue {
     fn from(assign_op: AssignOp) -> Self {
-        TupleValue::from_iter([assign_op.rep_id, assign_op.ctr, assign_op.value as u64])
+        tuple!(assign_op.rep_id, assign_op.ctr, assign_op.value)
     }
 }
 
@@ -466,6 +473,12 @@ impl From<AssignOp> for TupleValue {
 pub struct RemoveOp {
     rep_id: u64,
     ctr: u64,
+}
+
+impl RemoveOp {
+    pub fn new(rep_id: u64, ctr: u64) -> Self {
+        Self { rep_id, ctr }
+    }
 }
 
 impl InputEntity for RemoveOp {
@@ -508,7 +521,14 @@ pub fn list_crdt_operation_history_martin() -> [(Vec<InsertOp>, Vec<AssignOp>, V
             InsertOp::new(0, 5, 0, 2),
             InsertOp::new(0, 6, 0, 2),
         ],
-        vec![],
+        vec![
+            AssignOp::new(0, 2, 'H'),
+            AssignOp::new(0, 6, 'E'),
+            AssignOp::new(0, 5, 'L'),
+            AssignOp::new(0, 3, 'L'),
+            AssignOp::new(0, 1, 'O'),
+            AssignOp::new(0, 4, '!'),
+        ],
         vec![],
     )]
 }
@@ -534,8 +554,15 @@ pub fn list_crdt_operation_history_multi_replicas()
             InsertOp::new(1, 3, 2, 1),
             InsertOp::new(3, 2, 2, 1),
         ],
-        vec![],
-        vec![],
+        vec![
+            AssignOp::new(2, 1, 'H'),
+            AssignOp::new(2, 3, 'E'),
+            AssignOp::new(1, 3, 'L'),
+            AssignOp::new(3, 2, 'L'),
+            AssignOp::new(1, 1, 'O'),
+            AssignOp::new(2, 2, '!'),
+        ],
+        vec![RemoveOp::new(2, 2)],
     )]
 }
 

@@ -22,6 +22,8 @@ pub enum Value {
     Iint(i64),
     /// Boolean.
     Bool(bool),
+    /// Character.
+    Char(char),
     /// Null.
     Null(()),
     /// Function.
@@ -66,6 +68,7 @@ impl From<ScalarTypedValue> for Value {
             ScalarTypedValue::Uint(value) => Value::Uint(value),
             ScalarTypedValue::Iint(value) => Value::Iint(value),
             ScalarTypedValue::Bool(value) => Value::Bool(value),
+            ScalarTypedValue::Char(value) => Value::Char(value),
             ScalarTypedValue::Null(()) => Value::Null(()),
         }
     }
@@ -91,6 +94,7 @@ impl fmt::Display for Value {
             Value::Uint(value) => write!(f, "{value}"),
             Value::Iint(value) => write!(f, "{value}"),
             Value::Bool(value) => write!(f, "{value}"),
+            Value::Char(value) => write!(f, "{value}"),
             Value::Null(()) => write!(f, "null"),
             Value::Function(function) => write!(f, "{}", function.borrow()),
             Value::Relation(relation) => write!(f, "{}", relation.borrow()),

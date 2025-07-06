@@ -105,5 +105,10 @@ pub fn list_crdt_datalog() -> &'static str {
         nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
           not hasChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr),
           nextSiblingAnc(PrevRepId = ChildRepId, PrevCtr = ChildCtr, NextRepId = AncRepId, NextCtr = AncCtr).
+
+        listElem(PrevRepId, PrevCtr, Value, NextRepId, NextCtr) :-
+            assign(NextRepId = RepId, NextCtr = Ctr, Value),
+            not remove(NextRepId = RepId, NextCtr = Ctr),
+            nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr).
     "#
 }

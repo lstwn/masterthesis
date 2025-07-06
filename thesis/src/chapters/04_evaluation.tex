@@ -165,7 +165,6 @@ TODO:
 How to assign values to the list?
 How to handle deletions?
 How to output the order with the values?
-Distinct necessary?
 
 \begin{figure}[htpb]
 	\centering
@@ -283,20 +282,45 @@ Lots of dependent joins in the fixed point iteration. How to optimize?
 
 \section{Related Work}\label{sec:related-work}
 
-\begin{itemize}
-	\item VeriFX (SAT-solver based), LoRe
-	\item Automerge
-	\item LiveStore
-\end{itemize}
+The idea of using restricted languages to express \acp{CRDT} to guarantee
+their convergence has been explored in the past.
+VeriFx~\cite{verifx}, Propel~\cite{propel}, and LoRe~\cite{lore} introduce
+custom \acp{DSL} to define \acp{CRDT}.
+From \ac{CRDT} definitions in the \ac{DSL}, they derive both an implementation
+of the \ac{CRDT} and its verification of convergence.
+The verification is handed off to a \ac{SAT}-solver, which is used to
+prove that the \ac{CRDT} converges under concurrent updates.
+LoRe differs from VeriFx insofar that it can also express invariants that
+require coordination between replicas and inject such coordination logic
+automatically, freeing the application developer from writing synchronization
+code.
+Unlike \acp{DSL}, Datalog has the advantage that is a more widely used language
+and does not require verification time because convergence is guaranteed by
+construction.
 
-% TODO
+There exist several libraries that implement \acp{CRDT} in imperative programming
+languages, for instance, Automerge~\cite{automerge} (Rust),
+Yjs~\cite{yjs} (JavaScript), Collabs~\cite{collabs} (TypeScript),
+and Loro~\cite{loro} (Rust).
+They come with no formal proof of convergence but are crafted by experienced
+developers familiar with eventual consistency and are widely used in practice.
+Yet, changing them to support custom data types is a non-trivial task and
+requires a deep understanding of the library's internals as well as theoretical
+foundations of \acp{CRDT}, rendering them less flexible than language based
+approaches.
+
+Other \ac{CRDT} frameworks are based on event logs, deriving state from the log,
+and replaying events to handle concurrent updates.
+The idea has been formalized in \cite{egwalker}.
+An example for this approach is LiveStore~\cite{livestore}, which allows
+developers to specify events and how to derive state from them.
+Yet, the convergence is not guaranteed by construction and this burden is
+left to the application developer.
+
 In general, there are two predominant approaches to query execution,
 \emph{interpreted} and \emph{compiled} query execution.
 The former executes a query by interpreting its query plan at run-time,
 usually on the granularity level of an operator of the query plan.
-It exists in three main variants: Tuple-at-a-time (``volcano model''),
-column-at-a-time and vector-at-a-time execution,
-of which the last one is the most efficient~\cite{zukowski2005monetdb}.
 Compiled query execution has been pioneered by the HyPer main memory database
 system~\cite{neumann2011efficiently}.
 It compiles a query plan into an executable tailored to the specific query,
@@ -305,9 +329,13 @@ into a single loop, and avoids interpretation overhead.
 While compiled query execution sounds more promising in terms of performance,
 it is more complex to implement, debug, and, surprisingly, its performance
 is not necessarily better~\cite{kersten2018everything}.
-
-Feldera, the company behind the commercial offering building upon the
-open-source DBSP library, offers a SQL-to-DBSP compiler which emits
-a Rust executable to execute a specific query~\cite{feldera}.
-The unmaintained Differential Datalog project~\cite{ddlog}, which relies on
-differential dataflow, also compiles a query plan into a Rust executable.
+Interestingly, Feldera, the company behind the commercial offering around DBSP,
+includes a SQL-to-DBSP compiler which emits a Rust executable to execute a
+specific query~\cite{feldera}.
+The now-unmaintained Differential Datalog project~\cite{ddlog},
+which relies on differential dataflow, also compiles a query plan into a
+Rust executable.
+The strong preference for compiled query execution is unclear to me and,
+as stated in \ref{sec:future-work}, I am interested in seeing their differences
+being analyzed more closely, especially in the context of \emph{incremental}
+query engines.

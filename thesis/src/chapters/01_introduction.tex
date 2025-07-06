@@ -24,16 +24,16 @@ into implementing it and proving that the \ac{CRDT} algorithm
 which is a labor-intensive, subtle, and error-prone
 task~\cite{gomes2017verifying,kleppmann2022assessing},
 requiring expertise in formal verification techniques.
-Alternatively, they can learn a domain-specific language, like VeriFx~\cite{verifx}
+Alternatively, they can learn a \ac{DSL}, like VeriFx~\cite{verifx}
 or LoRe~\cite{lore}, which have a restricted expressiveness but allow to define
 \acp{CRDT} in a way that guarantees their convergence under concurrent writes.
-Yet, restricted domain-specific languages are not always expressive enough
+Yet, restricted \acp{DSL} are not always expressive enough
 to define the desired \ac{CRDT}:
 For instance, it is still an open problem to define a list \ac{CRDT} in
 VeriFx~\cite{TODO}.
 
-Previous work~\cite{kleppmann2018data} has proposed Datalog as a domain-specific
-language to express \acp{CRDT} as queries over a monotonically growing set of
+Previous work~\cite{kleppmann2018data} has proposed Datalog as a \ac{DSL}
+to express \acp{CRDT} as queries over a monotonically growing set of
 immutable operations.
 The set of immutable operations can easily be disseminated among replicas
 by gossip, or other protocols such as set reconciliation~\cite{TODO}.
@@ -46,7 +46,7 @@ With this approach, application developers do not have to worry about
 the convergence property of their custom \ac{CRDT} anymore,
 as it is guaranteed by construction, and are empowered to design their own \acp{CRDT}.
 While still being a restricted language, Datalog may be more expressive
-and better known than a custom domain-specific language.
+and better known than a custom \ac{DSL}.
 Yet, so far the idea has only been hypothesized.
 This work aims to put the idea into practice by exploring the feasability of
 expressing \acp{CRDT} as Datalog queries through:

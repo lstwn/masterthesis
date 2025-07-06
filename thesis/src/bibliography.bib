@@ -57,6 +57,24 @@
   year   = {2025},
   note   = {\url{https://github.com/yjs/yjs}}
 }
+@manual{collabs,
+  author = {{The Collabs Contributors}},
+  title  = {Collabs CRDT Library},
+  year   = {2025},
+  note   = {\url{https://github.com/composablesys/collabs}}
+}
+@manual{loro,
+  author = {{The Loro Contributors}},
+  title  = {Loro CRDT Library},
+  year   = {2025},
+  note   = {\url{https://github.com/loro-dev/loro}}
+}
+@manual{livestore,
+  author = {{The LiveStore Contributors}},
+  title  = {LiveStore CRDT Library},
+  year   = {2025},
+  note   = {\url{https://github.com/livestorejs/livestore}}
+}
 @manual{pgivm,
   author = {{The pg\_ivm Contributors}},
   title  = {pg\_ivm PostgreSQL Extension},
@@ -76,11 +94,21 @@
   note   = {\url{https://github.com/vmware-archive/differential-datalog}}
 }
 @inproceedings{kleppmann2019local,
-  title     = {Local-first software: you own your data, in spite of the cloud},
-  author    = {Kleppmann, Martin and Wiggins, Adam and Van Hardenberg, Peter and McGranaghan, Mark},
+  author = {Kleppmann, Martin and Wiggins, Adam and van Hardenberg, Peter and McGranaghan, Mark},
+  title = {Local-first software: you own your data, in spite of the cloud},
+  year = {2019},
+  isbn = {9781450369954},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3359591.3359737},
+  doi = {10.1145/3359591.3359737},
+  abstract = {Cloud apps like Google Docs and Trello are popular because they enable real-time collaboration with colleagues, and they make it easy for us to access our work from all of our devices. However, by centralizing data storage on servers, cloud apps also take away ownership and agency from users. If a service shuts down, the software stops functioning, and data created with that software is lost. In this article we propose local-first software, a set of principles for software that enables both   collaboration and ownership for users. Local-first ideals include the ability to work offline and collaborate across multiple devices, while also improving the security, privacy, long-term preservation, and user control of data. We survey existing approaches to data storage and sharing, ranging from email attachments to web apps to Firebase-backed mobile apps, and we examine the trade-offs of each. We look at Conflict-free Replicated Data Types (CRDTs): data structures that are multi-user from the ground   up while also being fundamentally local and private. CRDTs have the potential to be a foundational technology for realizing local-first software. We share some of our findings from developing local-first software prototypes at the Ink \& Switch research lab over the course of several years. These experiments test the viability of CRDTs in practice, and explore the user interface challenges for this new data model. Lastly, we suggest some next steps for moving towards local-first software: for researchers,   for app developers, and a startup opportunity for entrepreneurs.},
   booktitle = {Proceedings of the 2019 ACM SIGPLAN International Symposium on New Ideas, New Paradigms, and Reflections on Programming and Software},
-  pages     = {154--178},
-  year      = {2019}
+  pages = {154–178},
+  numpages = {25},
+  keywords = {CRDTs, collaboration software, data ownership, mobile computing, peer-to-peer communication},
+  location = {Athens, Greece},
+  series = {Onward! 2019}
 }
 @article{preguicca2018conflict,
   title   = {Conflict-free replicated data types: An overview},
@@ -345,6 +373,24 @@
   doi =		{10.4230/LIPIcs.ECOOP.2023.9},
   annote =	{Keywords: distributed systems, eventual consistency, replicated data types, verification}
 }
+@article{propel,
+  author = {Zakhour, George and Weisenburger, Pascal and Salvaneschi, Guido},
+  title = {Type-Checking CRDT Convergence},
+  year = {2023},
+  issue_date = {June 2023},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  volume = {7},
+  number = {PLDI},
+  url = {https://doi.org/10.1145/3591276},
+  doi = {10.1145/3591276},
+  abstract = {Conflict-Free Replicated Data Types (CRDTs) are a recent approach for keeping replicated data consistent while guaranteeing the absence of conflicts among replicas. For correct operation, CRDTs rely on a merge function that is commutative, associative and idempotent. Ensuring that such algebraic properties are satisfied by implementations, however, is left to the programmer, resulting in a process that is complex and error-prone. While techniques based on testing, automatic verification of a   model, and mechanized or handwritten proofs are available, we lack an approach that is able to verify such properties on concrete CRDT implementations.   In this paper, we present Propel, a programming language with a type system that captures the algebraic properties required by a correct CRDT implementation. The Propel type system deduces such properties by case analysis and induction: sum types guide the case analysis and algebraic properties in function types enable induction for free. Propel’s key   feature is its capacity to reason about algebraic properties (a) in terms of rewrite rules and (b) to derive the equality or inequality of expressions from the properties. We provide an implementation of Propel as a Scala embedding, we implement several CRDTs, verify them with Propel and compare the verification process with four state-of-the-art verification tools. Our evaluation shows that Propel is able to automatically deduce the properties that are relevant for common CRDT implementations found in   open-source libraries even in cases in which competitors timeout.},
+  journal = {Proc. ACM Program. Lang.},
+  month = jun,
+  articleno = {162},
+  numpages = {24},
+  keywords = {Verification, Type Systems, Conflict-Free Replicated Data Types}
+}
 @article{lore,
     author = {Haas, Julian and Mogk, Ragnar and Yanakieva, Elena and Bieniusa, Annette and Mezini, Mira},
     title = {LoRe: A Programming Model for Verifiably Safe Local-first Software},
@@ -464,4 +510,21 @@
   archivePrefix={arXiv},
   primaryClass={cs.DC},
   url={https://arxiv.org/abs/2305.00583},
+}
+@inproceedings{egwalker,
+  author = {Gentle, Joseph and Kleppmann, Martin},
+  title = {Collaborative Text Editing with Eg-walker: Better, Faster, Smaller},
+  year = {2025},
+  isbn = {9798400711961},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3689031.3696076},
+  doi = {10.1145/3689031.3696076},
+  abstract = {Collaborative text editing algorithms allow several users to concurrently modify a text file, and automatically merge concurrent edits into a consistent state. Existing algorithms fall in two categories: Operational Transformation (OT) algorithms are slow to merge files that have diverged substantially due to offline editing; CRDTs are slow to load and consume a lot of memory. We introduce Eg-walker, a collaboration algorithm for text that avoids these weaknesses. Compared to existing CRDTs, it   consumes an order of magnitude less memory in the steady state, and loading a document from disk is orders of magnitude faster. Compared to OT, merging long-running branches is orders of magnitude faster. In the worst case, the merging performance of Eg-walker is comparable with existing CRDT algorithms. Eg-walker can be used everywhere CRDTs are used, including peer-to-peer systems without a central server. By offering performance that is competitive with centralised algorithms, our result paves the way   towards the widespread adoption of peer-to-peer collaboration software.},
+  booktitle = {Proceedings of the Twentieth European Conference on Computer Systems},
+  pages = {311–328},
+  numpages = {18},
+  keywords = {CRDTs, collaborative text editing, operational transformation, strong eventual consistency},
+  location = {Rotterdam, Netherlands},
+  series = {EuroSys '25}
 }

@@ -5,12 +5,33 @@
 
 \section{Future Work}\label{sec:future-work}
 
-This work has laid the groundwork for an incremental query engine
-that can be used to express \acp{CRDT} as Datalog queries.
-Many open questions remain.
-Differential dataflow.
-Non-incremental query processing for hydration use case and then hydrate
-incremental operators in the background?
+In this work, I took several technical decisions to have a working prototype
+available but many of them leave open questions for future work.
+First, this work chooses DBSP as the \ac{IVM} framework for the query engine.
+This leaves the question how other \ac{IVM} frameworks, such as differential
+dataflow~\cite{mcsherry2013differential}, compare to DBSP in their performance
+and expressiveness for this use case.
+Second, it is an open question if (and by what margin) compiling query plans
+outperforms interpreting them in the context of \ac{IVM}.
+Third, what benefit could a mixed model of incremental and non-incremental
+computations provide:
+Possibly, it may be faster to prefer non-incremental execution during application
+startup (the hydration setting) and then switch to incremental execution for
+processing updates (the near-real time setting).
+The required hydration of the operators for the incremental execution could be
+moved to a background thread.
+Alternatively, how could the operators' state be persisted to disk such that
+the query engine can resume from a previous state and does not have to
+feed in all updates again, in which case the query engine would not need
+to support a non-incremental mode at all.
+
+To use this approach in practice, some more engineering effort is required.
+The query engine is currently just a computation engine and does not provide
+a durable storage layer for the underlying data.
+Additionally, it remains unclear how compatible this approach is with
+partial synchronization and update compaction, to keep storage sizes manageable
+on smaller edge devices which cannot afford to store a monotonically growing
+set of updates.
 
 Applying serious query optimization has the potential to improve
 the performance of the query engine but this is a challenge in its own right.
@@ -92,4 +113,13 @@ and potentially aborting if a cycle is detected.
 
 Similar to how queries made data retrieval and storage more accessible to
 application developers, I hope that expressing \acp{CRDT} as queries
-makes \acp{CRDT} and thereby collaborative applications more accessible, too.
+makes \acp{CRDT} more accessible to a wider audience, too.
+This approach has the potential to simplify the development of
+collaborative, local-first applications~\cite{kleppmann2019local},
+by allowing developers to focus on the application logic instead of the
+underlying problems in eventually consistent, distributed systems, while
+still providing the possibility to fine-tune a \ac{CRDT}'s behavior.
+
+Furthermore, I hope that this work inspires others to seriously consider Datalog
+as an alternative to SQL for a query language due to its succinct syntax
+and solid foundation in logic programming.

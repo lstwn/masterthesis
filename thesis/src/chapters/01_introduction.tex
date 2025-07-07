@@ -13,17 +13,16 @@ The convergence guarantee is what renders defining and implementing
 correct \acp{CRDT} challenging.
 Currently, application developers wanting to use \acp{CRDT} in their applications
 face an unfortunate trade-off:
-Either they resort to using an existing \ac{CRDT} library~\cite{automerge,yjs}
-which is developed by experts in the field as an object-oriented library
-in an imperative programming language but exposes a fixed \ac{API} for a fixed
-set of \acp{CRDT},
+Either they resort to using an existing \ac{CRDT} library~\cite{automerge,yjs,lore}
+which is developed by experts in the field in an imperative programming language
+but exposes a fixed, object-oriented \acs{API} for a fixed set of \acp{CRDT},
 or they define their own \acp{CRDT} tailored to their specific use case.
 If they opt for the latter, they either have to invest significant efforts
 into implementing it and proving that the \ac{CRDT} algorithm
 (as well as its implementation) is commutative when applying concurrent writes,
 which is a labor-intensive, subtle, and error-prone
 task~\cite{gomes2017verifying,kleppmann2022assessing},
-requiring expertise in formal verification techniques.
+requiring expertise in formal verification.
 Alternatively, they can learn a \ac{DSL}, like VeriFx~\cite{verifx}
 or LoRe~\cite{lore}, which have a restricted expressiveness but allow to define
 \acp{CRDT} in a way that guarantees their convergence under concurrent writes.
@@ -51,7 +50,6 @@ Yet, so far the idea has only been hypothesized.
 This work aims to put the idea into practice by exploring the feasibility of
 expressing \acp{CRDT} as Datalog queries through:
 
-% TODO: More explicit forward-referencing.
 \begin{itemize}
 	\item \textbf{Implementing a query engine} which can execute queries
 	      represented in an \ac{IR} (\ref{sec:ir}).
@@ -65,10 +63,11 @@ expressing \acp{CRDT} as Datalog queries through:
 	      The dialect includes support for recursion and negation
 	      and is transpiled (\ref{sec:datalog-to-relational-algebra})
 	      to the query engine's \ac{IR}.
-	\item \textbf{Providing \ac{CRDT} definitions} of
-	      a \ac{MVR} key-value store (\ref{sec:motivating-example}),
-	      a list (\ref{sec:crdts-as-queries}),
-	      and a causal broadcast (\ref{sec:advanced_example}) in my Datalog dialect.
+	\item \textbf{Providing \ac{CRDT} definitions} of a \ac{MVR} key-value store
+	      (\ref{sec:motivating-example,sec:key-value-stores-datalog-dialect}),
+	      a list (\ref{sec:list-crdt-datalog-dialect}), and a causal broadcast
+		  (\ref{sec:advanced_example,sec:key-value-stores-datalog-dialect})
+		  in my Datalog dialect.
 	      \ref{sec:benchmarks} evaluates their performance in two settings:
 	      (1) simulating an application restart by feeding in all updates to
 	      the \ac{CRDT} at once, and (2) simulating near-real-time collaboration
@@ -78,7 +77,7 @@ expressing \acp{CRDT} as Datalog queries through:
 Ideally, this different approach to \acp{CRDT} may move them closer to the power,
 guarantees and flexibility of database systems.
 The higher abstraction level of a query language better supports the decoupling
-from logical and physical data representations than object-oriented \acp{API}.
+from logical and physical data representations than object-oriented \acsp{API}.
 Additionally, advances in query optimization and performance improvements
 of the query engine can be introduced without breaking changes,
 something relational databases have benefitted from over the years and
@@ -89,7 +88,9 @@ database systems, which are often not provided by \ac{CRDT} libraries.
 % TODO: Maybe add the read finality issue of \acp{CRDT} here and cite with
 % \cite{laddad2022keep}.
 
-Conversely, database systems can be introduced to coordination-free environments.
+Conversely, database systems can be introduced to coordination-free environments,
+in which every replica can read and write to the database without
+coordinating with other replicas.
 In exchange for some guarantees, which cannot be upheld in such environments,
 e.g. primary key constraints~\cite{bailis2014coordination},
 coordination-free database systems can offer ultimate availability:
@@ -106,7 +107,7 @@ in manufacturing, aviation, gastronomy and defense sectors.
 Applications can benefit from \ac{IVM} insofar that they receive updates
 to the views defined by their queries instead of the full state.
 That way, the idea of functional reactive programming can be extended from
-the \ac{GUI} to the whole application stack, including the database layer.
+the \acs{GUI} to the whole application stack, including the database layer.
 The application can then be considered a reactive, pure function
 of some state captured in a ground truth~\cite{litt2023riffle}.
 Furthermore, showing data changes, e.g. diffs, to the user is naturally supported

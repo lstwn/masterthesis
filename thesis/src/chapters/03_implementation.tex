@@ -4,11 +4,15 @@
 \chapter{Implementation}\label{ch:implementation}
 
 This chapter outlines my solution to the problem motivated in \ref{ch:intro}.
-A fundamental prerequisite to assessing if \acp{CRDT}-as-a-query on an
+A fundamental prerequisite to assessing if \acp{CRDT} defined by queries on an
 incremental query engine is a viable approach, is to have such a query
 engine available.
 Unfortunately, the landscape of incremental Datalog query engines is sparse
 and I had to implement one myself.
+The engine is written in Rust and \href{https://github.com/lstwn/masterthesis}{%
+its source code is available on GitHub}\footnotemark{}.
+
+\footnotetext{\url{https://github.com/lstwn/masterthesis}}
 
 At the core of my query engine is a tree-walk interpreter that executes a
 query plan by delegating all relational computations to the DBSP library,
@@ -62,12 +66,13 @@ If there is a way to implement the relational operators with differential
 dataflow for example, the \ac{IR} can be executed with it.
 This presents an interesting future work direction, to better understand
 both approaches' differences and performance characteristics.
-Another possibility is to additionally offer a non-incremental query engine
+Another possibility is to additionally offer a non-incremental processing mode
 and let the user choose which one to use.
 
 \section{Intermediate Representation in Relational Algebra}\label{sec:ir}
 
-My language supports the following scalar types: string, integer, boolean, and null.
+My language supports the following scalar types: string, integer, boolean, char,
+and null.
 Operations on scalars match what most of today's programming languages offer.
 There is support for arithmetic operations (\texttt{*, /, +, -}),
 logical operations (\texttt{and, or, not}),
@@ -173,7 +178,7 @@ The highlighted code in blue shows the code which is executed at query
 execution-time in the context of a tuple.
 The other code is executed at query build-time to construct the DBSP circuit.
 
-Prior to the execution an \ac{IR} program, the program first undergoes a
+Prior to the execution, an \ac{IR} program first undergoes a
 static pass to resolve all references to variables and functions except for
 tuples' variables.
 Tuples' variables are not yet available at query build-time but are injected
@@ -259,13 +264,13 @@ This causes the facts of the rule to be distinct, i.e., it removes duplicates
 from the rule's output.
 As Datalog uses set semantics traditionally, an explicit distinct operator
 is usually not necessary because it is implicitly given.
-Nevertheless, I deviate to allow for bag semantics for two reasons:
+Nevertheless, I deviate to allow for multiset semantics for two reasons:
 First, in practice it may be useful to be able to work with duplicates.
 Second, enforcing set semantics can be costly performance-wise,
 as it requires maintaining an index to check for duplicates.
 This is similar to the situation with relational algebra and SQL.
 In most formal settings, relational algebra uses set semantics but nearly
-every SQL implementation in practice uses bag semantics.
+every SQL implementation in practice uses multiset semantics.
 
 Besides that, new fields can be defined through expressions in the list of fields
 of a rule's head.
@@ -324,7 +329,7 @@ algorithm is used to break the tie.
 This is a limitation in the implementation, as it does not support multiple
 main predicates.
 Yet, these may be useful in contexts where computations share dependencies
-for performance or code maintainability, or where the results of multiple
+for performance or code maintainability reasons, or where the results of multiple
 predicates are needed at the same time.
 
 \subsection{Translation of Aggregated Rules to the \ac{IR}}
@@ -361,7 +366,7 @@ selection's output.
 
 \ref{fig:naive-plan} shows the naive query plan for the ``mvrStore'' predicate
 (depicted in \ref{code:mvr-store-rule})
-from the \ac{MVR} key-value \ac{CRDT} store from \ref{code:mvr-crdt-datalog}.
+of the \ac{MVR} key-value \ac{CRDT} store from \ref{code:mvr-crdt-datalog}.
 After combining the three positive atoms ``set'', ``isCausallyReady'', and
 ``isLeaf'' through a Cartesian product, the selection filters out all tuples that
 do not match with the variable reuse stated in the rule's body.

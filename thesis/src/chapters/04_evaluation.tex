@@ -5,10 +5,10 @@
 
 This chapter assesses the suitability of my Datalog dialect from
 \ref{sec:datalog-frontend} to express \acp{CRDT}-as-queries
-in \ref{sec:crdts-as-queries} by implementing two classes of \acp{CRDT} in it.
+in \ref{sec:crdts-as-queries}, by implementing two classes of \acp{CRDT} in it.
 To evaluate the approach's viability in practice,
 \ref{sec:benchmarks} presents benchmarks of the implemented \acp{CRDT}
-on my query engine.
+which are executed on my query engine from \ref{ch:implementation}.
 
 \section{\acp{CRDT} as Queries}\label{sec:crdts-as-queries}
 
@@ -273,8 +273,12 @@ the operators of the query plan being either ``warm'' or ``cold'':
 
 \subsection{Near-Real-Time Setting}\label{sec:near-real-time-benchmark}
 
+TODO:
+Benchmarking
+
 \subsection{Hydration Setting}\label{sec:hydration-benchmark}
 
+TODO:
 Show that the causal broadcast does not benefit from parallelization
 as it is inherently sequential by benchmarking the non-causal CRDT
 as reference.
@@ -287,7 +291,7 @@ their convergence has been explored in the past.
 VeriFx~\cite{verifx}, Propel~\cite{propel}, and LoRe~\cite{lore} introduce
 custom \acp{DSL} to define \acp{CRDT}.
 From \ac{CRDT} definitions in the \ac{DSL}, they derive both an implementation
-of the \ac{CRDT} and its verification of convergence.
+of the \ac{CRDT} and its proof of convergence.
 The verification is handed off to a \acs{SAT} solver, which is used to
 prove that the \ac{CRDT} converges under concurrent updates.
 LoRe differs from VeriFx insofar that it can also express invariants that

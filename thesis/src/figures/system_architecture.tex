@@ -16,7 +16,7 @@
 			Maintains Datalog\\
 			Queries \deltaI{} \(\to\) \deltaO{}
 		};
-		\node[layer,above=2.0cm of app] (user) {\textbf{\ac{GUI}}};
+		\node[layer,above=2.0cm of app] (user) {\textbf{\acs{GUI}}};
 
 		\draw[rel] (user) to[bend left] node[midway,near start,auto=left,yshift=-7pt]{emits new \deltaI{local}} (app);
 		\draw[rel] (app) to[bend left] node[auto,sloped]{integrates \deltaO{}} (user);

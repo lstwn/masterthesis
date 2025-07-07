@@ -13,7 +13,7 @@ which are used to derive new facts from existing ones.
 Unlike SQL, Datalog has not been attempted to be formally standardized,
 and several dialects of it exist.
 The explanations of this section focus on ``conventional'' Datalog
-and in \ref{sec:datalog-frontend} I define my own dialect of it.
+and in \ref{sec:datalog-frontend} I define my own dialect.
 
 \subsection{Syntax and Semantics}\label{sec:datalog-syntax-semantics}
 
@@ -78,9 +78,9 @@ are connected through a disjunction~\cite{abo2024convergence}.
 Regular rules with a non-empty body (with $n>0$) define \acp{IDBP}
 and their facts are called \emph{derived facts}.
 Only \acp{IDBP} may reference \acp{EDBP}.
-Facts are an \emph{ordered} list of \emph{fields} that can assume basic scalar
+Facts are an ordered list of \emph{fields} that can assume basic scalar
 types such as strings, numbers, or booleans.
-Due to their ordered nature, fields are accessed through positional indexing.
+Due to their ordering, fields are accessed through positional indexing.
 Moreover, for a regular rule to be valid the \emph{range-restriction property}
 must be satisfied~\cite{green2013datalog}:
 It demands that every variable occurring in the head of a rule must also occur
@@ -206,7 +206,7 @@ To (quite literally) break this cycle, \emph{semipositive} Datalog is introduced
 first, which is just a vehicle to capture the semantics of \emph{stratified}
 Datalog, both of which are syntactic restrictions on the use of negation and
 recursion~\cite{green2013datalog}.
-While there are other approaches to impart unambiguous semantics to
+While there are other approaches to reimpart unambiguous semantics to
 Datalog with negation, \emph{stratified negation} is the predominant
 one~\cite{green2013datalog}.
 
@@ -306,8 +306,8 @@ to wait for a network round trip to happen until the write becomes
 visible (low latency).
 For instance, collaborative editors may want both properties to allow users
 to work regardless of their network connectivity as well as to provide a
-responsive user experience offering a latency within the order of magnitude
-of local disk access instead of that of a network round trip.
+responsive user experience, offering a latency within the order of magnitude
+of that of local disk access instead of a network round trip.
 The high availability and low latency properties define coordination-free
 environments and set them apart from distributed systems that require coordination.
 Yet, reads may be stale insofar that they do not always reflect the full global state.
@@ -490,7 +490,7 @@ In contrast, there is no general recipe to express an arbitrary operator
 as a differential dataflow operator.
 This work chooses DBSP over differential dataflow for three reasons.
 First, its open-source implementation~\cite{feldera} provides a rich,
-(somewhat) documented \ac{API}\footnotemark{} to build upon.
+(somewhat) documented \acs{API}\footnotemark{} to build upon.
 Second, it is said to be less complex while still providing all the necessary
 ingredients to to express \acp{CRDT} for my use case.
 Third, differential dataflow's advantage of being able to handle out-of-order
@@ -498,7 +498,7 @@ inputs is not relevant for my approach to \acp{CRDT}, as it is based on sets and
 set union to integrate updates, which is a commutative operation already.
 
 \footnotetext{
-	While the documentation is not perfect and the \ac{API} surface quite involved,
+	While the documentation is not perfect and the \acs{API} surface quite involved,
 	it is sufficient to start building with DBSP.
 	As part of this work, I have contributed a
 	\href{https://github.com/feldera/feldera/pull/3893}{pull request}

@@ -91,6 +91,9 @@ Feature-wise, the query engine could be extended to support mutual recursion
 and aggregation but I do not consider these features essential for the
 \ac{CRDT} use case. On the other hand, native JSON support may be useful for
 defining a JSON \ac{CRDT} like Automerge does.
+As motivated in \ref{sec:datalog-to-relational-algebra}, supporting multiple
+main predicates of interest in a single query is not yet implemented but useful
+in practice.
 To improve practical usability of the Datalog frontend,
 a type checking pass, better error reporting, and supporting tuples as a scalar
 type could be added to the query engine.

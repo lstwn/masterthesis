@@ -53,7 +53,7 @@ for creating the query plan.
 Applying serious query optimization has the potential to improve
 the performance of the query engine but this is a challenge in its own right.
 Particularly, in the context of \ac{IVM} and transpilation from Datalog to
-relational algebra, I want to emphasize two aspects:
+relational algebra, I want to emphasize three aspects:
 
 \begin{itemize}
 	\item \textbf{Join ordering}.
@@ -76,6 +76,15 @@ relational algebra, I want to emphasize two aspects:
 	      result set unchanged but in the average case they filter tuples out.
 	      This is similar to predicate pushdown and, therefore, I call this
 	      problem \emph{antijoin pushdown}.
+	\item \textbf{Query optimization with Datalog}.
+	      As this approach uses both Datalog and relational algebra,
+		  there are two abstraction levels upon which query optimization
+		  can be applied.
+		  Although query optimization on Datalog has been studied
+		  to a lesser extent, it may offer other, unexplored possibilities
+		  which can only (or better) be applied on the Datalog level.
+		  Also, this requires researching the interaction between
+		  Datalog and relational algebra optimizations.
 \end{itemize}
 
 Feature-wise, the query engine could be extended to support mutual recursion

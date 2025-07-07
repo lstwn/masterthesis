@@ -41,7 +41,7 @@ reasons:
 	\item \textbf{Easier integration.}
 	      A library is easier to integrate into a larger system than a compiler.
 	      I think this is particularly relevant for applications that do not
-	      exclusively run on big servers but may be accomotated on smaller
+	      exclusively run on big servers but may be accommodated on smaller
 	      edge devices, which may not afford bundling a full compiler.
 \end{enumerate}
 
@@ -109,8 +109,8 @@ of a query plan.
 		Selection          & \(\sigma_{\mathit{pred}}(R)\)                               & Filters tuples from its input relation \(R\) based on the predicate \(\mathit{pred}\).                                                                                                                                                                                                                            \\
 		Projection         & \(\pi_{[(\mathit{name},\mathit{expr})]}(R)\)                & Produces a new relation with fields defined by the list of name-expression pairs. All expressions are evaluated in the context of a tuple from its input relation \(R\).                                                                                                                                          \\
 		Cartesian Product  & \(R \times S\)                                              & Combines two relations by pairing every tuple from the left input relation \(R\) with every tuple from the right input relation \(S\).                                                                                                                                                                            \\
-		Equijoin           & \(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S\)        & Like the cartesian product but it only emits a pair if all left-hand-side expressions of the list of pairs (\(\mathit{lexpr}\); evaluated in the context of a tuple from \(R\)) evaluate to equal values as all right-hand-side expressions (\(\mathit{rexpr}\); evaluated in the context of a tuple from \(S\)). \\
-		Antijoin           & \(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S\) & Returns all tuples from the left input relation \(R\) that do \emph{not} match any tuple from the right input relation \(S\) based on the list of expression pairs (which is evaluated as for the equi join).                                                                                                     \\
+		Equijoin           & \(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S\)        & Like the Cartesian product but it only emits a pair if all left-hand-side expressions of the list of pairs (\(\mathit{lexpr}\); evaluated in the context of a tuple from \(R\)) evaluate to equal values as all right-hand-side expressions (\(\mathit{rexpr}\); evaluated in the context of a tuple from \(S\)). \\
+		Antijoin           & \(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S\) & Returns all tuples from the left input relation \(R\) that do \emph{not} match any tuple from the right input relation \(S\) based on the list of expression pairs (which is evaluated as for the equijoin).                                                                                                      \\
 		Fixpoint Iteration & \(\mu(\mathit{acc}, \mathit{step})\)                        & Executes \(\mathit{step}\) starting from \(\mathit{acc}\) for as long as there are changes to its up-to-now computed output, i.e., it stops once the \emph{least fixpoint} is attained.                                                                                                                           \\
 		\bottomrule
 	\end{tabular}
@@ -342,7 +342,7 @@ non-recursive predicates, both of which I introduce successively.
 
 \textbf{Rules with only positive atoms}.
 Non-recursive rules without negative atoms can be naively translated
-into a cartesian product of all predicates in the rule's body followed by
+into a Cartesian product of all predicates in the rule's body followed by
 a selection.
 To handle potential name collisions among the fields,
 each positive predicate atom is aliased with a unique prefix.
@@ -350,7 +350,7 @@ Moreover, each referenced predicate is projected to only include the listed
 fields and to potentially rename them.
 The selection's predicate consists of \emph{conjunctions}
 encompassing all comparison atoms in the rule's body as well as equality comparisons.
-For each variable occuring in \(n > 1\) relations, \(n - 1\) equality comparisons
+For each variable occurring in \(n > 1\) relations, \(n - 1\) equality comparisons
 are included in the selection's predicate.
 Each equality comparison connects a pair of relations such that there exists
 a path connecting all \(n\) relations.
@@ -363,15 +363,15 @@ selection's output.
 (depicted in \ref{code:mvr-store-rule})
 from the \ac{MVR} key-value \ac{CRDT} store from \ref{code:mvr-crdt-datalog}.
 After combining the three positive atoms ``set'', ``isCausallyReady'', and
-``isLeaf'' through a cartesian product, the selection filters out all tuples that
+``isLeaf'' through a Cartesian product, the selection filters out all tuples that
 do not match with the variable reuse stated in the rule's body.
 As the last step, the projection confines the output to the ``Key'' and ``Value''
 fields given by the rule's head.
 
 The \emph{subpar} query translation improves upon the naive translation
-by avoiding the cartesian product where possible and instead folding the positive
+by avoiding the Cartesian product where possible and instead folding the positive
 atoms into an operator tree of equijoins.
-This avoids large intermediate results of the cartesian products through
+This avoids large intermediate results of the Cartesian products through
 exploiting the selectivity of the join conditions.
 Additionally, the subpar translation eliminates unnecessary projections
 in two cases:
@@ -385,16 +385,16 @@ which is why I call it \emph{subpar}.
 
 \ref{fig:optimized-plan} shows the subpar query plan for the ``mvrStore''
 predicate.
-It eliminates all cartesian products and replaces them with equijoins.
+It eliminates all Cartesian products and replaces them with equijoins.
 The projections and aliases can also be omitted, reducing the operator count
 from ten to two,
-while also avoiding cartesian products' large intermediate results.
+while also avoiding Cartesian products' large intermediate results.
 
 \input{figures/naive_vs_optimized_query_plan.tex}
 
 \textbf{Rules with positive and negative atoms}.
 To handle rules with both positive and negative atoms,
-all atoms in the rule's body are partioned into positive and negative atoms.
+all atoms in the rule's body are partitioned into positive and negative atoms.
 First, the positive atoms are translated into an operator tree as described above.
 Then, the negative atoms are folded into an operator tree of antijoins,
 starting from the positive atoms' operator tree.

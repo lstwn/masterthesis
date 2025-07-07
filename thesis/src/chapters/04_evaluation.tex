@@ -100,7 +100,7 @@ the same replica with elements from other replicas under concurrent insertions,
 a desirable property for maintaining the users' intents in the best
 ``possible'' manner, and is discussed in~\cite{fugue}.
 
-Logically, insertions in RGA can be represented in a tree stucture,
+Logically, insertions in RGA can be represented in a tree structure,
 where each node's \emph{parent} is the element after which it is supposed to be
 inserted (but may not in the final list order due to concurrent insertions).
 The root element is some sentinel element that is always present and does not
@@ -288,7 +288,7 @@ VeriFx~\cite{verifx}, Propel~\cite{propel}, and LoRe~\cite{lore} introduce
 custom \acp{DSL} to define \acp{CRDT}.
 From \ac{CRDT} definitions in the \ac{DSL}, they derive both an implementation
 of the \ac{CRDT} and its verification of convergence.
-The verification is handed off to a \ac{SAT}-solver, which is used to
+The verification is handed off to a \acs{SAT} solver, which is used to
 prove that the \ac{CRDT} converges under concurrent updates.
 LoRe differs from VeriFx insofar that it can also express invariants that
 require coordination between replicas and inject such coordination logic

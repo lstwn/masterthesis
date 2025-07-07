@@ -48,7 +48,7 @@ as it is guaranteed by construction, and are empowered to design their own \acp{
 While still being a restricted language, Datalog may be more expressive
 and better known than a custom \ac{DSL}.
 Yet, so far the idea has only been hypothesized.
-This work aims to put the idea into practice by exploring the feasability of
+This work aims to put the idea into practice by exploring the feasibility of
 expressing \acp{CRDT} as Datalog queries through:
 
 % TODO: More explicit forward-referencing.
@@ -101,7 +101,7 @@ production facility just because some server is not available.
 Although \acp{CRDT} are mostly discussed in the context of collaborative
 applications, they are not limited to this domain:
 Companies like Ditto~\cite{ditto} serve use cases powered by \acp{CRDT}
-in manufacturing, aviation, gastronomy and defence sectors.
+in manufacturing, aviation, gastronomy and defense sectors.
 
 Applications can benefit from \ac{IVM} insofar that they receive updates
 to the views defined by their queries instead of the full state.
@@ -175,7 +175,7 @@ head (left-hand side) and a body (right-hand side), separated by ``:-''.
 If the body of a rule is satisfied for an assignment of variables,
 the implication is considered true for that assignment,
 and a new fact is derived according to the head of the rule.
-As Datalog is inspiredy by first-order logic, the Datalog query of the \ac{MVR}
+As Datalog is inspired by first-order logic, the Datalog query of the \ac{MVR}
 store resembles the mathematical notation above but uses the
 additional ``overwritten'' predicate to make it more readable.
 
@@ -298,7 +298,7 @@ negation.
 Hirn et al. \cite{hirn2023fix} discuss these limitations in more detail
 in the context of SQL and propose alternatives.
 Beyond this, SQL is based on multisets and Datalog on sets but Datalog can
-be extended to accomodate multisets as well, as I do when defining
+be extended to accommodate multisets as well, as I do when defining
 my Datalog dialect in \ref{sec:datalog-frontend}.
 While SQL offers support for aggregates,
 Datalog requires an extension to support aggregates~\cite{green2013datalog}.

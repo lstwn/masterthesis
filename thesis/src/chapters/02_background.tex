@@ -83,7 +83,7 @@ types such as strings, numbers, or booleans.
 Due to their ordered nature, fields are accessed through positional indexing.
 Moreover, for a regular rule to be valid the \emph{range-restriction property}
 must be satisfied~\cite{green2013datalog}:
-It demands that every variable occuring in the head of a rule must also occur
+It demands that every variable occurring in the head of a rule must also occur
 at least once in a predicate atom of its body, to avoid a dangling reference
 to a variable.
 
@@ -206,7 +206,7 @@ To (quite literally) break this cycle, \emph{semipositive} Datalog is introduced
 first, which is just a vehicle to capture the semantics of \emph{stratified}
 Datalog, both of which are syntactic restrictions on the use of negation and
 recursion~\cite{green2013datalog}.
-While there are other approaches to reimpart unambiguous semantics to
+While there are other approaches to impart unambiguous semantics to
 Datalog with negation, \emph{stratified negation} is the predominant
 one~\cite{green2013datalog}.
 
@@ -219,7 +219,7 @@ one~\cite{green2013datalog}.
 
 Semipositive Datalog only allows the negation of \acp{EDBP}, but not \acp{IDBP},
 as part of the body of a rule defining an \ac{IDBP}.
-Furthermore, it demands that every variable occuring in the body of a rule must
+Furthermore, it demands that every variable occurring in the body of a rule must
 occur in at least one positive (non-negative) predicate atom,
 which is referred to as the \emph{safety condition}~\cite{green2013datalog}.
 If it was not satisfied, the result of a query would not just depend on the
@@ -229,7 +229,7 @@ the negation of an \ac{EDBP} within the body of an \ac{IDBP} (together with
 the safety condition) behaves similar to the set difference operator
 in relational algebra.
 
-Stratified datalog relaxes the restriction a bit and allows the
+Stratified Datalog relaxes the restriction a bit and allows the
 negation of \acp{IDBP} within a rule, as long as the predicates
 are \emph{stratifiable}.
 A Datalog program is stratifiable if its predicates can be partitioned into
@@ -466,7 +466,7 @@ to all queries and struggles to handle more complex queries like
 recursive ones~\cite{budiu2025dbsp}.
 
 More recent approaches are \emph{differential dataflow}~\cite{mcsherry2013differential}
-and the later \emph{DBSP}~\cite{budiu2022dbsp, budiu2024dbsp, budiu2025dbsp}.
+and the later \emph{DBSP}~\cite{budiu2024dbsp, budiu2025dbsp}.
 Their approach is fundamentally different from the algebraic one.
 At first, they leave relational algebra behind and instead define a general
 framework for expressing incremental computations over streams of insertions

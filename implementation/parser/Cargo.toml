@@ -13,6 +13,6 @@ criterion = { workspace = true }
 compute = { path = "../compute", features = ["test"] }
 
 [[bench]]
-name = "mvr_crdt_key_value_store"
+name = "key_value_stores"
 # We disable the default test harness to use Criterion instead.
 harness = false

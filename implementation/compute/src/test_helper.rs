@@ -582,6 +582,12 @@ impl Replica {
             heads: HashSet::new(),
         }
     }
+    pub fn rep_id(&self) -> u64 {
+        self.rep_id
+    }
+    pub fn ctr(&self) -> u64 {
+        self.ctr
+    }
     /// Warning: This method assumes that the `set_op` and its causal predecessors
     /// are all causally ready for this replica. There is no buffering due to
     /// missing causal predecessors for now.
@@ -602,7 +608,7 @@ impl Replica {
             }
         }
         self.heads.insert((set_op.rep_id, set_op.ctr));
-        // Advance the lamport clock if the new set_op has a higher counter.
+        // Advance the Lamport clock if the new set_op has a higher counter.
         if self.ctr < set_op.ctr {
             self.ctr = set_op.ctr + 1;
         }

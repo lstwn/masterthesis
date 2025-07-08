@@ -2,7 +2,7 @@
 
 /// This represents a key value store whose registers are multi-valued registers
 /// powered by a causal history of operations. This is a full-blown CRDT.
-pub fn mvr_crdt_store_datalog() -> &'static str {
+pub const fn mvr_crdt_store_datalog() -> &'static str {
     r#"
         // These are extensional database predicates (EDBPs).
         pred(FromRepId, FromCtr, ToRepId, ToCtr) :- .
@@ -37,7 +37,7 @@ pub fn mvr_crdt_store_datalog() -> &'static str {
 
 /// This is a simplified version of the key value with multi-valued registers
 /// that assumes a causal broadcast on the application layer.
-pub fn mvr_store_datalog() -> &'static str {
+pub const fn mvr_store_datalog() -> &'static str {
     r#"
         // These are extensional database predicates (EDBPs).
         pred(FromRepId, FromCtr, ToRepId, ToCtr) :- .
@@ -52,7 +52,7 @@ pub fn mvr_store_datalog() -> &'static str {
 
 /// This is an implementation of the replicated growable array (RGA) CRDT in Datalog.
 /// Credits are due to Martin Kleppmann.
-pub fn list_crdt_datalog() -> &'static str {
+pub const fn list_crdt_datalog() -> &'static str {
     r#"
         // These are extensional database predicates (EDBPs).
         insert(RepId, Ctr, ParentRepId, ParentCtr) :- .

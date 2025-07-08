@@ -26,7 +26,7 @@ use crate::{
     stmt::Code,
 };
 use context::{InterpreterContext, ProgramContext, ResolverContext};
-use dbsp::{DbspError, DbspHandle, RootCircuit, Runtime};
+use dbsp::{CircuitHandle, DbspError, RootCircuit};
 use error::IncLogError;
 use interpreter::Interpreter;
 use resolver::Resolver;
@@ -112,7 +112,7 @@ impl IncDataLog {
     pub fn build_circuit_from_ir<F, Code>(
         &self,
         intermediate_representation: F,
-    ) -> Result<(DbspHandle, DbspInputs, DbspOutput), anyhow::Error>
+    ) -> Result<(CircuitHandle, DbspInputs, DbspOutput), anyhow::Error>
     where
         Code: IntoIterator<Item = Stmt>,
         F: Fn(&mut RootCircuit, &mut DbspInputs) -> Result<Code, SyntaxError>
@@ -140,7 +140,7 @@ impl IncDataLog {
     pub fn build_circuit_from_parser<F>(
         &self,
         parser: F,
-    ) -> Result<(DbspHandle, DbspInputs, DbspOutput), anyhow::Error>
+    ) -> Result<(CircuitHandle, DbspInputs, DbspOutput), anyhow::Error>
     where
         F: Fn(&mut RootCircuit) -> Result<(DbspInputs, Code), SyntaxError> + Clone + Send + 'static,
     {
@@ -157,12 +157,13 @@ impl IncDataLog {
 
         Ok((circuit, inputs, output))
     }
-    fn init_dbsp_runtime<F, T>(&self, constructor: F) -> Result<(DbspHandle, T), DbspError>
+    fn init_dbsp_runtime<F, T>(&self, constructor: F) -> Result<(CircuitHandle, T), DbspError>
     where
         F: FnOnce(&mut RootCircuit) -> Result<T, anyhow::Error> + Clone + Send + 'static,
         T: Send + 'static,
     {
-        Runtime::init_circuit(usize::from(self.threads), constructor)
+        RootCircuit::build(constructor)
+        // Runtime::init_circuit(usize::from(self.threads), constructor)
     }
     fn init_optimizer(&self) -> Option<Optimizer> {
         if self.optimize {
@@ -311,7 +312,7 @@ mod test {
 
     #[test]
     fn test_selection_and_projection() -> Result<(), anyhow::Error> {
-        let (mut circuit, inputs, output) =
+        let (circuit, inputs, output) =
             setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
                 Ok([
                     Stmt::from(VarStmt {
@@ -439,7 +440,7 @@ mod test {
 
     #[test]
     fn test_standard_join() -> Result<(), anyhow::Error> {
-        let (mut circuit, inputs, output) =
+        let (circuit, inputs, output) =
             setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
                 let code = [
                     Stmt::from(VarStmt {
@@ -525,7 +526,7 @@ mod test {
 
     #[test]
     fn test_cartesian_product() -> Result<(), anyhow::Error> {
-        let (mut circuit, inputs, output) =
+        let (circuit, inputs, output) =
             setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
                 let code = [
                     Stmt::from(VarStmt {
@@ -592,7 +593,7 @@ mod test {
 
     #[test]
     fn test_self_join() -> Result<(), anyhow::Error> {
-        let (mut circuit, inputs, output) =
+        let (circuit, inputs, output) =
             setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
                 let code = [
                     Stmt::from(VarStmt {
@@ -823,7 +824,7 @@ mod test {
 
     #[test]
     fn test_iteration() -> Result<(), anyhow::Error> {
-        let (mut circuit, inputs, output) =
+        let (circuit, inputs, output) =
             setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
                 let code = [
                     Stmt::from(VarStmt {
@@ -968,7 +969,7 @@ mod test {
 
     #[test]
     fn test_mvr_store_crdt() -> Result<(), anyhow::Error> {
-        let (mut circuit, inputs, output) =
+        let (circuit, inputs, output) =
             setup_inc_data_log().build_circuit_from_ir(|root_circuit, dbsp_inputs| {
                 let code = [
                     // Inputs start.

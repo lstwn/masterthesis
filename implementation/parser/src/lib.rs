@@ -59,10 +59,9 @@ mod test {
     fn test_mvr_crdt_store_end_to_end() -> Result<(), anyhow::Error> {
         let inc_data_log = setup_inc_data_log();
 
-        let (mut handle, inputs, output) =
-            inc_data_log.build_circuit_from_parser(|root_circuit| {
-                Parser::new(root_circuit).parse(mvr_crdt_store_datalog())
-            })?;
+        let (handle, inputs, output) = inc_data_log.build_circuit_from_parser(|root_circuit| {
+            Parser::new(root_circuit).parse(mvr_crdt_store_datalog())
+        })?;
 
         let pred_rel_input = inputs.get("pred").unwrap();
         let set_op_input = inputs.get("set").unwrap();
@@ -107,10 +106,9 @@ mod test {
     fn test_mvr_store_end_to_end() -> Result<(), anyhow::Error> {
         let inc_data_log = setup_inc_data_log();
 
-        let (mut handle, inputs, output) =
-            inc_data_log.build_circuit_from_parser(|root_circuit| {
-                Parser::new(root_circuit).parse(mvr_store_datalog())
-            })?;
+        let (handle, inputs, output) = inc_data_log.build_circuit_from_parser(|root_circuit| {
+            Parser::new(root_circuit).parse(mvr_store_datalog())
+        })?;
 
         let pred_rel_input = inputs.get("pred").unwrap();
         let set_op_input = inputs.get("set").unwrap();
@@ -157,10 +155,9 @@ mod test {
     fn test_list_crdt_martin() -> Result<(), anyhow::Error> {
         let inc_data_log = setup_inc_data_log();
 
-        let (mut handle, inputs, output) =
-            inc_data_log.build_circuit_from_parser(|root_circuit| {
-                Parser::new(root_circuit).parse(list_crdt_datalog())
-            })?;
+        let (handle, inputs, output) = inc_data_log.build_circuit_from_parser(|root_circuit| {
+            Parser::new(root_circuit).parse(list_crdt_datalog())
+        })?;
 
         let insert_op_input = inputs.get("insert").unwrap();
         let assert_op_input = inputs.get("assign").unwrap();
@@ -195,10 +192,9 @@ mod test {
     fn test_list_crdt_multi_replicas() -> Result<(), anyhow::Error> {
         let inc_data_log = setup_inc_data_log();
 
-        let (mut handle, inputs, output) =
-            inc_data_log.build_circuit_from_parser(|root_circuit| {
-                Parser::new(root_circuit).parse(list_crdt_datalog())
-            })?;
+        let (handle, inputs, output) = inc_data_log.build_circuit_from_parser(|root_circuit| {
+            Parser::new(root_circuit).parse(list_crdt_datalog())
+        })?;
 
         let insert_op_input = inputs.get("insert").unwrap();
         let assert_op_input = inputs.get("assign").unwrap();
@@ -233,9 +229,8 @@ mod test {
     fn test_multiple_negation() -> Result<(), anyhow::Error> {
         let inc_data_log = setup_inc_data_log();
 
-        let (mut handle, inputs, output) =
-            inc_data_log.build_circuit_from_parser(|root_circuit| {
-                let program = r#"
+        let (handle, inputs, output) = inc_data_log.build_circuit_from_parser(|root_circuit| {
+            let program = r#"
                     r1(a, b, c)                     :- .
                     r2(a, b, c)                     :- .
                     r3(a, b, c)                     :- .
@@ -243,8 +238,8 @@ mod test {
                                                        not r2(b),
                                                        not r3(c).
                 "#;
-                Parser::new(root_circuit).parse(program)
-            })?;
+            Parser::new(root_circuit).parse(program)
+        })?;
 
         let r1_input = inputs.get("r1").unwrap();
         let r2_input = inputs.get("r2").unwrap();

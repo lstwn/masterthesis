@@ -273,10 +273,29 @@ the operators of the query plan being either ``warm'' or ``cold'':
 
 \subsection{Near-Real-Time Setting}\label{sec:near-real-time-benchmark}
 
-TODO:
-Benchmarking
+\input{figures/bench_near_real_time_kv_store.tex}
+
+\ref{fig:near-real-time-kv-store} shows benchmarks of the \ac{MVR} key-value
+store (\ref{code:mvr-store-datalog-dialect}) and the \ac{MVR} key-value
+\ac{CRDT} store (\ref{code:mvr-crdt-datalog-dialect}) in the near-real-time
+setting.
+Their distinguishing factor is the inclusion of the causal broadcast mechanism
+and this can be seen in the performance difference between the two.
+The benchmark is set up as follows:
+The \emph{base diameter} \(\in \{1000, 2000, 3000, 4000, 5000\}\) is the diameter
+of the causal history if viewed as a directed graph,
+i.e., the longest path from a root to a leaf.
+The \emph{delta diameter} \(\in \{20, 40, 60, 80, 100\}\) is the diameter of the
+updates, again viewed as a directed graph.
+Hence, an update with a delta diameter of, e.g., 20, contains 20 new operations that
+causally depend on each other and are applied on top of the causal history
+with the given base diameter.
+The benchmark measures the time it takes to only apply the operations from the
+update.
 
 \subsection{Hydration Setting}\label{sec:hydration-benchmark}
+
+\input{figures/bench_hydration_kv_store.tex}
 
 TODO:
 Show that the causal broadcast does not benefit from parallelization

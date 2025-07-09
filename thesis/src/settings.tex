@@ -101,7 +101,17 @@
 \pgfplotsset{compat=newest}
 \pgfplotsset{
 	% For available color names, see http://www.latextemplates.com/svgnames-colors
-	cycle list={TUMBlue\\TUMAccentOrange\\TUMAccentGreen\\TUMSecondaryBlue2\\TUMDarkGray\\},
+	cycle list={
+	    {TUMBlue},{TUMAccentOrange},{TUMAccentGreen},{TUMSecondaryBlue2},{TUMDarkGray}
+	},
+	legend style={
+        anchor=north west,
+        % xshift=15pt,
+        draw=none,
+        % legend columns=2,
+        cells={anchor=west,align=left},
+        font=\footnotesize,
+    },
 }
 
 % Settings for lstlistings.

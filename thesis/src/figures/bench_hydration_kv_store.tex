@@ -1,0 +1,34 @@
+\begin{figure}[htpb]
+	\centering
+    \begin{tikzpicture}
+    \begin{axis}[
+        axis on top, ymin=0,
+    	legend pos=north east,
+    	legend style={
+    	    anchor=north west,xshift=15pt,
+        },
+        grid=major,
+    	thick,
+    	xlabel={Causal History Diameter},
+    	ylabel={Median Runtime (ms)},
+    	sharp plot,
+    ]
+    \addplot+[mark=+] table [
+        x=diameter,
+        y=median_point_estimate,
+        col sep=semicolon,
+    ] {data/bench_hdr_cb.csv};
+    \addlegendentryexpanded{\ref{code:mvr-crdt-datalog-dialect}}
+
+    \addplot+[mark=*] table [
+        x=diameter,
+        y=median_point_estimate,
+        col sep=semicolon,
+    ] {data/bench_hdr_nocb.csv};
+    \addlegendentryexpanded{\ref{code:mvr-store-datalog-dialect}}
+    \end{axis}
+    \end{tikzpicture}
+    \caption{
+        Hydration setting benchmark for the key-value stores.
+    }\label{fig:hydration-kv-store}
+\end{figure}

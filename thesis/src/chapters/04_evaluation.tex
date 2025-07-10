@@ -265,43 +265,93 @@ the operators of the query plan being either ``warm'' or ``cold'':
 	\item \textbf{Hydration setting} (\ref{sec:hydration-benchmark}).
 	      As outlined in \ref{sec:ivm}, all bilinear operators are stateful.
 	      Hence, all stateful operators of the query plan have to restore
-	      their state before processing any new updates, e.g., in case of ``cold''
-	      application restarts. This benchmark measures the time it takes
-	      until the application can process \emph{new} updates again on top of
-	      an existing history of operations.
+	      their state before processing any new updates, e.g., in case of a
+		  ``cold'' application restart. This benchmark measures the time it takes
+	      until the application can show its last state and process \emph{new}
+		  updates again on top of an existing history of operations.
 \end{itemize}
+
+All benchmarks are executed on a 2024 MacBook Pro with an Apple M4 Pro CPU.
+DBSP's runtime is configured to run in a single thread due to correctness
+issues with its multi-threaded execution for queries that use recursion.
+Although I am not sure about the exact reason,
+I suspect that this is because some of DBSP's operators are not thread-safe,
+as mentioned in their
+\href{https://docs.rs/dbsp/0.64.0/dbsp/circuit/struct.Runtime.html\#method.init_circuit}{documentation}.
+Unfortunately, it currently lacks a list of non-thread-safe operators
+and does not explain the issue any further\footnotemark{}.
+
+\footnotetext{
+    \url{https://docs.rs/dbsp/0.64.0/dbsp/circuit/struct.Runtime.html\#method.init_circuit}
+}
 
 \subsection{Near-Real-Time Setting}\label{sec:near-real-time-benchmark}
 
 \input{figures/bench_near_real_time_kv_store.tex}
 
-\ref{fig:near-real-time-kv-store} shows benchmarks of the \ac{MVR} key-value
-store (\ref{code:mvr-store-datalog-dialect}) and the \ac{MVR} key-value
-\ac{CRDT} store (\ref{code:mvr-crdt-datalog-dialect}) in the near-real-time
+\ref{fig:near-real-time-kv-store} shows benchmarks of the simple \ac{MVR} key-value
+store (\ref{code:mvr-store-datalog-dialect}) and the advanced \ac{MVR} key-value
+store (\ref{code:mvr-crdt-datalog-dialect}) in the near-real-time
 setting.
 Their distinguishing factor is the inclusion of the causal broadcast mechanism
-and this can be seen in the performance difference between the two.
+and this can be seen in their performance difference, too.
 The benchmark is set up as follows:
 The \emph{base diameter} \(\in \{1000, 2000, 3000, 4000, 5000\}\) is the diameter
 of the causal history if viewed as a directed graph,
 i.e., the longest path from a root to a leaf.
 The \emph{delta diameter} \(\in \{20, 40, 60, 80, 100\}\) is the diameter of the
 updates, again viewed as a directed graph.
-Hence, an update with a delta diameter of, e.g., 20, contains 20 new operations that
-causally depend on each other and are applied on top of the causal history
-with the given base diameter.
-The benchmark measures the time it takes to only apply the operations from the
-update.
+The benchmark measures the time it takes to apply an update with the given
+delta diameter on top of a causal history with the given base diameter.
+For instance, the first ``+'' mark of the blue line in
+\ref{fig:near-real-time-kv-store} shows that it takes about 20 milliseconds
+to apply 20 new operations on top of a causal history with a base diameter of
+1000 for the CRDT from \ref{code:mvr-crdt-datalog-dialect}.
+
+The benchmark reveals some interesting patterns.
+First, the base diameter and the delta diameter have no significant impact
+on the performance of the simple key-value store without the causal broadcast
+mechanism.
+In fact, varying the base diameter has no impact on the performance, i.e.,
+the the age of the causal history does not matter in this case.
+Therefore, only one measurement for this \ac{CRDT} is visible at all
+in \ref{fig:near-real-time-kv-store}.
+Varying the delta diameter lets the performance change by less than one millisecond
+and is therefore negligible, too.
+In total, the runtimes are less than one millisecond for all base and delta diameters.
+Second, the advanced key-value store with the causal broadcast mechanism
+is significantly slower than the simple key-value store.
+An increase in the base diameter by 1000 causes an increase of the runtime of
+about 20 milliseconds, rendering this \ac{CRDT} \emph{dependent} on the age
+of the causal history.
+Yet, an increase in the delta diameter has little impact on the performance
+for a given base diameter.
+The results match their query patterns:
+The advanced key-value store has to traverse the causal history from its
+roots to its leafs to find the causally ready operations.
+The fix point iteration responsible for this graph traversal encompasses the
+evaluation of dependent joins relative to the size of the diameter of the causal
+history.
+Due to the \emph{dependent} joins, I suspect that even a multi-threaded execution
+would not improve the performance in this case.
 
 \subsection{Hydration Setting}\label{sec:hydration-benchmark}
 
 \input{figures/bench_hydration_kv_store.tex}
 
-TODO:
-Show that the causal broadcast does not benefit from parallelization
-as it is inherently sequential by benchmarking the non-causal CRDT
-as reference.
-Lots of dependent joins in the fixed point iteration. How to optimize?
+\ref{fig:hydration-kv-store} shows benchmarks of the simple and advanced
+\ac{MVR} key-value stores in the hydration setting.
+There is only one parameter in this setting,
+the \emph{base diameter} \(\in \{1000, 2000, 3000, 4000, 5000\}\).
+The benchmarks measure the time it takes to apply all operations of a
+causal history with the given base diameter.
+For the key-value stores, a similar pattern emerges.
+The causal broadcast mechanism has a significant impact on the performance:
+While an increase of the base diameter by 1000 causes the performance of the
+simple key-value store to increase by about two milliseconds,
+the advanced key-value store's performance increases by about 40 milliseconds.
+The reason for this is again the costly fix point iteration of the causal
+broadcast mechanism.
 
 \section{Related Work}\label{sec:related-work}
 

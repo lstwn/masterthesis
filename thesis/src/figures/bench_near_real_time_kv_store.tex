@@ -14,21 +14,21 @@
     	sharp plot,
     ]
     \foreach \i in {1000, 2000, 3000, 4000, 5000} {
-        \addplot+[mark=+] table [
-            x=delta,
-            y=median_point_estimate,
-            col sep=semicolon,
-        ] {data/bench_nrt_cb_b\i.csv};
-        % \addlegendentryexpanded{\hyperref[code:mvr-crdt-datalog-dialect]{With CB}, base diameter \i}
-        \addlegendentryexpanded{\ref{code:mvr-crdt-datalog-dialect}, base diameter \i}
-    }
-    \foreach \i in {1000, 2000, 3000, 4000, 5000} {
         \addplot+[mark=*] table [
             x=delta,
             y=median_point_estimate,
             col sep=semicolon,
         ] {data/bench_nrt_nocb_b\i.csv};
-        \addlegendentryexpanded{\ref{code:mvr-store-datalog-dialect}, base diameter \i}
+        \addlegendentryexpanded{\ref{code:mvr-store-datalog-dialect}, Base Diameter \i}
+    }
+
+    \foreach \i in {1000, 2000, 3000, 4000, 5000} {
+        \addplot+[mark=+] table [
+            x=delta,
+            y=median_point_estimate,
+            col sep=semicolon,
+        ] {data/bench_nrt_cb_b\i.csv};
+        \addlegendentryexpanded{\ref{code:mvr-crdt-datalog-dialect}, Base Diameter \i}
     }
     \end{axis}
     \end{tikzpicture}

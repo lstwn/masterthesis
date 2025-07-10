@@ -9,23 +9,23 @@
         },
         grid=major,
     	thick,
-    	xlabel={Causal History Diameter},
+    	xlabel={Base Diameter},
     	ylabel={Median Runtime (ms)},
     	sharp plot,
     ]
-    \addplot+[mark=+] table [
-        x=diameter,
-        y=median_point_estimate,
-        col sep=semicolon,
-    ] {data/bench_hdr_cb.csv};
-    \addlegendentryexpanded{\ref{code:mvr-crdt-datalog-dialect}}
-
     \addplot+[mark=*] table [
         x=diameter,
         y=median_point_estimate,
         col sep=semicolon,
     ] {data/bench_hdr_nocb.csv};
     \addlegendentryexpanded{\ref{code:mvr-store-datalog-dialect}}
+
+    \addplot+[mark=+] table [
+        x=diameter,
+        y=median_point_estimate,
+        col sep=semicolon,
+    ] {data/bench_hdr_cb.csv};
+    \addlegendentryexpanded{\ref{code:mvr-crdt-datalog-dialect}}
     \end{axis}
     \end{tikzpicture}
     \caption{

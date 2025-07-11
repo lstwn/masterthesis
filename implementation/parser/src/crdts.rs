@@ -56,7 +56,7 @@ pub const fn list_crdt_datalog() -> &'static str {
     r#"
         // These are extensional database predicates (EDBPs).
         insert(RepId, Ctr, ParentRepId, ParentCtr) :- .
-        assign(RepId, Ctr, Value) :- .
+        assign(RepId, Ctr, ElemId, ElemCtr, Value) :- .
         remove(RepId, Ctr) :- .
 
         // These are intensional database predicates (IDBPs).
@@ -106,9 +106,26 @@ pub const fn list_crdt_datalog() -> &'static str {
           not hasChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr),
           nextSiblingAnc(PrevRepId = ChildRepId, PrevCtr = ChildCtr, NextRepId = AncRepId, NextCtr = AncCtr).
 
-        listElem(PrevRepId, PrevCtr, Value, NextRepId, NextCtr) :-
-            assign(NextRepId = RepId, NextCtr = Ctr, Value),
-            not remove(NextRepId = RepId, NextCtr = Ctr),
+        currentValue(ElemId, ElemCtr, Value) :-
+            assign(RepId, Ctr, ElemId, ElemCtr, Value),
+            not remove(RepId, Ctr).
+
+        hasValue(ElemId, ElemCtr) :- currentValue(ElemId, ElemCtr, _Value).
+
+        nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
             nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr).
+        nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
+            nextElem(PrevRepId, PrevCtr, ViaRepId = NextRepId, ViaCtr = NextCtr),
+            not hasValue(ViaRepId = ElemId, ViaCtr = ElemCtr),
+            nextElemSkipTombstones(ViaRepId = PrevRepId, ViaCtr = PrevCtr, NextRepId, NextCtr).
+
+        nextVisible(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
+            hasValue(PrevRepId = ElemId, PrevCtr = ElemCtr),
+            nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr),
+            hasValue(NextRepId = ElemId, NextCtr = ElemCtr).
+
+        listElem(PrevRepId, PrevCtr, Value, NextRepId, NextCtr) :-
+            nextVisible(PrevRepId, PrevCtr, NextCtr, NextRepId),
+            currentValue(NextRepId = ElemId, NextCtr = ElemCtr, Value).
     "#
 }

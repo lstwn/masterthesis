@@ -1,7 +1,7 @@
 use compute::{
     IncDataLog,
     dbsp::{CircuitHandle, DbspInputs, DbspOutput},
-    test_helper::{PredRel, Replica, SetOp},
+    test_helper::{KeyValueStoreReplica, PredRel, SetOp},
 };
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use parser::{
@@ -28,7 +28,7 @@ fn bench_hydration(c: &mut Criterion) {
                 BenchmarkId::new(name, diameter),
                 &diameter,
                 |b, &diameter| {
-                    let mut replica = Replica::new(0);
+                    let mut replica = KeyValueStoreReplica::new(0);
                     let data =
                         generate_operation_history(&mut replica, diameter).collect::<Vec<_>>();
 
@@ -70,7 +70,7 @@ fn bench_near_real_time(c: &mut Criterion) {
                     BenchmarkId::new(name, delta_diameter),
                     &delta_diameter,
                     |b, delta_diameter| {
-                        let mut replica = Replica::new(0);
+                        let mut replica = KeyValueStoreReplica::new(0);
                         let base_data = generate_operation_history(&mut replica, base_diameter)
                             .collect::<Vec<_>>();
                         let delta_data = generate_operation_history(&mut replica, *delta_diameter)
@@ -114,7 +114,7 @@ fn bench_near_real_time(c: &mut Criterion) {
 /// Returns set operations and according predecessor relations by setting
 /// the key 0 to the value of the replica's counter at the respective time.
 fn generate_operation_history(
-    replica: &mut Replica,
+    replica: &mut KeyValueStoreReplica,
     diameter: usize,
 ) -> impl Iterator<Item = (SetOp, Vec<PredRel>)> {
     (0..diameter).map(|_i| replica.new_local_set_op(0, replica.ctr()))

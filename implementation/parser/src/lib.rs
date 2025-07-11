@@ -48,7 +48,7 @@ mod test {
         relation::TupleValue,
         scalar::ScalarTypedValue,
         test_helper::{
-            PlainRelation, list_crdt_operation_history_martin,
+            ListReplica, PlainRelation, list_crdt_operation_history_martin,
             list_crdt_operation_history_multi_replicas, mvr_store_operation_history,
             setup_inc_data_log,
         },
@@ -160,7 +160,7 @@ mod test {
         })?;
 
         let insert_op_input = inputs.get("insert").unwrap();
-        let assert_op_input = inputs.get("assign").unwrap();
+        let assign_op_input = inputs.get("assign").unwrap();
         let remove_op_input = inputs.get("remove").unwrap();
 
         let mut expected = [zset! {
@@ -173,10 +173,10 @@ mod test {
         }]
         .into_iter();
 
-        for (insert_op_step, assert_op_step, remove_op_step) in list_crdt_operation_history_martin()
+        for (insert_op_step, assign_op_step, remove_op_step) in list_crdt_operation_history_martin()
         {
             insert_op_input.insert_with_same_weight(&insert_op_step, 1);
-            assert_op_input.insert_with_same_weight(&assert_op_step, 1);
+            assign_op_input.insert_with_same_weight(&assign_op_step, 1);
             remove_op_input.insert_with_same_weight(&remove_op_step, 1);
 
             handle.step()?;
@@ -197,28 +197,32 @@ mod test {
         })?;
 
         let insert_op_input = inputs.get("insert").unwrap();
-        let assert_op_input = inputs.get("assign").unwrap();
+        let assign_op_input = inputs.get("assign").unwrap();
         let remove_op_input = inputs.get("remove").unwrap();
 
         let mut expected = [zset! {
             tuple!(0_u64, 0_u64, 'H', 2_u64, 1_u64) => 1,
-            tuple!(2_u64, 1_u64, 'E', 2_u64, 3_u64) => 1,
-            tuple!(2_u64, 3_u64, 'L', 1_u64, 3_u64) => 1,
+            tuple!(2_u64, 1_u64, 'L', 1_u64, 3_u64) => 1,
             tuple!(1_u64, 3_u64, 'L', 3_u64, 2_u64) => 1,
             tuple!(3_u64, 2_u64, 'O', 1_u64, 1_u64) => 1,
+            tuple!(1_u64, 1_u64, '!', 2_u64, 5_u64) => 1,
         }]
         .into_iter();
 
-        for (insert_op_step, assert_op_step, remove_op_step) in
+        let mut replica = ListReplica::new(0);
+
+        for (insert_op_step, assign_op_step, remove_op_step) in
             list_crdt_operation_history_multi_replicas()
         {
             insert_op_input.insert_with_same_weight(&insert_op_step, 1);
-            assert_op_input.insert_with_same_weight(&assert_op_step, 1);
+            assign_op_input.insert_with_same_weight(&assign_op_step, 1);
             remove_op_input.insert_with_same_weight(&remove_op_step, 1);
 
             handle.step()?;
 
             let batch = output.to_batch();
+            replica.apply_output_delta(batch.as_data());
+            println!("{}", replica.materialize_string());
             println!("{}", batch.as_table());
             assert_eq!(batch.as_zset(), expected.next().unwrap());
         }

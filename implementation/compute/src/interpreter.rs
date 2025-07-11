@@ -580,9 +580,9 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
                         }
                     })
                     .expect("Runtime error while interpreting fixed point iteration body")
-                    .expect("Fixed point iteration body did not return a value");
+                    .expect("Fix point iteration body did not return a value");
                 let result = assert_type!(result, Value::Relation)
-                    .expect("Fixed point iteration body did not return a relation");
+                    .expect("Fix point iteration body did not return a relation");
                 // We have to coalesce the result here because the output is fed
                 // into a union below, which requires the schema to be coalesced.
                 let result = coalesce_helper(result);

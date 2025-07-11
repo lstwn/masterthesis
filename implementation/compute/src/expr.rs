@@ -280,7 +280,7 @@ pub struct FixPointIterExpr {
     /// tuple element in the context of the child circuit, that is,
     /// within the the context of the [`step`](FixedPointIterExpr.step) statements.
     /// The second tuple element must evaluate to a relation.
-    /// The accumulator also defines the schema of the fixed point computation.
+    /// The accumulator also defines the schema of the fix point computation.
     pub accumulator: (String, Expr),
     /// What to do in each iteration. Runs in the context of the child circuit.
     /// The value the last statement evaluates to becomes the accumulator of

@@ -26,10 +26,44 @@ pub enum ScalarTypedValue {
     Iint(i64),
     /// Boolean.
     Bool(bool),
-    /// A sinle character.
+    /// A single character.
     Char(char),
     /// Null.
     Null(()),
+}
+
+macro_rules! expect_data {
+    ( $instance:expr, $variant:path ) => {{
+        match $instance {
+            $variant(data) => data,
+            _ => panic!(
+                "Expected a value of type `{}` but got `{}`",
+                stringify!($variant),
+                $instance
+            ),
+        }
+    }};
+}
+
+impl ScalarTypedValue {
+    pub fn unwrap_into_string(&self) -> String {
+        expect_data!(self, ScalarTypedValue::String).clone()
+    }
+    pub fn unwrap_into_uint(&self) -> u64 {
+        *expect_data!(self, ScalarTypedValue::Uint)
+    }
+    pub fn unwrap_into_iint(&self) -> i64 {
+        *expect_data!(self, ScalarTypedValue::Iint)
+    }
+    pub fn unwrap_into_bool(&self) -> bool {
+        *expect_data!(self, ScalarTypedValue::Bool)
+    }
+    pub fn unwrap_into_char(&self) -> char {
+        *expect_data!(self, ScalarTypedValue::Char)
+    }
+    pub fn unwrap_into_null(&self) {
+        *expect_data!(self, ScalarTypedValue::Null)
+    }
 }
 
 impl Default for ScalarTypedValue {
@@ -115,34 +149,6 @@ pub enum ScalarType {
     Uint,
     Iint,
     Bool,
+    Char,
     Null,
-}
-
-// /// An enum of all possible scalar types.
-// pub type ScalarType = Scalar<(), (), (), (), ()>;
-
-// /// Stores a value plus its type.
-// pub type ScalarTypedValue = Scalar<DString, DUint, DIint, DBool, DNull>;
-
-/// Prefixed with `D` to distinguish from Rust's built-in types.
-pub type DString = String;
-/// Prefixed with `D` to distinguish from Rust's built-in types.
-pub type DUint = u64;
-/// Prefixed with `D` to distinguish from Rust's built-in types.
-pub type DIint = i64;
-/// Prefixed with `D` to distinguish from Rust's built-in types.
-pub type DBool = bool;
-/// Prefixed with `D` to distinguish from Rust's built-in types.
-pub type DNull = ();
-
-/// In contrast to `ScalarTypedValue` it only stores a value but not its type.
-/// Currently unused, as it has the same binary size as `ScalarTypedValue` due
-/// to some smartness of the Rust compiler.
-#[deprecated(note = "currently unused")]
-union ScalarValue {
-    string: std::mem::ManuallyDrop<DString>,
-    uint: DUint,
-    iint: DIint,
-    bool: DBool,
-    null: DNull,
 }

@@ -25,6 +25,10 @@ size-of = { version = "0.1.5", package = "feldera-size-of", features = [
     "ordered-float",
 ] }
 cli-table = "0.4.9"
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

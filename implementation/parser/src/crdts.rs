@@ -106,11 +106,11 @@ pub const fn list_crdt_datalog() -> &'static str {
           not hasChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr),
           nextSiblingAnc(PrevRepId = ChildRepId, PrevCtr = ChildCtr, NextRepId = AncRepId, NextCtr = AncCtr).
 
-        currentValue(ElemId, ElemCtr, Value) :-
-            assign(RepId, Ctr, ElemId, ElemCtr, Value),
-            not remove(RepId, Ctr).
+        currentValue(AssignId, AssignCtr, ElemId, ElemCtr, Value) :-
+            assign(AssignId = RepId, AssignCtr = Ctr, ElemId, ElemCtr, Value),
+            not remove(AssignId = RepId, AssignCtr = Ctr).
 
-        hasValue(ElemId, ElemCtr) :- currentValue(ElemId, ElemCtr, _Value).
+        distinct hasValue(ElemId, ElemCtr) :- currentValue(ElemId, ElemCtr).
 
         nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
             nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr).
@@ -124,8 +124,8 @@ pub const fn list_crdt_datalog() -> &'static str {
             nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr),
             hasValue(NextRepId = ElemId, NextCtr = ElemCtr).
 
-        listElem(PrevRepId, PrevCtr, Value, NextRepId, NextCtr) :-
+        listElem(PrevRepId, PrevCtr, Value, AssignId, AssignCtr, NextRepId, NextCtr) :-
             nextVisible(PrevRepId, PrevCtr, NextCtr, NextRepId),
-            currentValue(NextRepId = ElemId, NextCtr = ElemCtr, Value).
+            currentValue(AssignId, AssignCtr, NextRepId = ElemId, NextCtr = ElemCtr, Value).
     "#
 }

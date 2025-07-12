@@ -15,13 +15,14 @@ const CRDTS: [(&str, &str); 2] = [
     ("with_causal_broadcast", mvr_crdt_store_datalog()),
 ];
 
-fn bench_hydration(c: &mut Criterion) {
-    let diameters = [1000_usize, 2000, 3000, 4000, 5000];
+const BASE_DIAMETERS: [usize; 5] = [1000, 2000, 3000, 4000, 5000];
+const DELTA_DIAMETERS: [usize; 5] = [20, 40, 60, 80, 100];
 
+fn bench_hydration(c: &mut Criterion) {
     let mut group = c.benchmark_group("MVR_stores_hydration_setting");
 
     for (crdt, datalog) in CRDTS {
-        for diameter in diameters {
+        for diameter in BASE_DIAMETERS {
             let name = format!("CRDT={crdt}");
             group.throughput(Throughput::Elements(diameter as u64));
             group.bench_with_input(
@@ -56,14 +57,11 @@ fn bench_hydration(c: &mut Criterion) {
 }
 
 fn bench_near_real_time(c: &mut Criterion) {
-    let base_diameters = [1000_usize, 2000, 3000, 4000, 5000];
-    let delta_diameters = [20_usize, 40, 60, 80, 100];
-
     let mut group = c.benchmark_group("MVR_stores_near_real_time_setting");
 
     for (crdt, datalog) in CRDTS {
-        for base_diameter in base_diameters {
-            for delta_diameter in delta_diameters {
+        for base_diameter in BASE_DIAMETERS {
+            for delta_diameter in DELTA_DIAMETERS {
                 let name = format!("CRDT={crdt}_base={base_diameter}");
                 group.throughput(Throughput::Elements(delta_diameter as u64));
                 group.bench_with_input(

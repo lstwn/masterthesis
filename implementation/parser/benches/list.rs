@@ -1,155 +1,57 @@
-mod parse_trace;
-
 use compute::{
     IncDataLog,
     dbsp::{CircuitHandle, DbspInputs, DbspOutput},
-    test_helper::{AssignOp, InsertOp, KeyValueStoreReplica, ListReplica, PredRel, SetOp},
+    test_helper::{
+        AssignOp, InsertOp, ListReplica, RemoveOp,
+        trace_provider::{
+            TraceProvider,
+            from_string::{StringTrace, TEST_STRING},
+        },
+    },
 };
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use parser::{Parser, crdts::list_crdt_datalog};
-use std::num::NonZeroUsize;
-
-mod helper {
-    use crate::parse_trace::parse_trace;
-    use compute::test_helper::ListOperation;
-    use std::{fs::File, io::BufReader};
-
-    pub fn read_automerge_paper_trace() -> (String, Vec<ListOperation>) {
-        let file = File::open("benches/automerge-paper.json").expect("Failed to open trace file");
-        let reader = BufReader::new(file);
-        let trace = parse_trace(reader).expect("Failed to parse trace file");
-        let result = trace.end_content;
-        let list_operations = trace
-            .transactions
-            .into_iter()
-            .flat_map(|tx| {
-                tx.patches.into_iter().map(|patch| {
-                    if patch.delete_count > 0 {
-                        assert!(patch.content.is_empty(), "no replace operations");
-                        ListOperation::DeleteAt(patch.start)
-                    } else {
-                        assert!(patch.content.len() == 1, "only single character inserts");
-                        assert!(patch.delete_count == 0, "no replace operations");
-                        ListOperation::InsertAt(patch.start, patch.content.chars().next().unwrap())
-                    }
-                })
-            })
-            .collect::<Vec<_>>();
-        (result, list_operations)
-    }
-}
+use std::{num::NonZeroUsize, ops::Range};
 
 const CRDTS: [(&str, &str); 1] = [("list", list_crdt_datalog())];
 
-fn bench_hydration(c: &mut Criterion) {
-    println!("Cwd {}", std::env::current_dir().unwrap().display());
-    let trace = helper::read_automerge_paper_trace();
-    let list_ops = &trace.1[0..60];
-    println!("Trace with len {}: {list_ops:#?}", list_ops.len());
-    let mut replica = ListReplica::new(1);
+const BASE_TEXT_LENS: [usize; 5] = [5000, 10_000, 15_000, 20_000, 25_000];
+const DELTA_TEXT_LENS: [usize; 5] = [20, 40, 60, 80, 100];
 
-    let mut stream = list_ops.iter().peekable();
-    let mut bursts = Vec::new();
-    while let Some((remaining, insert_ops, assign_ops, remove_ops)) = replica.feed_ops(stream) {
-        stream = remaining;
-        bursts.push((insert_ops, assign_ops, remove_ops));
-    }
-    println!("Bursts: {bursts:#?}");
-    let (handle, inputs, output) =
-        prepare_circuit(NonZeroUsize::try_from(1).unwrap(), list_crdt_datalog());
-    let insert_op_input = inputs.get("insert").unwrap();
-    let assign_op_input = inputs.get("assign").unwrap();
-    let remove_op_input = inputs.get("remove").unwrap();
-    // Prepare the sentinel.
-    assign_op_input.insert_with_same_weight([&AssignOp::new(0, 0, 0, 0, '#')], 1);
-    for (insert_op_burst, assign_op_burst, remove_op_burst) in bursts {
-        insert_op_input.insert_with_same_weight(insert_op_burst.iter(), 1);
-        assign_op_input.insert_with_same_weight(assign_op_burst.iter(), 1);
-        remove_op_input.insert_with_same_weight(remove_op_burst.iter(), 1);
-        handle.step().unwrap();
-        let result = output.to_batch();
-        replica.apply_output_delta(result.as_data());
-        println!("STRING:\n{}", replica.materialize_string());
-    }
-
-    panic!("Done :)");
-
+fn bench_hydration_list(c: &mut Criterion) {
     let mut group = c.benchmark_group("list_hydration_setting");
 
-    for (crdt, datalog) in CRDTS {
-        let name = format!("CRDT={crdt}");
-        let diameter = 0;
-        group.throughput(Throughput::Elements(diameter as u64));
-        group.bench_with_input(
-            BenchmarkId::new(name, diameter),
-            &diameter,
-            |b, &diameter| {
-                let mut replica = KeyValueStoreReplica::new(0);
-                let data = generate_operation_history(&mut replica, diameter).collect::<Vec<_>>();
+    for (_crdt, datalog) in CRDTS {
+        for base_text_len in BASE_TEXT_LENS {
+            let trace = StringTrace::with_len(TEST_STRING, base_text_len);
 
-                b.iter_batched(
-                    || prepare_circuit(NonZeroUsize::try_from(1).unwrap(), datalog),
-                    |(handle, inputs, output)| {
-                        let set_op_input = inputs.get("set").unwrap();
-                        let pred_rel_input = inputs.get("pred").unwrap();
-                        for (set_op_step, pred_rel_step) in data.iter() {
-                            pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
-                            set_op_input.insert_with_same_weight([set_op_step], 1);
-                        }
-                        handle.step().unwrap();
-                        let _result = output.to_batch();
-                        output
-                    },
-                    criterion::BatchSize::SmallInput,
-                );
-            },
-        );
-    }
+            let mut replica = ListReplica::new(1);
+            let (handle, inputs, output) =
+                prepare_circuit(NonZeroUsize::try_from(1).unwrap(), datalog);
+            let (insert_ops, assign_ops, remove_ops) = generate_operation_history_list(
+                &handle,
+                &inputs,
+                &output,
+                &mut replica,
+                &trace,
+                base_text_len,
+            );
 
-    group.finish();
-}
-
-fn bench_near_real_time(c: &mut Criterion) {
-    let base_diameters = [1000_usize, 2000, 3000, 4000, 5000];
-    let delta_diameters = [20_usize, 40, 60, 80, 100];
-
-    let mut group = c.benchmark_group("list_near_real_time_setting");
-
-    for (crdt, datalog) in CRDTS {
-        for delta_diameter in delta_diameters {
-            let base_diameter = 10;
-            let name = format!("CRDT={crdt}_base={base_diameter}");
-            group.throughput(Throughput::Elements(delta_diameter as u64));
+            let name = format!("base={base_text_len}");
+            group.throughput(Throughput::Elements(base_text_len as u64));
             group.bench_with_input(
-                BenchmarkId::new(name, delta_diameter),
-                &delta_diameter,
-                |b, delta_diameter| {
-                    let mut replica = KeyValueStoreReplica::new(0);
-                    let base_data =
-                        generate_operation_history(&mut replica, base_diameter).collect::<Vec<_>>();
-                    let delta_data = generate_operation_history(&mut replica, *delta_diameter)
-                        .collect::<Vec<_>>();
-
+                BenchmarkId::new(name, base_text_len),
+                &base_text_len,
+                |b, &_base_diameter| {
                     b.iter_batched(
-                        || {
-                            let (handle, inputs, output) =
-                                prepare_circuit(NonZeroUsize::try_from(1).unwrap(), datalog);
-                            let set_op_input = inputs.get("set").unwrap();
-                            let pred_rel_input = inputs.get("pred").unwrap();
-                            for (set_op_step, pred_rel_step) in base_data.iter() {
-                                pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
-                                set_op_input.insert_with_same_weight([set_op_step], 1);
-                            }
-                            handle.step().unwrap();
-                            (handle, inputs, output)
-                        },
+                        || prepare_circuit(NonZeroUsize::try_from(1).unwrap(), datalog),
                         |(handle, inputs, output)| {
-                            let set_op_input = inputs.get("set").unwrap();
-                            let pred_rel_input = inputs.get("pred").unwrap();
-                            for (set_op_step, pred_rel_step) in delta_data.iter() {
-                                pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
-                                set_op_input.insert_with_same_weight([set_op_step], 1);
-                            }
+                            let insert_op_input = inputs.get("insert").unwrap();
+                            let assign_op_input = inputs.get("assign").unwrap();
+                            let remove_op_input = inputs.get("remove").unwrap();
+                            insert_op_input.insert_with_same_weight(insert_ops.iter(), 1);
+                            assign_op_input.insert_with_same_weight(assign_ops.iter(), 1);
+                            remove_op_input.insert_with_same_weight(remove_ops.iter(), 1);
                             handle.step().unwrap();
                             let _result = output.to_batch();
                             output
@@ -164,23 +66,135 @@ fn bench_near_real_time(c: &mut Criterion) {
     group.finish();
 }
 
-/// Returns set operations and according predecessor relations by setting
-/// the key 0 to the value of the replica's counter at the respective time.
-fn generate_operation_history(
-    replica: &mut KeyValueStoreReplica,
-    diameter: usize,
-) -> impl Iterator<Item = (SetOp, Vec<PredRel>)> {
-    (0..diameter).map(|_i| replica.new_local_set_op(0, replica.ctr()))
+fn bench_near_real_time_list(c: &mut Criterion) {
+    let mut group = c.benchmark_group("list_near_real_time_setting");
+
+    for (crdt, datalog) in CRDTS {
+        for base_text_len in BASE_TEXT_LENS {
+            for delta_text_len in DELTA_TEXT_LENS {
+                let trace = StringTrace::with_len(TEST_STRING, base_text_len + delta_text_len);
+                let name = format!("CRDT={crdt}_base={base_text_len}");
+                group.throughput(Throughput::Elements(delta_text_len as u64));
+                group.bench_with_input(
+                    BenchmarkId::new(name, delta_text_len),
+                    &delta_text_len,
+                    |b, delta_diameter| {
+                        b.iter_batched(
+                            || {
+                                let mut replica = ListReplica::new(1);
+                                let (handle, inputs, output) =
+                                    prepare_circuit(NonZeroUsize::try_from(1).unwrap(), datalog);
+                                let _ = generate_operation_history_list(
+                                    &handle,
+                                    &inputs,
+                                    &output,
+                                    &mut replica,
+                                    &trace,
+                                    base_text_len,
+                                );
+                                (handle, inputs, output, replica)
+                            },
+                            |(handle, inputs, output, mut replica)| {
+                                simulate_inserts(
+                                    &handle,
+                                    &inputs,
+                                    &output,
+                                    &mut replica,
+                                    &trace,
+                                    base_text_len..(base_text_len + *delta_diameter),
+                                );
+                            },
+                            criterion::BatchSize::SmallInput,
+                        );
+                    },
+                );
+            }
+        }
+    }
+
+    group.finish();
+}
+
+#[inline]
+fn simulate_inserts(
+    handle: &CircuitHandle,
+    inputs: &DbspInputs,
+    output: &DbspOutput,
+    replica: &mut ListReplica,
+    trace_provider: &impl TraceProvider,
+    range: Range<usize>,
+) {
+    let insert_op_input = inputs.get("insert").unwrap();
+    let assign_op_input = inputs.get("assign").unwrap();
+    let remove_op_input = inputs.get("remove").unwrap();
+
+    let until = range.end;
+    for list_op in trace_provider.list_ops_range(range) {
+        let (insert_ops, assign_ops, remove_ops) = replica.generate_op(list_op);
+        insert_op_input.insert_with_same_weight(insert_ops.iter(), 1);
+        assign_op_input.insert_with_same_weight(assign_ops.iter(), 1);
+        remove_op_input.insert_with_same_weight(remove_ops.iter(), 1);
+        handle.step().unwrap();
+        let result = output.to_batch();
+        replica.apply_output_delta(result.as_data());
+    }
+    let result = replica.materialize_string();
+    debug_assert_eq!(result, trace_provider.result_until(until));
+}
+
+fn generate_operation_history_list(
+    handle: &CircuitHandle,
+    inputs: &DbspInputs,
+    output: &DbspOutput,
+    replica: &mut ListReplica,
+    trace_provider: &impl TraceProvider,
+    until: usize,
+) -> (Vec<InsertOp>, Vec<AssignOp>, Vec<RemoveOp>) {
+    let insert_op_input = inputs.get("insert").unwrap();
+    let assign_op_input = inputs.get("assign").unwrap();
+    let remove_op_input = inputs.get("remove").unwrap();
+
+    let mut bursts = Vec::new();
+    for list_op in trace_provider.list_ops_range(0..until) {
+        let (insert_ops, assign_ops, remove_ops) = replica.generate_op(list_op);
+        insert_op_input.insert_with_same_weight(insert_ops.iter(), 1);
+        assign_op_input.insert_with_same_weight(assign_ops.iter(), 1);
+        remove_op_input.insert_with_same_weight(remove_ops.iter(), 1);
+        bursts.push((insert_ops, assign_ops, remove_ops));
+        handle.step().unwrap();
+        let result = output.to_batch();
+        replica.apply_output_delta(result.as_data());
+    }
+    let result = replica.materialize_string();
+    debug_assert_eq!(result, trace_provider.result_until(until));
+
+    // We collect all the operations that were generated during the simulation
+    // for simulating the hydration setting.
+    let mut insert_ops: Vec<InsertOp> = Vec::new();
+    let mut assign_ops: Vec<AssignOp> = Vec::new();
+    let mut remove_ops: Vec<RemoveOp> = Vec::new();
+    bursts
+        .iter()
+        .for_each(|(insert_op_burst, assign_op_burst, remove_op_burst)| {
+            insert_ops.extend(insert_op_burst);
+            assign_ops.extend(assign_op_burst);
+            remove_ops.extend(remove_op_burst);
+        });
+    (insert_ops, assign_ops, remove_ops)
 }
 
 fn prepare_circuit(
     threads: NonZeroUsize,
     code: &'static str,
 ) -> (CircuitHandle, DbspInputs, DbspOutput) {
-    IncDataLog::new(threads, true)
+    let (handle, inputs, output) = IncDataLog::new(threads, true)
         .build_circuit_from_parser(|root_circuit| Parser::new(root_circuit).parse(code))
-        .unwrap()
+        .unwrap();
+    let assign_op_input = inputs.get("assign").unwrap();
+    // Insert the sentinel dummy assignment.
+    assign_op_input.insert_with_same_weight([&AssignOp::new(0, 0, 0, 0, '#')], 1);
+    (handle, inputs, output)
 }
 
-criterion_group!(benches, bench_hydration, bench_near_real_time);
+criterion_group!(benches, bench_hydration_list, bench_near_real_time_list);
 criterion_main!(benches);

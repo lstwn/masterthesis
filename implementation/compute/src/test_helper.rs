@@ -597,190 +597,6 @@ pub fn list_crdt_operation_history_multi_replicas()
     )]
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ListOperation {
-    InsertAt(usize, char),
-    DeleteAt(usize),
-}
-
-type PrevRepId = u64;
-type PrevCtr = u64;
-type PrevId = (PrevRepId, PrevCtr);
-type NextRepId = u64;
-type NextCtr = u64;
-type NextId = (NextRepId, NextCtr);
-type ElemId = (u64, u64);
-type Value = char;
-
-pub struct ListReplica {
-    rep_id: u64,
-    ctr: u64,
-    lookup_table: BTreeMap<PrevId, (NextId, Value)>,
-    cached_list_order: Vec<(PrevId, ElemId, Value)>,
-}
-
-impl ListReplica {
-    const SENTINEL_ID: PrevId = (0, 0);
-
-    pub fn new(rep_id: u64) -> Self {
-        // TODO: Sentinel element should be there already.
-        Self {
-            rep_id,
-            ctr: 0,
-            lookup_table: BTreeMap::new(),
-            cached_list_order: Vec::new(),
-        }
-    }
-    fn get_parent_op_id_from_idx(&self, idx: usize) -> Option<PrevId> {
-        let list_order = &self.cached_list_order;
-        list_order
-            .get(idx)
-            .map(|(prev_id, _elem_id, _value)| *prev_id)
-            .or(match idx {
-                0 if self.lookup_table.is_empty() => {
-                    // If the list is empty, we return the sentinel ID.
-                    Some(Self::SENTINEL_ID)
-                }
-                idx if list_order.len() == idx => {
-                    // If the index is at the end of the list,
-                    // we return the last element's ID.
-                    list_order
-                        .last()
-                        .map(|(_prev_id, elem_id, _value)| *elem_id)
-                }
-                _ => None,
-            })
-    }
-    fn get_elem_op_id_from_idx(&self, idx: usize) -> Option<ElemId> {
-        let list_order = &self.cached_list_order;
-        list_order
-            .get(idx)
-            .map(|(_prev_id, elem_id, _value)| *elem_id)
-    }
-    pub fn feed_ops<'a, Stream: Iterator<Item = &'a ListOperation>>(
-        &mut self,
-        mut list_ops: Peekable<Stream>,
-    ) -> Option<(
-        Peekable<Stream>,
-        Vec<InsertOp>,
-        Vec<AssignOp>,
-        Vec<RemoveOp>,
-    )> {
-        // Have a stack of last insert CRDT ops to support deletion?
-        let mut last_op = None;
-        let mut insert_ops = Vec::new();
-        let mut assign_ops = Vec::new();
-        let mut remove_ops = Vec::new();
-        while let Some(op) = list_ops.peek() {
-            let is_consecutive = last_op
-                .map(|last_op| match (last_op, op) {
-                    (ListOperation::InsertAt(last_idx, _), ListOperation::InsertAt(idx, _)) => {
-                        last_idx == idx - 1
-                    }
-                    (ListOperation::InsertAt(last_idx, _), ListOperation::DeleteAt(idx))
-                    | (ListOperation::DeleteAt(last_idx), ListOperation::InsertAt(idx, _)) => {
-                        last_idx == *idx
-                    }
-                    (ListOperation::DeleteAt(last_idx), ListOperation::DeleteAt(idx)) => {
-                        last_idx - 1 == *idx
-                    }
-                })
-                .unwrap_or(true);
-            if !is_consecutive {
-                // We yield due to a cursor jump.
-                return Some((list_ops, insert_ops, assign_ops, remove_ops));
-            }
-            let op = list_ops.next().unwrap(); // Safe to call due to peek.
-            match op {
-                ListOperation::InsertAt(idx, value) => {
-                    let parent_id = last_op.map_or_else(
-                        || {
-                            self.get_parent_op_id_from_idx(*idx)
-                                .unwrap_or_else(|| panic!("Invalid index for insertion {idx}"))
-                        },
-                        |last_op| (self.rep_id, self.ctr - 2),
-                    );
-                    let insert_op =
-                        InsertOp::new(self.rep_id, self.consume_ctr(), parent_id.0, parent_id.1);
-                    insert_ops.push(insert_op);
-                    let assign_op = AssignOp::new(
-                        self.rep_id,
-                        self.consume_ctr(),
-                        insert_op.rep_id,
-                        insert_op.ctr,
-                        *value,
-                    );
-                    assign_ops.push(assign_op);
-                }
-                ListOperation::DeleteAt(idx) => {
-                    let elem_id = last_op.map_or_else(
-                        || {
-                            self.get_elem_op_id_from_idx(*idx)
-                                .unwrap_or_else(|| panic!("Invalid index for deletion {idx}"))
-                        },
-                        |last_op| (self.rep_id, self.ctr - 1),
-                    );
-                    let remove_op = RemoveOp::new(elem_id.0, elem_id.1);
-                    remove_ops.push(remove_op);
-                }
-            }
-            last_op = Some(*op);
-        }
-        // The stream is exhausted.
-        if last_op.is_some() {
-            // We have found new ops in this run.
-            Some((list_ops, insert_ops, assign_ops, remove_ops))
-        } else {
-            None
-        }
-    }
-    fn consume_ctr(&mut self) -> u64 {
-        let ctr = self.ctr;
-        self.ctr += 1;
-        ctr
-    }
-    pub fn to_list_order(&self) -> Vec<(PrevId, ElemId, Value)> {
-        let mut current = ListReplica::SENTINEL_ID;
-        let mut result = Vec::with_capacity(self.lookup_table.len());
-        while let Some((next_id, value)) = self.lookup_table.get(&current) {
-            current = *next_id;
-            result.push((current, *next_id, *value));
-        }
-        result
-    }
-    pub fn materialize_string(&self) -> String {
-        self.to_list_order()
-            .iter()
-            .map(|(prev_id, elem_id, value)| value)
-            .collect()
-    }
-    pub fn apply_output_delta<'a>(
-        &mut self,
-        output_delta: impl Iterator<Item = (i64, &'a TupleValue)>,
-    ) {
-        for (zweight, tuple_value) in output_delta {
-            let prev_rep_id = tuple_value.data[0].unwrap_into_uint();
-            let prev_ctr = tuple_value.data[1].unwrap_into_uint();
-            let value = tuple_value.data[2].unwrap_into_char();
-            let next_rep_id = tuple_value.data[3].unwrap_into_uint();
-            let next_ctr = tuple_value.data[4].unwrap_into_uint();
-
-            let prev_id = (prev_rep_id, prev_ctr);
-            let next_id = (next_rep_id, next_ctr);
-            match zweight {
-                1 => {
-                    self.lookup_table.insert(prev_id, (next_id, value));
-                }
-                -1 => {
-                    self.lookup_table.remove(&prev_id);
-                }
-                _ => panic!("Unexpected zweight: {zweight}"),
-            }
-        }
-        self.cached_list_order = self.to_list_order();
-    }
-}
-
 // For benchmarking purposes.
 pub struct KeyValueStoreReplica {
     rep_id: u64,
@@ -843,5 +659,434 @@ impl KeyValueStoreReplica {
         self.heads.insert((set_op.rep_id, set_op.ctr));
         self.ctr += 1;
         (set_op, pred_rels)
+    }
+}
+
+/// Basic operations on a list compatible with the outside world and not related
+/// to CRDTs. Indexes are plain array indexes.
+#[derive(Debug, Clone, Copy)]
+pub enum ListOperation {
+    InsertAt(usize, char),
+    DeleteAt(usize),
+}
+
+type PrevRepId = u64;
+type PrevCtr = u64;
+type PrevId = (PrevRepId, PrevCtr);
+type NextRepId = u64;
+type NextCtr = u64;
+type NextId = (NextRepId, NextCtr);
+type ElemRepId = u64;
+type ElemCtr = u64;
+type ElemId = (ElemRepId, ElemCtr);
+type AssignRepId = u64;
+type AssignCtr = u64;
+type AssignId = (AssignRepId, AssignCtr);
+type Value = char;
+
+pub struct ListReplica {
+    rep_id: u64,
+    ctr: u64,
+    lookup_table: BTreeMap<PrevId, (Value, AssignId, NextId)>,
+    cached_list_order: Vec<(PrevId, ElemId, AssignId, Value)>,
+}
+
+impl ListReplica {
+    const SENTINEL_ID: PrevId = (0, 0);
+
+    pub fn new(rep_id: u64) -> Self {
+        // TODO: Sentinel element should be there already.
+        Self {
+            rep_id,
+            ctr: 0,
+            lookup_table: BTreeMap::new(),
+            cached_list_order: Vec::new(),
+        }
+    }
+    fn get_parent_op_id_from_idx(&self, idx: usize) -> Option<PrevId> {
+        let list_order = &self.cached_list_order;
+        list_order
+            .get(idx)
+            .map(|(prev_id, _elem_id, _assign_id, _value)| *prev_id)
+            .or(match idx {
+                0 if self.lookup_table.is_empty() => {
+                    // If the list is empty, we return the sentinel ID.
+                    Some(Self::SENTINEL_ID)
+                }
+                idx if list_order.len() == idx => {
+                    // If the index is at the end of the list,
+                    // we return the last element's ID.
+                    list_order
+                        .last()
+                        .map(|(_prev_id, elem_id, _assign_id, _value)| *elem_id)
+                }
+                _ => None,
+            })
+    }
+    fn get_elem_op_id_from_idx(&self, idx: usize) -> Option<ElemId> {
+        let list_order = &self.cached_list_order;
+        list_order
+            .get(idx)
+            .map(|(_prev_id, elem_id, _assign_id, _value)| *elem_id)
+    }
+    fn get_assign_op_id_from_idx(&self, idx: usize) -> Option<AssignId> {
+        let list_order = &self.cached_list_order;
+        list_order
+            .get(idx)
+            .map(|(_prev_id, elem_id, assign_id, _value)| *assign_id)
+    }
+    /// Generates CRDT list operations from a single plain list operation.
+    pub fn generate_op(
+        &mut self,
+        op: &ListOperation,
+    ) -> (Vec<InsertOp>, Vec<AssignOp>, Vec<RemoveOp>) {
+        let mut insert_ops = Vec::new();
+        let mut assign_ops = Vec::new();
+        let mut remove_ops = Vec::new();
+        match op {
+            ListOperation::InsertAt(idx, char) => {
+                let parent_id = self.get_parent_op_id_from_idx(*idx).unwrap_or_else(|| {
+                    let string = self.materialize_string();
+                    println!("STRING: with len {}:\n{string}", string.len());
+                    panic!("Invalid index for insertion {idx}, op {op:#?}")
+                });
+                let insert_op =
+                    InsertOp::new(self.rep_id, self.consume_ctr(), parent_id.0, parent_id.1);
+                insert_ops.push(insert_op);
+                let assign_op = AssignOp::new(
+                    self.rep_id,
+                    self.consume_ctr(),
+                    insert_op.rep_id,
+                    insert_op.ctr,
+                    *char,
+                );
+                assign_ops.push(assign_op);
+            }
+            ListOperation::DeleteAt(idx) => {
+                let assign_op_id = self
+                    .get_assign_op_id_from_idx(*idx)
+                    .unwrap_or_else(|| panic!("Invalid index for deletion {idx}"));
+                let remove_op = RemoveOp::new(assign_op_id.0, assign_op_id.1);
+                remove_ops.push(remove_op);
+            }
+        };
+        (insert_ops, assign_ops, remove_ops)
+    }
+    #[allow(clippy::type_complexity)]
+    pub fn generate_burst<'a, Stream: Iterator<Item = &'a ListOperation>>(
+        &mut self,
+        mut list_ops: Peekable<Stream>,
+    ) -> Option<(
+        Peekable<Stream>,
+        Vec<InsertOp>,
+        Vec<AssignOp>,
+        Vec<RemoveOp>,
+    )> {
+        // Have a stack of last insert CRDT ops to support deletion?
+        let mut last_op = None;
+        // Pointer into the insert_ops and assign_ops stack of this burst.
+        let mut stack_ptr = -1_i64;
+        let mut insert_ops: Vec<InsertOp> = Vec::new();
+        let mut assign_ops: Vec<AssignOp> = Vec::new();
+        let mut remove_ops = Vec::new();
+
+        while let Some(op) = list_ops.peek() {
+            let is_consecutive = last_op
+                .map(|last_op| match (last_op, op) {
+                    (ListOperation::InsertAt(last_idx, _), ListOperation::InsertAt(idx, _)) => {
+                        last_idx == idx - 1
+                    }
+                    (ListOperation::InsertAt(last_idx, _), ListOperation::DeleteAt(idx))
+                    | (ListOperation::DeleteAt(last_idx), ListOperation::InsertAt(idx, _)) => {
+                        last_idx == *idx
+                    }
+                    (ListOperation::DeleteAt(last_idx), ListOperation::DeleteAt(idx)) => {
+                        last_idx - 1 == *idx
+                    }
+                })
+                .unwrap_or(true);
+            if !is_consecutive {
+                // We yield due to a cursor jump.
+                return Some((list_ops, insert_ops, assign_ops, remove_ops));
+            }
+            let op = list_ops.next().unwrap(); // Safe to call due to peek.
+            match op {
+                ListOperation::InsertAt(idx, value) => {
+                    let parent_id = if stack_ptr < 0 {
+                        self.get_parent_op_id_from_idx(*idx).unwrap_or_else(|| {
+                            println!(
+                                "{:#?}",
+                                self.cached_list_order
+                                    .iter()
+                                    .enumerate()
+                                    .collect::<Vec<_>>()
+                            );
+                            panic!("Invalid index for insertion {idx}, last op {last_op:#?}")
+                        })
+                    } else {
+                        insert_ops
+                            .get(stack_ptr as usize)
+                            .map(|insert_op| (insert_op.rep_id, insert_op.ctr))
+                            .unwrap()
+                    };
+                    let insert_op =
+                        InsertOp::new(self.rep_id, self.consume_ctr(), parent_id.0, parent_id.1);
+                    insert_ops.push(insert_op);
+                    let assign_op = AssignOp::new(
+                        self.rep_id,
+                        self.consume_ctr(),
+                        insert_op.rep_id,
+                        insert_op.ctr,
+                        *value,
+                    );
+                    assign_ops.push(assign_op);
+                    // Reset stack_ptr to point to last insertion.
+                    stack_ptr = (insert_ops.len() as i64) - 1;
+                }
+                ListOperation::DeleteAt(idx) => {
+                    let elem_id = if stack_ptr < 0 {
+                        self.get_assign_op_id_from_idx(*idx)
+                            .unwrap_or_else(|| panic!("Invalid index for deletion {idx}"))
+                    } else {
+                        assign_ops
+                            .get(stack_ptr as usize)
+                            .map(|assign_op| (assign_op.rep_id, assign_op.ctr))
+                            .unwrap()
+                    };
+                    let remove_op = RemoveOp::new(elem_id.0, elem_id.1);
+                    remove_ops.push(remove_op);
+                    stack_ptr -= 1;
+                }
+            }
+            last_op = Some(*op);
+        }
+        // The stream is exhausted.
+        if last_op.is_some() {
+            // We have found new ops in this run.
+            Some((list_ops, insert_ops, assign_ops, remove_ops))
+        } else {
+            None
+        }
+    }
+    fn consume_ctr(&mut self) -> u64 {
+        let ctr = self.ctr;
+        self.ctr += 1;
+        ctr
+    }
+    pub fn to_list_order(&self) -> Vec<(PrevId, ElemId, AssignId, Value)> {
+        let mut current = ListReplica::SENTINEL_ID;
+        let mut result = Vec::with_capacity(self.lookup_table.len());
+        while let Some((value, assign_id, next_id)) = self.lookup_table.get(&current) {
+            current = *next_id;
+            result.push((current, *next_id, *assign_id, *value));
+        }
+        result
+    }
+    pub fn materialize_string(&self) -> String {
+        self.cached_list_order
+            .iter()
+            .map(|(prev_id, elem_id, assign_id, value)| value)
+            .collect()
+    }
+    pub fn apply_output_delta<'a>(
+        &mut self,
+        output_delta: impl Iterator<Item = (i64, &'a TupleValue)>,
+    ) {
+        for (zweight, tuple_value) in output_delta {
+            let prev_rep_id = tuple_value.data[0].unwrap_into_uint();
+            let prev_ctr = tuple_value.data[1].unwrap_into_uint();
+            let value = tuple_value.data[2].unwrap_into_char();
+            let assign_rep_id = tuple_value.data[3].unwrap_into_uint();
+            let assign_ctr = tuple_value.data[4].unwrap_into_uint();
+            let next_rep_id = tuple_value.data[5].unwrap_into_uint();
+            let next_ctr = tuple_value.data[6].unwrap_into_uint();
+
+            let prev_id = (prev_rep_id, prev_ctr);
+            let assign_id = (assign_rep_id, assign_ctr);
+            let next_id = (next_rep_id, next_ctr);
+            match zweight {
+                1 => {
+                    self.lookup_table
+                        .insert(prev_id, (value, assign_id, next_id));
+                }
+                -1 => {
+                    self.lookup_table.remove(&prev_id);
+                }
+                _ => panic!("Unexpected zweight: {zweight}"),
+            }
+        }
+        // Update cache.
+        self.cached_list_order = self.to_list_order();
+    }
+}
+
+pub mod trace_provider {
+    use crate::test_helper::ListOperation;
+    use std::ops::Range;
+
+    pub trait TraceProvider {
+        fn list_ops(&self) -> &Vec<ListOperation>;
+        fn final_result(&self) -> &String;
+        fn result_until(&self, until: usize) -> String {
+            let mut result = Vec::new();
+            for op in self.list_ops_range(0..until) {
+                match op {
+                    ListOperation::InsertAt(idx, char) => {
+                        result.insert(*idx, *char);
+                    }
+                    ListOperation::DeleteAt(idx) => {
+                        result.remove(*idx);
+                    }
+                }
+            }
+            result.into_iter().collect()
+        }
+        fn list_ops_range(&self, range: Range<usize>) -> &[ListOperation] {
+            &self.list_ops()[range]
+        }
+    }
+
+    pub mod automerge_paper {
+        use crate::test_helper::{ListOperation, trace_provider::TraceProvider};
+        use std::{fs::File, io::BufReader};
+
+        /// This module contains struct definitions to parse Seph Gentle's
+        /// editing traces from https://github.com/josephg/editing-traces.
+        mod json_definition {
+            use serde::Deserialize;
+
+            #[derive(Clone, Debug, Deserialize)]
+            pub struct Trace {
+                #[serde(rename = "startContent")]
+                pub start_content: String,
+                #[serde(rename = "endContent")]
+                pub end_content: String,
+                #[serde(rename = "txns")]
+                pub transactions: Vec<Transaction>,
+            }
+
+            #[derive(Clone, Debug, Deserialize)]
+            pub struct Transaction {
+                pub time: String,
+                pub patches: Vec<Patch>,
+            }
+
+            /// In JS' `array.splice(start, deleteCount, content)` format.
+            #[derive(Clone, Debug, Deserialize)]
+            #[serde(from = "TriplePatch")]
+            pub struct Patch {
+                pub start: usize,
+                pub delete_count: usize,
+                pub content: String,
+            }
+
+            #[derive(Clone, Debug, Deserialize)]
+            struct TriplePatch(usize, usize, String);
+
+            impl From<TriplePatch> for Patch {
+                fn from(value: TriplePatch) -> Self {
+                    Patch {
+                        start: value.0,
+                        delete_count: value.1,
+                        content: value.2,
+                    }
+                }
+            }
+        }
+
+        pub struct AutomergePaperTrace {
+            final_result: String,
+            list_ops: Vec<ListOperation>,
+        }
+
+        impl AutomergePaperTrace {
+            pub fn load() -> Self {
+                let file =
+                    File::open("benches/automerge-paper.json").expect("Failed to open trace file");
+                let reader = BufReader::new(file);
+                let trace: json_definition::Trace =
+                    serde_json::from_reader(reader).expect("Failed to parse trace file");
+                let final_result = trace.end_content;
+                let list_ops = trace
+                    .transactions
+                    .into_iter()
+                    .flat_map(|tx| {
+                        tx.patches.into_iter().map(|patch| {
+                            if patch.delete_count > 0 {
+                                assert!(patch.content.is_empty(), "no replace operations");
+                                ListOperation::DeleteAt(patch.start)
+                            } else {
+                                assert!(patch.content.len() == 1, "only single character inserts");
+                                assert!(patch.delete_count == 0, "no replace operations");
+                                ListOperation::InsertAt(
+                                    patch.start,
+                                    patch.content.chars().next().unwrap(),
+                                )
+                            }
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                Self {
+                    final_result,
+                    list_ops,
+                }
+            }
+        }
+
+        impl TraceProvider for AutomergePaperTrace {
+            fn list_ops(&self) -> &Vec<ListOperation> {
+                &self.list_ops
+            }
+            fn final_result(&self) -> &String {
+                &self.final_result
+            }
+        }
+    }
+
+    pub mod from_string {
+        use crate::test_helper::{ListOperation, trace_provider::TraceProvider};
+
+        /// Generates [`ListOperation`]s from a string. Hence, the operations contain
+        /// only [`ListOperation::InsertAt`]s which are consecutive and without any
+        /// cursor jumps in between.
+        pub struct StringTrace {
+            final_result: String,
+            list_ops: Vec<ListOperation>,
+        }
+
+        impl StringTrace {
+            pub fn new<T: AsRef<str>>(string: T) -> Self {
+                let list_ops = string
+                    .as_ref()
+                    .chars()
+                    .enumerate()
+                    .map(|(idx, char)| ListOperation::InsertAt(idx, char))
+                    .collect();
+                Self {
+                    list_ops,
+                    final_result: string.as_ref().to_string(),
+                }
+            }
+            pub fn with_len<T: AsRef<str>>(base_string: T, len: usize) -> Self {
+                let string = base_string
+                    .as_ref()
+                    .chars()
+                    .cycle()
+                    .take(len)
+                    .collect::<String>();
+                Self::new(string)
+            }
+        }
+
+        impl TraceProvider for StringTrace {
+            fn list_ops(&self) -> &Vec<ListOperation> {
+                &self.list_ops
+            }
+            fn final_result(&self) -> &String {
+                &self.final_result
+            }
+        }
+
+        pub const TEST_STRING: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
     }
 }

@@ -164,12 +164,13 @@ mod test {
         let remove_op_input = inputs.get("remove").unwrap();
 
         let mut expected = [zset! {
-            tuple!(0_u64, 0_u64, 'H', 0_u64, 2_u64) => 1,
-            tuple!(0_u64, 1_u64, '!', 0_u64, 4_u64) => 1,
-            tuple!(0_u64, 2_u64, 'E', 0_u64, 6_u64) => 1,
-            tuple!(0_u64, 3_u64, 'O', 0_u64, 1_u64) => 1,
-            tuple!(0_u64, 5_u64, 'L', 0_u64, 3_u64) => 1,
-            tuple!(0_u64, 6_u64, 'L', 0_u64, 5_u64) => 1,
+            // Schema: PrevRepId, PrevCtr, Char (Value), AssignRepId, AssignCtr, NextRepId, NextCtr.
+            tuple!(0_u64, 0_u64, 'H', 1_u64, 2_u64, 0_u64, 2_u64) => 1,
+            tuple!(0_u64, 1_u64, '!', 1_u64, 7_u64, 0_u64, 4_u64) => 1,
+            tuple!(0_u64, 2_u64, 'E', 1_u64, 3_u64, 0_u64, 6_u64) => 1,
+            tuple!(0_u64, 3_u64, 'O', 1_u64, 6_u64, 0_u64, 1_u64) => 1,
+            tuple!(0_u64, 5_u64, 'L', 1_u64, 5_u64, 0_u64, 3_u64) => 1,
+            tuple!(0_u64, 6_u64, 'L', 1_u64, 4_u64, 0_u64, 5_u64) => 1,
         }]
         .into_iter();
 
@@ -201,11 +202,12 @@ mod test {
         let remove_op_input = inputs.get("remove").unwrap();
 
         let mut expected = [zset! {
-            tuple!(0_u64, 0_u64, 'H', 2_u64, 1_u64) => 1,
-            tuple!(2_u64, 1_u64, 'L', 1_u64, 3_u64) => 1,
-            tuple!(1_u64, 3_u64, 'L', 3_u64, 2_u64) => 1,
-            tuple!(3_u64, 2_u64, 'O', 1_u64, 1_u64) => 1,
-            tuple!(1_u64, 1_u64, '!', 2_u64, 5_u64) => 1,
+            // Schema: PrevRepId, PrevCtr, Char (Value), AssignRepId, AssignCtr, NextRepId, NextCtr.
+            tuple!(0_u64, 0_u64, 'H', 2_u64, 2_u64, 2_u64, 1_u64) => 1,
+            tuple!(2_u64, 1_u64, 'L', 1_u64, 4_u64, 1_u64, 3_u64) => 1,
+            tuple!(1_u64, 3_u64, 'L', 3_u64, 3_u64, 3_u64, 2_u64) => 1,
+            tuple!(3_u64, 2_u64, 'O', 1_u64, 2_u64, 1_u64, 1_u64) => 1,
+            tuple!(1_u64, 1_u64, '!', 2_u64, 6_u64, 2_u64, 5_u64) => 1,
         }]
         .into_iter();
 

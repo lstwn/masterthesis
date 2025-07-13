@@ -413,7 +413,7 @@ impl<'a> Translator<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{Parser, crdts::mvr_crdt_store_datalog};
+    use crate::{Parser, key_value_store_crdts::MVR_KV_STORE_CRDT_DATALOG};
 
     fn parse_and_translate(input: &str) -> Result<(DbspInputs, Code), SyntaxError> {
         // A hacky way to obtain/leak a `RootCircuit` for testing purposes.
@@ -426,7 +426,7 @@ mod test {
 
     #[test]
     fn test_translation() -> Result<(), anyhow::Error> {
-        let (inputs, code) = parse_and_translate(mvr_crdt_store_datalog())?;
+        let (inputs, code) = parse_and_translate(MVR_KV_STORE_CRDT_DATALOG)?;
         println!("Inputs: {inputs:#?}");
         println!("Code: {code:#?}");
         Ok(())

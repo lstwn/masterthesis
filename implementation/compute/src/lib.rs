@@ -1113,7 +1113,8 @@ mod test {
                                 // the tuple output. The EquiJoin below then indexes upon
                                 // both duplicated fields for its `right` operand
                                 // and no join match is found with its `left` operand.
-                                // Welcome to the funny world of relational algebra's semantics.
+                                // Welcome to the funny world of relational algebra's semantics
+                                // under name collisions.
                                 attributes: Some(
                                     [
                                         ("RepId", Expr::from(VarExpr::new("RepId"))),

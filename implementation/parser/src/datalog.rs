@@ -159,7 +159,7 @@ fn variable(input: &str) -> IResult<&str, VarStmt> {
 
 #[cfg(test)]
 pub mod test {
-    use crate::crdts::{list_crdt_datalog, mvr_crdt_store_datalog};
+    use crate::{key_value_store_crdts::MVR_KV_STORE_CRDT_DATALOG, list_crdt::LIST_CRDT_DATALOG};
 
     use super::*;
     use compute::{
@@ -354,7 +354,7 @@ pub mod test {
 
     #[test]
     fn test_mvr_store_crdt() {
-        let result = program(mvr_crdt_store_datalog());
+        let result = program(MVR_KV_STORE_CRDT_DATALOG);
         // Here, we just check that the parser consumes the full input.
         assert_eq!(result.as_ref().map(|(input, program)| *input), Ok(""));
         println!("{result:#?}");
@@ -362,7 +362,7 @@ pub mod test {
 
     #[test]
     fn test_list_crdt() {
-        let result = program(list_crdt_datalog());
+        let result = program(LIST_CRDT_DATALOG);
         // Here, we just check that the parser consumes the full input.
         assert_eq!(result.as_ref().map(|(input, program)| *input), Ok(""));
         println!("{result:#?}");

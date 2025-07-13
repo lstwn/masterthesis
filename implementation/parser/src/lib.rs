@@ -11,10 +11,11 @@ use translation::Translator;
 
 pub mod analysis;
 pub mod ast;
-pub mod crdts;
 pub mod datalog;
 pub mod expr;
 mod graph;
+pub mod key_value_store_crdts;
+pub mod list_crdt;
 pub mod literal;
 pub mod parser_helper;
 mod translation;
@@ -42,16 +43,15 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::crdts::{list_crdt_datalog, mvr_crdt_store_datalog, mvr_store_datalog};
+    use crate::{
+        key_value_store_crdts::{MVR_KV_STORE_CRDT_DATALOG, MVR_KV_STORE_DATALOG},
+        list_crdt::{AssignOp, InsertOp, LIST_CRDT_DATALOG, RemoveOp},
+    };
     use compute::{
         dbsp::zset,
         relation::TupleValue,
         scalar::ScalarTypedValue,
-        test_helper::{
-            ListReplica, PlainRelation, list_crdt_operation_history_martin,
-            list_crdt_operation_history_multi_replicas, mvr_store_operation_history,
-            setup_inc_data_log,
-        },
+        test_helper::{PlainRelation, mvr_store_operation_history, setup_inc_data_log},
         tuple,
     };
 
@@ -60,7 +60,7 @@ mod test {
         let inc_data_log = setup_inc_data_log();
 
         let (handle, inputs, output) = inc_data_log.build_circuit_from_parser(|root_circuit| {
-            Parser::new(root_circuit).parse(mvr_crdt_store_datalog())
+            Parser::new(root_circuit).parse(MVR_KV_STORE_CRDT_DATALOG)
         })?;
 
         let pred_rel_input = inputs.get("pred").unwrap();
@@ -107,7 +107,7 @@ mod test {
         let inc_data_log = setup_inc_data_log();
 
         let (handle, inputs, output) = inc_data_log.build_circuit_from_parser(|root_circuit| {
-            Parser::new(root_circuit).parse(mvr_store_datalog())
+            Parser::new(root_circuit).parse(MVR_KV_STORE_DATALOG)
         })?;
 
         let pred_rel_input = inputs.get("pred").unwrap();
@@ -156,12 +156,48 @@ mod test {
         let inc_data_log = setup_inc_data_log();
 
         let (handle, inputs, output) = inc_data_log.build_circuit_from_parser(|root_circuit| {
-            Parser::new(root_circuit).parse(list_crdt_datalog())
+            Parser::new(root_circuit).parse(LIST_CRDT_DATALOG)
         })?;
 
         let insert_op_input = inputs.get("insert").unwrap();
         let assign_op_input = inputs.get("assign").unwrap();
         let remove_op_input = inputs.get("remove").unwrap();
+
+        // Example tree, encoded as `insert(Child, Parent)` facts.
+        // The example only shows counters but no replica ids because
+        // all updates stem from the same replica.
+        //
+        // ```text
+        //        0 <- sentinel element
+        //      /   \
+        //     2     1
+        //   / | \   |
+        //  6  5  3  4
+        // ```
+        let data: [(Vec<InsertOp>, Vec<AssignOp>, Vec<RemoveOp>); 1] = [(
+            vec![
+                InsertOp::new(0, 1, 0, 0),
+                InsertOp::new(0, 2, 0, 0),
+                InsertOp::new(0, 3, 0, 2),
+                InsertOp::new(0, 4, 0, 1),
+                InsertOp::new(0, 5, 0, 2),
+                InsertOp::new(0, 6, 0, 2),
+            ],
+            vec![
+                // Oddly, another replica assigns the values to the list elements.
+                // I think it should be alternating between the insert ops and assign
+                // ops but this would break Martin's example.
+                AssignOp::new(0, 0, 0, 0, '#'), // dummy element
+                AssignOp::new(1, 2, 0, 2, 'H'),
+                AssignOp::new(1, 3, 0, 6, 'E'),
+                AssignOp::new(1, 4, 0, 5, 'L'),
+                AssignOp::new(1, 5, 0, 3, 'L'),
+                AssignOp::new(1, 6, 0, 1, 'O'),
+                AssignOp::new(1, 7, 0, 4, '!'),
+            ],
+            // No removals here.
+            vec![],
+        )];
 
         let mut expected = [zset! {
             // Schema: PrevRepId, PrevCtr, Char (Value), AssignRepId, AssignCtr, NextRepId, NextCtr.
@@ -174,14 +210,11 @@ mod test {
         }]
         .into_iter();
 
-        for (insert_op_step, assign_op_step, remove_op_step) in list_crdt_operation_history_martin()
-        {
+        for (insert_op_step, assign_op_step, remove_op_step) in data {
             insert_op_input.insert_with_same_weight(&insert_op_step, 1);
             assign_op_input.insert_with_same_weight(&assign_op_step, 1);
             remove_op_input.insert_with_same_weight(&remove_op_step, 1);
-
             handle.step()?;
-
             let batch = output.to_batch();
             println!("{}", batch.as_table());
             assert_eq!(batch.as_zset(), expected.next().unwrap());
@@ -194,12 +227,44 @@ mod test {
         let inc_data_log = setup_inc_data_log();
 
         let (handle, inputs, output) = inc_data_log.build_circuit_from_parser(|root_circuit| {
-            Parser::new(root_circuit).parse(list_crdt_datalog())
+            Parser::new(root_circuit).parse(LIST_CRDT_DATALOG)
         })?;
 
         let insert_op_input = inputs.get("insert").unwrap();
         let assign_op_input = inputs.get("assign").unwrap();
         let remove_op_input = inputs.get("remove").unwrap();
+
+        // Example tree, encoded as `insert(ChildRepId, ChildCtr, ParentRepId, ParentCtr)`
+        // facts. Below, a node depicts `(RepId, Ctr)`:
+        //
+        // ```text
+        //             (0,0) <- sentinel element
+        //         /           \
+        //       (2,1)        (1,1)
+        //     /   |   \        |
+        // (2,3) (1,3) (3,2)  (2,5)
+        // ```
+        let data: [(Vec<InsertOp>, Vec<AssignOp>, Vec<RemoveOp>); 1] = [(
+            vec![
+                InsertOp::new(2, 1, 0, 0),
+                InsertOp::new(1, 1, 0, 0),
+                InsertOp::new(2, 5, 1, 1),
+                InsertOp::new(2, 3, 2, 1),
+                InsertOp::new(1, 3, 2, 1),
+                InsertOp::new(3, 2, 2, 1),
+            ],
+            vec![
+                AssignOp::new(0, 0, 0, 0, '#'), // dummy element
+                AssignOp::new(2, 2, 2, 1, 'H'),
+                AssignOp::new(2, 4, 2, 3, 'E'),
+                AssignOp::new(1, 4, 1, 3, 'L'),
+                AssignOp::new(3, 3, 3, 2, 'L'),
+                AssignOp::new(1, 2, 1, 1, 'O'),
+                AssignOp::new(2, 6, 2, 5, '!'),
+            ],
+            // We can remove the 'E' in the *middle* of the list! :)
+            vec![RemoveOp::new(2, 4)],
+        )];
 
         let mut expected = [zset! {
             // Schema: PrevRepId, PrevCtr, Char (Value), AssignRepId, AssignCtr, NextRepId, NextCtr.
@@ -211,20 +276,12 @@ mod test {
         }]
         .into_iter();
 
-        let mut replica = ListReplica::new(0);
-
-        for (insert_op_step, assign_op_step, remove_op_step) in
-            list_crdt_operation_history_multi_replicas()
-        {
+        for (insert_op_step, assign_op_step, remove_op_step) in data {
             insert_op_input.insert_with_same_weight(&insert_op_step, 1);
             assign_op_input.insert_with_same_weight(&assign_op_step, 1);
             remove_op_input.insert_with_same_weight(&remove_op_step, 1);
-
             handle.step()?;
-
             let batch = output.to_batch();
-            replica.apply_output_delta(batch.as_data());
-            println!("{}", replica.materialize_string());
             println!("{}", batch.as_table());
             assert_eq!(batch.as_zset(), expected.next().unwrap());
         }

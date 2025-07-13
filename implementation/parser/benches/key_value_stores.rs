@@ -1,50 +1,41 @@
-use compute::{
-    IncDataLog,
-    dbsp::{CircuitHandle, DbspInputs, DbspOutput},
-    test_helper::{KeyValueStoreReplica, PredRel, SetOp},
-};
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use parser::{
-    Parser,
-    crdts::{mvr_crdt_store_datalog, mvr_store_datalog},
+use parser::key_value_store_crdts::{
+    KeyValueStoreOperation, KeyValueStoreReplica, MVR_KV_STORE_CRDT_DATALOG, MVR_KV_STORE_DATALOG,
+    PredOp, SetOp,
 };
-use std::num::NonZeroUsize;
+use std::collections::{HashMap, HashSet};
 
 const CRDTS: [(&str, &str); 2] = [
-    ("without_causal_broadcast", mvr_store_datalog()),
-    ("with_causal_broadcast", mvr_crdt_store_datalog()),
+    ("wo_cb", MVR_KV_STORE_DATALOG),
+    ("w_cb", MVR_KV_STORE_CRDT_DATALOG),
 ];
 
-const BASE_DIAMETERS: [usize; 5] = [1000, 2000, 3000, 4000, 5000];
+const REPLICA_ID: u64 = 1;
+const BASE_DIAMETERS: [usize; 5] = [10_000, 20_000, 30_000, 40_000, 50_000];
 const DELTA_DIAMETERS: [usize; 5] = [20, 40, 60, 80, 100];
 
 fn bench_hydration(c: &mut Criterion) {
-    let mut group = c.benchmark_group("MVR_stores_hydration_setting");
+    let mut group = c.benchmark_group("kv_stores_hydration_setting");
 
     for (crdt, datalog) in CRDTS {
         for diameter in BASE_DIAMETERS {
-            let name = format!("CRDT={crdt}");
+            let name = format!("crdt={crdt} base_diameter={diameter}");
+            let mut generating_replica = KeyValueStoreReplica::new(REPLICA_ID, datalog);
+            let (set_ops, pred_ops) = collect_history(&mut generating_replica, diameter);
             group.throughput(Throughput::Elements(diameter as u64));
             group.bench_with_input(
                 BenchmarkId::new(name, diameter),
                 &diameter,
                 |b, &diameter| {
-                    let mut replica = KeyValueStoreReplica::new(0);
-                    let data =
-                        generate_operation_history(&mut replica, diameter).collect::<Vec<_>>();
-
                     b.iter_batched(
-                        || prepare_circuit(NonZeroUsize::try_from(1).unwrap(), datalog),
-                        |(handle, inputs, output)| {
-                            let set_op_input = inputs.get("set").unwrap();
-                            let pred_rel_input = inputs.get("pred").unwrap();
-                            for (set_op_step, pred_rel_step) in data.iter() {
-                                pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
-                                set_op_input.insert_with_same_weight([set_op_step], 1);
-                            }
-                            handle.step().unwrap();
-                            let _result = output.to_batch();
-                            output
+                        || KeyValueStoreReplica::new(REPLICA_ID, datalog),
+                        |mut replica| {
+                            replica.feed_ops(&set_ops, &pred_ops);
+                            let result = replica.derive_state();
+                            debug_assert_eq!(
+                                result,
+                                &HashMap::from([(0, HashSet::from([(diameter - 1) as u64]))])
+                            )
                         },
                         criterion::BatchSize::SmallInput,
                     );
@@ -57,46 +48,50 @@ fn bench_hydration(c: &mut Criterion) {
 }
 
 fn bench_near_real_time(c: &mut Criterion) {
-    let mut group = c.benchmark_group("MVR_stores_near_real_time_setting");
+    let mut group = c.benchmark_group("kv_stores_near_real_time_setting");
 
     for (crdt, datalog) in CRDTS {
         for base_diameter in BASE_DIAMETERS {
             for delta_diameter in DELTA_DIAMETERS {
-                let name = format!("CRDT={crdt}_base={base_diameter}");
+                let name = format!(
+                    "crdt={crdt} base_diameter={base_diameter} delta_diameter={delta_diameter}"
+                );
+                let mut generating_replica = KeyValueStoreReplica::new(REPLICA_ID, datalog);
+                let (base_set_ops, base_pred_ops) =
+                    collect_history(&mut generating_replica, base_diameter);
+                let (delta_set_ops, delta_pred_ops) =
+                    collect_history(&mut generating_replica, delta_diameter);
                 group.throughput(Throughput::Elements(delta_diameter as u64));
                 group.bench_with_input(
                     BenchmarkId::new(name, delta_diameter),
                     &delta_diameter,
                     |b, delta_diameter| {
-                        let mut replica = KeyValueStoreReplica::new(0);
-                        let base_data = generate_operation_history(&mut replica, base_diameter)
-                            .collect::<Vec<_>>();
-                        let delta_data = generate_operation_history(&mut replica, *delta_diameter)
-                            .collect::<Vec<_>>();
-
                         b.iter_batched(
                             || {
-                                let (handle, inputs, output) =
-                                    prepare_circuit(NonZeroUsize::try_from(1).unwrap(), datalog);
-                                let set_op_input = inputs.get("set").unwrap();
-                                let pred_rel_input = inputs.get("pred").unwrap();
-                                for (set_op_step, pred_rel_step) in base_data.iter() {
-                                    pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
-                                    set_op_input.insert_with_same_weight([set_op_step], 1);
-                                }
-                                handle.step().unwrap();
-                                (handle, inputs, output)
+                                let mut replica = KeyValueStoreReplica::new(REPLICA_ID, datalog);
+                                replica.feed_ops(&base_set_ops, &base_pred_ops);
+                                let result = replica.derive_state();
+                                debug_assert_eq!(
+                                    result,
+                                    &HashMap::from([(
+                                        0,
+                                        HashSet::from([(base_diameter - 1) as u64])
+                                    )])
+                                );
+                                replica
                             },
-                            |(handle, inputs, output)| {
-                                let set_op_input = inputs.get("set").unwrap();
-                                let pred_rel_input = inputs.get("pred").unwrap();
-                                for (set_op_step, pred_rel_step) in delta_data.iter() {
-                                    pred_rel_input.insert_with_same_weight(pred_rel_step.iter(), 1);
-                                    set_op_input.insert_with_same_weight([set_op_step], 1);
-                                }
-                                handle.step().unwrap();
-                                let _result = output.to_batch();
-                                output
+                            |mut replica| {
+                                replica.feed_ops(&delta_set_ops, &delta_pred_ops);
+                                let result = replica.derive_state();
+                                debug_assert_eq!(
+                                    result,
+                                    &HashMap::from([(
+                                        0,
+                                        HashSet::from(
+                                            [(base_diameter + delta_diameter - 1) as u64]
+                                        )
+                                    )])
+                                );
                             },
                             criterion::BatchSize::SmallInput,
                         );
@@ -109,22 +104,26 @@ fn bench_near_real_time(c: &mut Criterion) {
     group.finish();
 }
 
-/// Returns set operations and according predecessor relations by setting
-/// the key 0 to the value of the replica's counter at the respective time.
-fn generate_operation_history(
+/// Generates a causal history of diameter `diameter` by generating set operations
+/// that set the key 0 to the value of the replica's counter at the respective time.
+fn collect_history(
     replica: &mut KeyValueStoreReplica,
     diameter: usize,
-) -> impl Iterator<Item = (SetOp, Vec<PredRel>)> {
-    (0..diameter).map(|_i| replica.new_local_set_op(0, replica.ctr()))
-}
+) -> (Vec<SetOp>, Vec<PredOp>) {
+    let mut set_ops = Vec::new();
+    let mut pred_ops = Vec::new();
 
-fn prepare_circuit(
-    threads: NonZeroUsize,
-    code: &'static str,
-) -> (CircuitHandle, DbspInputs, DbspOutput) {
-    IncDataLog::new(threads, true)
-        .build_circuit_from_parser(|root_circuit| Parser::new(root_circuit).parse(code))
-        .unwrap()
+    // No need to do a full simulation here, as we can just generate the operations,
+    // unlike in a real-time setting or with the list CRDT.
+    // This would change once the heads are tracked via Datalog though.
+    (0..diameter)
+        .map(|_i| replica.generate_ops(&KeyValueStoreOperation::Set(0, replica.ctr())))
+        .for_each(|(set_op, pred_rels)| {
+            set_ops.push(set_op);
+            pred_ops.extend(pred_rels);
+        });
+
+    (set_ops, pred_ops)
 }
 
 criterion_group!(benches, bench_hydration, bench_near_real_time);

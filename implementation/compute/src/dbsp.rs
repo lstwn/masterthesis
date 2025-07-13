@@ -241,6 +241,9 @@ impl DbspInputs {
     pub fn get(&self, name: &str) -> Option<&DbspInput> {
         self.inputs.get(name)
     }
+    pub fn take(&mut self, name: &str) -> Option<DbspInput> {
+        self.inputs.remove(name)
+    }
     pub fn iter(&self) -> impl Iterator<Item = &DbspInput> {
         self.inputs.values()
     }

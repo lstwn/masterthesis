@@ -15,7 +15,7 @@ use crate::Parser;
 /// in Datalog.
 /// It also includes a causal broadcast mechanism to ensure that operations
 /// respect their causal dependencies, unlike [`mvr_kv_store_datalog`].
-pub const MVR_KV_STORE_CRDT_DATALOG: &str = r#"
+pub const MVR_KV_STORE_CRDT_W_CB_DATALOG: &str = r#"
         // These are extensional database predicates (EDBPs).
         pred(FromRepId, FromCtr, ToRepId, ToCtr) :- .
         set(RepId, Ctr, Key, Value)              :- .
@@ -52,7 +52,7 @@ pub const MVR_KV_STORE_CRDT_DATALOG: &str = r#"
 /// are fed in in causal order.
 ///
 /// [`mvr_kv_store_crdt_datalog`] extends this with a causal broadcast mechanism.
-pub const MVR_KV_STORE_DATALOG: &str = r#"
+pub const MVR_KV_STORE_CRDT_WO_CB_DATALOG: &str = r#"
         // These are extensional database predicates (EDBPs).
         pred(FromRepId, FromCtr, ToRepId, ToCtr) :- .
         set(RepId, Ctr, Key, Value)              :- .

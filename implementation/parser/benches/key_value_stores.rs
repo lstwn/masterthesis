@@ -1,17 +1,17 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use parser::key_value_store_crdts::{
-    KeyValueStoreOperation, KeyValueStoreReplica, MVR_KV_STORE_CRDT_DATALOG, MVR_KV_STORE_DATALOG,
-    PredOp, SetOp,
+    KeyValueStoreOperation, KeyValueStoreReplica, MVR_KV_STORE_CRDT_W_CB_DATALOG,
+    MVR_KV_STORE_CRDT_WO_CB_DATALOG, PredOp, SetOp,
 };
 use std::collections::{HashMap, HashSet};
 
 const CRDTS: [(&str, &str); 2] = [
-    ("wo_cb", MVR_KV_STORE_DATALOG),
-    ("w_cb", MVR_KV_STORE_CRDT_DATALOG),
+    ("wo_cb", MVR_KV_STORE_CRDT_WO_CB_DATALOG),
+    ("w_cb", MVR_KV_STORE_CRDT_W_CB_DATALOG),
 ];
 
 const REPLICA_ID: u64 = 1;
-const BASE_DIAMETERS: [usize; 5] = [10_000, 20_000, 30_000, 40_000, 50_000];
+const BASE_DIAMETERS: [usize; 5] = [1000, 2000, 3000, 4000, 5000];
 const DELTA_DIAMETERS: [usize; 5] = [20, 40, 60, 80, 100];
 
 fn bench_hydration(c: &mut Criterion) {

@@ -44,7 +44,7 @@ impl<'a> Parser<'a> {
 mod test {
     use super::*;
     use crate::{
-        key_value_store_crdts::{MVR_KV_STORE_CRDT_DATALOG, MVR_KV_STORE_DATALOG},
+        key_value_store_crdts::{MVR_KV_STORE_CRDT_W_CB_DATALOG, MVR_KV_STORE_CRDT_WO_CB_DATALOG},
         list_crdt::{AssignOp, InsertOp, LIST_CRDT_DATALOG, RemoveOp},
     };
     use compute::{
@@ -60,7 +60,7 @@ mod test {
         let inc_data_log = setup_inc_data_log();
 
         let (handle, inputs, output) = inc_data_log.build_circuit_from_parser(|root_circuit| {
-            Parser::new(root_circuit).parse(MVR_KV_STORE_CRDT_DATALOG)
+            Parser::new(root_circuit).parse(MVR_KV_STORE_CRDT_W_CB_DATALOG)
         })?;
 
         let pred_op_input = inputs.get("pred").unwrap();
@@ -107,7 +107,7 @@ mod test {
         let inc_data_log = setup_inc_data_log();
 
         let (handle, inputs, output) = inc_data_log.build_circuit_from_parser(|root_circuit| {
-            Parser::new(root_circuit).parse(MVR_KV_STORE_DATALOG)
+            Parser::new(root_circuit).parse(MVR_KV_STORE_CRDT_WO_CB_DATALOG)
         })?;
 
         let pred_rel_input = inputs.get("pred").unwrap();

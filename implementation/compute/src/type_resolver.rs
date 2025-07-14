@@ -2,7 +2,7 @@ use crate::{
     error::SyntaxError,
     expr::{
         AliasExpr, AntiJoinExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr,
-        DifferenceExpr, DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixPointIterExpr,
+        DifferenceExpr, DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixedPointIterExpr,
         FunctionExpr, GroupingExpr, Literal, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr,
         UnionExpr, VarExpr,
     },
@@ -248,9 +248,9 @@ impl ExprVisitor<VisitorResult, VisitorCtx<'_, '_>> for TypeResolver {
         self.visit_expr(&expr.left, ctx)
     }
 
-    fn visit_fix_point_iter_expr(
+    fn visit_fixed_point_iter_expr(
         &mut self,
-        expr: &FixPointIterExpr,
+        expr: &FixedPointIterExpr,
         ctx: VisitorCtx,
     ) -> VisitorResult {
         // We steal the relation's type from the accumulator's type.

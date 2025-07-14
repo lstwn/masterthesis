@@ -20,7 +20,7 @@ use compute::{
     relation::{RelationSchema, RelationType},
     stmt::{Code, ExprStmt, Stmt, VarStmt as IncLogVarStmt},
 };
-use compute::{expr::FixPointIterExpr, stmt::BlockStmt};
+use compute::{expr::FixedPointIterExpr, stmt::BlockStmt};
 
 pub struct Translator<'a> {
     aggregated_rules: Vec<AggregatedRule>,
@@ -137,7 +137,7 @@ impl<'a> Translator<'a> {
 
         Ok(Stmt::from(IncLogVarStmt {
             name: head.name.identifier.inner,
-            initializer: Some(Expr::from(FixPointIterExpr {
+            initializer: Some(Expr::from(FixedPointIterExpr {
                 circuit: self.root_circuit.clone(),
                 imports,
                 accumulator,

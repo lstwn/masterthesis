@@ -63,7 +63,7 @@ mod test {
             Parser::new(root_circuit).parse(MVR_KV_STORE_CRDT_DATALOG)
         })?;
 
-        let pred_rel_input = inputs.get("pred").unwrap();
+        let pred_op_input = inputs.get("pred").unwrap();
         let set_op_input = inputs.get("set").unwrap();
 
         let mut expected = [
@@ -89,8 +89,8 @@ mod test {
         ]
         .into_iter();
 
-        for (pred_rel_step, set_op_step) in mvr_store_operation_history() {
-            pred_rel_input.insert_with_same_weight(&pred_rel_step, 1);
+        for (pred_op_step, set_op_step) in mvr_store_operation_history() {
+            pred_op_input.insert_with_same_weight(&pred_op_step, 1);
             set_op_input.insert_with_same_weight(&set_op_step, 1);
 
             handle.step()?;

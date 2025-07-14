@@ -203,7 +203,7 @@ mod test {
         dbsp::{DbspInput, zset},
         expr::{
             AliasExpr, CartesianProductExpr, DifferenceExpr, DistinctExpr, EquiJoinExpr,
-            FixPointIterExpr, ProjectionExpr, SelectionExpr, UnionExpr,
+            FixedPointIterExpr, ProjectionExpr, SelectionExpr, UnionExpr,
         },
         relation::TupleValue,
         scalar::ScalarTypedValue,
@@ -865,7 +865,7 @@ mod test {
                     }),
                     Stmt::from(VarStmt {
                         name: "closure".to_string(),
-                        initializer: Some(Expr::from(FixPointIterExpr {
+                        initializer: Some(Expr::from(FixedPointIterExpr {
                             circuit: root_circuit.clone(),
                             imports: ["edges"]
                                 .into_iter()
@@ -1046,7 +1046,7 @@ mod test {
                     }),
                     Stmt::from(VarStmt {
                         name: "isCausallyReady".to_string(),
-                        initializer: Some(Expr::from(FixPointIterExpr {
+                        initializer: Some(Expr::from(FixedPointIterExpr {
                             circuit: root_circuit.clone(),
                             imports: ["pred"]
                                 .into_iter()

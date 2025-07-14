@@ -4,7 +4,7 @@ use crate::{
     error::RuntimeError,
     expr::{
         AliasExpr, AntiJoinExpr, AssignExpr, BinaryExpr, CallExpr, CartesianProductExpr,
-        DifferenceExpr, DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixPointIterExpr,
+        DifferenceExpr, DistinctExpr, EquiJoinExpr, Expr, ExprVisitor, FixedPointIterExpr,
         FunctionExpr, GroupingExpr, LiteralExpr, ProjectionExpr, SelectionExpr, UnaryExpr,
         UnionExpr, VarExpr,
     },
@@ -529,9 +529,9 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
         )))
     }
 
-    fn visit_fix_point_iter_expr(
+    fn visit_fixed_point_iter_expr(
         &mut self,
-        expr: &FixPointIterExpr,
+        expr: &FixedPointIterExpr,
         ctx: VisitorCtx,
     ) -> ExprVisitorResult {
         let accumulator = self
@@ -580,9 +580,9 @@ impl ExprVisitor<ExprVisitorResult, VisitorCtx<'_, '_>> for Interpreter {
                         }
                     })
                     .expect("Runtime error while interpreting fixed point iteration body")
-                    .expect("Fix point iteration body did not return a value");
+                    .expect("Fixed point iteration body did not return a value");
                 let result = assert_type!(result, Value::Relation)
-                    .expect("Fix point iteration body did not return a relation");
+                    .expect("Fixed point iteration body did not return a relation");
                 // We have to coalesce the result here because the output is fed
                 // into a union below, which requires the schema to be coalesced.
                 let result = coalesce_helper(result);

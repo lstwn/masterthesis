@@ -19,8 +19,9 @@ dialect, which is adapted from~\cite{kleppmann2018data}.
 
 \subsection{Key-Value Stores}\label{sec:key-value-stores-datalog-dialect}
 
-\ref{code:mvr-store-datalog-dialect} shows the equivalent of the \ac{MVR}
-key-value store from \ref{code:mvr-store-datalog} in my Datalog dialect.
+\ref{code:mvr-store-datalog-dialect} shows the \ac{MVR} key-value store
+from \ref{code:mvr-store-datalog} (which assumes causal broadcast)
+in my Datalog dialect.
 Examples in this chapter explicitly state the \acp{EDBP} to communicate the
 predicates' schema to the query engine.
 
@@ -36,11 +37,14 @@ distinct overwritten(RepId, Ctr)
 mvrStore(Key, Value)
                     :- set(RepId, Ctr, Key, Value),
                        not overwritten(RepId, Ctr).\end{lstlisting}
-	\caption{The \ac{MVR} key-value store in my Datalog dialect.}\label{code:mvr-store-datalog-dialect}
+	\caption{
+	    The \ac{MVR} key-value store without causal broadcast in my Datalog
+		dialect.
+	}\label{code:mvr-store-datalog-dialect}
 \end{figure}
 
 \ref{code:mvr-crdt-datalog-dialect} provides a definition of the \ac{MVR}
-key-value store \ac{CRDT} from \ref{code:mvr-store-datalog} in my Datalog dialect.
+key-value store \ac{CRDT} from \ref{code:mvr-crdt-datalog} in my Datalog dialect.
 The query differentiates itself from the previous example by including the
 causal broadcast mechanism.
 
@@ -64,7 +68,10 @@ mvrStore(Key, Value)
                     :- isLeaf(RepId, Ctr),
                        isCausallyReady(RepId, Ctr),
                        set(RepId, Ctr, Key, Value).\end{lstlisting}
-	\caption{The \ac{MVR} key-value \ac{CRDT} store in my Datalog dialect.}\label{code:mvr-crdt-datalog-dialect}
+	\caption{
+	    The \ac{MVR} key-value store including causal broadcast in my Datalog
+		dialect.
+	}\label{code:mvr-crdt-datalog-dialect}
 \end{figure}
 
 Both examples are similar to their counterparts from \ref{ch:intro}
@@ -75,15 +82,26 @@ has set (instead of multiset) semantics.
 
 \subsection{List \ac{CRDT}}\label{sec:list-crdt-datalog-dialect}
 
+List \acp{CRDT} enable replicas to converge to the same sequence of elements.
+Fundamentally, they support two kinds of operations:
+The insertion and the deletion of an element at a position.
+They are often discussed in the context of collaborative text
+editing in which the list maintains the sequence of characters as they appear
+in the shared text.
+Yet, most list \acp{CRDT} can go beyond this application and store arbitrary
+elements.
+Among others, Treedoc~\cite{treedoc}, Logoot~\cite{logoot}, \ac{RGA}~\cite{rga},
+and Fugue~\cite{fugue} have been proposed.
+Causal trees~\cite{causal-trees} and timestamped insertion
+trees~\cite{timestamped-insertion-trees} are tree-based reformulations
+of \ac{RGA}.
+
 List \acp{CRDT} are more complex than key-value stores because they have to
 converge to the \emph{same order} of elements across replicas under concurrent
 updates.
-In the more specific context of text editing, Treedoc~\cite{treedoc},
-Logoot~\cite{logoot}, RGA~\cite{rga}, and Fugue~\cite{fugue} have been proposed,
-among others.
-The list \ac{CRDT} presented here resembles RGA's design,
-which is based on the idea that insertions do not specify an unstable list index
-for their position but instead each list element is assigned a stable identifier,
+The list \ac{CRDT} presented here resembles \ac{RGA}'s design,
+which is based on the idea that insertions do not specify an index for their
+position, but instead each list element is assigned a unique, immutable identifier,
 and each insertion references the identifier of the element after which it wants
 to be inserted.
 This implies that deletions cannot fully remove an element, but have to leave
@@ -91,16 +109,13 @@ This implies that deletions cannot fully remove an element, but have to leave
 insertion after element \(x\) and a concurrent deletion of \(x\).
 In case of concurrent insertions after the same element \(x\),
 the inserted elements are ordered according to the total order induced
-by the stable identifiers.
-The stable identifiers can again be replica id and counter pairs,
+by the identifiers.
+The identifiers can again be replica id and counter pairs,
 and they provide a total order by first comparing the counters and,
 in case of ties, by breaking them through comparing the replica ids.
-The ordering brings up the issue of \emph{non-interleaving} the elements from
-the same replica with elements from other replicas under concurrent insertions,
-a desirable property for maintaining the users' intents in the best
-``possible'' manner, and is discussed in~\cite{fugue}.
+I initially focus only on insertions into the list, and discuss deletions later.
 
-Logically, insertions in RGA can be represented in a tree structure,
+Logically, insertions in \ac{RGA} can be represented in a tree structure,
 where each node's \emph{parent} is the element after which it is supposed to be
 inserted (but may not in the final list order due to concurrent insertions).
 The root element is some sentinel element that is always present and does not
@@ -114,8 +129,8 @@ traversal of the tree.
 
 \input{figures/list_crdt.tex}
 
-\ref{code:list-crdt-datalog-dialect} shows the definition of an RGA-like
-list \ac{CRDT} in my Datalog dialect.
+\ref{code:list-crdt-datalog-dialect} shows the definition of a list \ac{CRDT}
+in my Datalog dialect.
 To explain the query, I use \ref{fig:list-crdt} as an example in which
 three replicas, with id 1, 2, and 3, insert elements into the list.
 \ref{fig:list-crdt} visualizes the ``insert(RepId, Ctr, ParentRepId, ParentCtr)''
@@ -126,13 +141,13 @@ three replicas, with id 1, 2, and 3, insert elements into the list.
 Every node (except for the sentinel root) depicts a (\textit{RepId}, \textit{Ctr})
 pair and its black edge points to its parent defined by
 a (\textit{ParentRepId}, \textit{ParentCtr}) pair.
-Siblings are ordered \emph{descendingly} according to their stable identifiers.
 The result of the depth-first, pre-order traversal is:
 
 \[[ (0,0), (2,1), (2,3), (1,3), (3,2), (1,1), (2,2) ]\]
 
-To obtain this result with Datalog, the ``nextElem'' \ac{IDBP} is used in
-\ref{code:list-crdt-datalog-dialect}.
+Despite the absence of a built-in list type in Datalog, I reproduce this result
+as an (unsorted) linked list of nodes in \ref{code:list-crdt-datalog-dialect}
+with the ``nextElem'' \ac{IDBP}.
 Its definition is divided into three parts.
 First, the ``firstChild'' \ac{IDBP} (\ref{code:list-crdt-datalog-dialect-part1})
 finds the first child of each parent
@@ -258,10 +273,10 @@ the operators of the query plan being either ``warm'' or ``cold'':
 	\item \textbf{Near-real time setting} (\ref{sec:near-real-time-benchmark}).
 	      In this setting, the operators are assumed to be ``warm'' and only
 	      a small number of updates are new to them.
-	      This benchmark measures the common operation mode of \acp{CRDT} and
-	      is therefore the most relevant for practical applications. It asks
-	      how much time it takes to process a small number of updates on top of
-	      an already ``hydrated'' query plan.
+	      This benchmark measures the common operation mode of \acp{CRDT} after
+		  the application has started up. It measures how much time it takes
+		  to process a small number of updates on top of an already ``hydrated''
+		  query plan.
 	\item \textbf{Hydration setting} (\ref{sec:hydration-benchmark}).
 	      As outlined in \ref{sec:ivm}, all bilinear operators are stateful.
 	      Hence, all stateful operators of the query plan have to restore
@@ -298,7 +313,9 @@ and this can be seen in their performance difference, too.
 The benchmark is set up as follows:
 The \emph{base diameter} \(\in \{1000, 2000, 3000, 4000, 5000\}\) is the diameter
 of the causal history if viewed as a directed graph,
-i.e., the longest path from a root to a leaf.
+i.e., the longest shortest path from a root to a leaf.
+The base diameter is also equal to the number of operations (plus one),
+yielding a long chain of operations in the causal history.
 The \emph{delta diameter} \(\in \{20, 40, 60, 80, 100\}\) is the diameter of the
 updates, again viewed as a directed graph.
 The benchmark measures the time it takes to apply an update with the given
@@ -319,6 +336,7 @@ in \ref{fig:near-real-time-kv-store}.
 Varying the delta diameter lets the performance change by less than one millisecond
 and is therefore negligible, too.
 In total, the runtimes are less than one millisecond for all base and delta diameters.
+
 Second, the advanced key-value store with the causal broadcast mechanism
 is significantly slower than the simple key-value store.
 An increase in the base diameter by 1000 causes an increase of the runtime of
@@ -328,12 +346,17 @@ Yet, an increase in the delta diameter has little impact on the performance
 for a given base diameter.
 The results match their query patterns:
 The advanced key-value store has to traverse the causal history from its
-roots to its leafs to find the causally ready operations.
-The fix point iteration responsible for this graph traversal encompasses the
+roots to its leaves to find the causally ready operations.
+The fixed point iteration responsible for this graph traversal encompasses the
 evaluation of dependent joins relative to the size of the diameter of the causal
 history.
 Due to the \emph{dependent} joins, I suspect that even a multi-threaded execution
 would not improve the performance in this case.
+A clever query optimizer could possibly turn the causal broadcast into
+a near constant time operation by, e.g., testing causal readiness of a new operation
+from the current leaves of the causal history and thus avoiding the
+costly search from the roots, as most new operations are likely a causal successor
+of the current leaves.
 
 \subsection{Hydration Setting}\label{sec:hydration-benchmark}
 
@@ -350,7 +373,7 @@ The causal broadcast mechanism has a significant impact on the performance:
 While an increase of the base diameter by 1000 causes the performance of the
 simple key-value store to increase by about two milliseconds,
 the advanced key-value store's performance increases by about 40 milliseconds.
-The reason for this is again the costly fix point iteration of the causal
+The reason for this is again the costly fixed point iteration of the causal
 broadcast mechanism.
 
 \section{Related Work}\label{sec:related-work}
@@ -371,24 +394,32 @@ Unlike \acp{DSL}, Datalog has the advantage that is a more widely used language
 and does not require verification time because convergence is guaranteed by
 construction.
 
-There exist several libraries that implement \acp{CRDT} in imperative programming
-languages, for instance, Automerge~\cite{automerge} (Rust),
+There exist several libraries that implement \acp{CRDT} in general-purpose
+programming languages, for instance, Automerge~\cite{automerge} (Rust),
 Yjs~\cite{yjs} (JavaScript), Collabs~\cite{collabs} (TypeScript),
 and Loro~\cite{loro} (Rust).
 They come with no formal proof of convergence but are crafted by experienced
 developers familiar with eventual consistency and are widely used in practice.
-Yet, changing them to support custom data types is a non-trivial task and
+Yet, changing them to support custom data types is a challenging task and
 requires a deep understanding of the library's internals as well as theoretical
 foundations of \acp{CRDT}, rendering them less flexible than language based
 approaches.
 
-Other \ac{CRDT} frameworks are based on event logs, deriving state from the log,
-and replaying events to handle concurrent updates.
-The idea has been formalized in \cite{egwalker}.
-An example for this approach is LiveStore~\cite{livestore}, which allows
-developers to specify events and how to derive state from them.
-Yet, the convergence is not guaranteed by construction and this burden is
-left to the application developer.
+Other \ac{CRDT} frameworks are based on (immutable) event logs, deriving state
+from the log, and replaying events in a consistent order across replicas to
+handle concurrent updates and/or updates which are delivered out-of-order.
+The idea has been formalized in \cite{baquero2017pure} and is applied in
+the Eg-walker~\cite{egwalker} algorithm in the context of collaborative text
+editing.
+LiveStore~\cite{livestore} is a recent framework, which allows developers
+to specify events and how to derive state from them.
+If the derivation happens deterministically, convergence is guaranteed, too,
+due to the consistent event order across replicas.
+Yet, the event order is unstable in case of concurrent or out-of-order events,
+as they require undoing and (re)applying events.
+This renders supporting list operations challenging because the list operations'
+indexes may need to be transformed to match the different list order based on
+the new event order.
 
 In general, there are two predominant approaches to query execution,
 \emph{interpreted} and \emph{compiled} query execution.
@@ -402,13 +433,35 @@ into a single loop, and avoids interpretation overhead.
 While compiled query execution sounds more promising in terms of performance,
 it is more complex to implement, debug, and, surprisingly, its performance
 is not necessarily better~\cite{kersten2018everything}.
-Interestingly, Feldera, the company behind the commercial offering around DBSP,
-includes a SQL-to-DBSP compiler which emits a Rust executable to execute a
-specific query~\cite{feldera}.
-The now-unmaintained Differential Datalog project~\cite{ddlog},
-which relies on differential dataflow, also compiles a query plan into a
-Rust executable.
+Interestingly, DBSP's repository includes a SQL-to-DBSP compiler which emits
+a Rust executable to execute a specific query~\cite{felderarepo}.
+The now-unmaintained Differential Datalog project~\cite{ddlog, ddlogpaper},
+which relies on differential dataflow~\cite{mcsherry2013differential},
+also compiles a query plan into a Rust executable.
 The strong preference for compiled query execution is unclear to me and,
 as stated in \ref{sec:future-work}, I am interested in seeing their differences
 being analyzed more closely, especially in the context of \emph{incremental}
 query engines.
+Only \cite{dynamicdatalog} explores executing Datalog queries incrementally
+on top of DBSP through an interpreter but it only supports positive Datalog.
+In comparison to my approach, it allows to add and remove rules dynamically
+at run-time and it is more tied to DBSP because the evaluation happens
+directly on a DBSP circuit without an \ac{IR} as an abstraction.
+
+There are two predominant approaches for incremental computations beyond
+the bag algebra approach:
+Either they are based on differential dataflow~\cite{mcsherry2013differential}
+and timely dataflow~\cite{timelydataflow}, or they are based on
+the DBSP~\cite{budiu2024dbsp, budiu2025dbsp}.
+Both approaches are backed by a commercial offering,
+Feldera~\cite{felderainc} and Materialize~\cite{materializeinc}, respectively.
+A prominent representative of non-incremental Datalog engines is
+Soufflé~\cite{souffle} which compiles Datalog queries into C++ code to execute
+them efficiently.
+Ascent~\cite{ascent} allows to seamlessly embed Datalog queries into Rust
+programs by defining them through Rust's macros.
+Flix~\cite{flix} extends Datalog's semantics with support for lattices to
+facilitate expressing programs to solve problems in static program analysis.
+Datafrog~\cite{datafrog} is a Rust library that does not implement a Datalog
+dialect but provides library functions to express Datalog-style rules and
+execute them in the context of the calling thread.

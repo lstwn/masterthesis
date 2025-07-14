@@ -77,7 +77,6 @@ are connected through a disjunction~\cite{abo2024convergence}.
 \emph{base facts}, are externally given, and assumed to be unconditionally true.
 Regular rules with a non-empty body (with $n>0$) define \acp{IDBP}
 and their facts are called \emph{derived facts}.
-Only \acp{IDBP} may reference \acp{EDBP}.
 Facts are an ordered list of \emph{fields} that can assume basic scalar
 types such as strings, numbers, or booleans.
 Due to their ordering, fields are accessed through positional indexing.
@@ -89,7 +88,7 @@ to a variable.
 
 Allowing rules to be recursive equips Datalog with the ability to express
 repeated computations, therefore requiring a termination condition.
-Datalog uses least-fixpoint semantics, under which the computation terminates
+Datalog uses least-fixed point semantics, under which the computation terminates
 if an additional iteration of applying a program's rules does contribute further
 derived facts to its result anymore \emph{for the first time}.
 For a more formal treatment of Datalog's semantics, I refer to \cite{green2013datalog}
@@ -154,17 +153,17 @@ that is, all pairs of nodes which are reachable through a path of length 1
 The third rule takes all node pairs identified so far, which are reachable
 through paths of length \(n\), and discovers new node pairs connected
 through a path of length \(n + 1\),
-while keeping track of the cumulated weight of the path and the number of hops.
+while keeping track of the cumulative weight of the path and the number of hops.
 The computation terminates if a (re)application of the rules on top of the
 currently derived facts does not produce new facts,
-upon which the least-fixpoint is attained.
+upon which the least-fixed point is attained.
 
-Least-fixpoint computations can only solve problems whose solutions
-are monotonically growing, as otherwise the least-fixpoint solution may not
+Least-fixed point computations can only solve problems whose solutions
+are monotonically growing, as otherwise the least-fixed point solution may not
 terminate at the optimal solution.
 This can be thought of being stuck at a local minimum instead of finding
 a global optimum in non-convex optimization.
-Another issue, not necessarily tied to least-fixpoint computations but shared
+Another issue, not necessarily tied to least-fixed point computations but shared
 with all termination criteria, is that it is impossible to prevent
 non-terminating computations in general.
 Due to keeping track of the cumulated weight and the number of hops,
@@ -172,16 +171,16 @@ the computation in \ref{code:trans-closure-datalog} is only guaranteed to termin
 if the graph is cycle-free.
 With cycles, the computation would walk cycles endlessly and constantly discover
 higher cumulated weights, for node pairs which are part of a cycle.
-A discussion of alternatives to fixpoints in the context of SQL
+A discussion of alternatives to fixed points in the context of SQL
 can be found in \cite{hirn2023fix}.
 
 \subsection{Negation Extension}\label{sec:datalog-negation}
 
-So far I presented \emph{positive} Datalog, which does not allow to negate
-variables.
+So far I presented \emph{positive} Datalog, which does not allow negation of
+atoms.
 This leaves Datalog's expressiveness quite limited, as, for instance, it cannot
-express relational algebra's set difference operator or the advanced
-example in \ref{code:mvr-crdt-datalog}.
+express relational algebra's set difference operator or the examples
+from \ref{code:mvr-crdt-datalog,code:mvr-store-datalog}.
 However, introducing negation without any restrictions onto Datalog causes
 semantic issues, as \ref{code:negative-datalog-issue} demonstrates:
 
@@ -203,7 +202,7 @@ for \textit{epimenides}, which in turn triggers the evaluation of the
 Hence, carelessly introducing negation in Datalog causes undefined semantics
 in case of recursive rules which use negation as part of their recursive definition.
 To (quite literally) break this cycle, \emph{semipositive} Datalog is introduced
-first, which is just a vehicle to capture the semantics of \emph{stratified}
+first, which then enables the definition the semantics of \emph{stratified}
 Datalog, both of which are syntactic restrictions on the use of negation and
 recursion~\cite{green2013datalog}.
 While there are other approaches to reimpart unambiguous semantics to
@@ -222,11 +221,11 @@ as part of the body of a rule defining an \ac{IDBP}.
 Furthermore, it demands that every variable occurring in the body of a rule must
 occur in at least one positive (non-negative) predicate atom,
 which is referred to as the \emph{safety condition}~\cite{green2013datalog}.
-If it was not satisfied, the result of a query would not just depend on the
-actual content of a database anymore, and may be infinite.
+If it was not satisfied, the result of a query would not only depend on the
+actual content of a database, and may be infinite.
 The semantics of negative \acp{EDBP} follows the intuition that
 the negation of an \ac{EDBP} within the body of an \ac{IDBP} (together with
-the safety condition) behaves similar to the set difference operator
+the safety condition) behaves similarly to the set difference operator
 in relational algebra.
 
 Stratified Datalog relaxes the restriction a bit and allows the
@@ -236,11 +235,11 @@ A Datalog program is stratifiable if its predicates can be partitioned into
 \emph{ordered} strata \(P_1, \ldots, P_n\) such that:
 
 \begin{itemize}
-	\item If the predicate \(p_b\) occurs in the body of a rule defining
-	      the predicate \(p_h\), then \(p_b \in P_i\), \(p_h \in P_j\), and
-	      \(i \leq j\).
-	\item If the predicate \(p_b\) occurs in the body of a rule defining
-	      the predicate \(p_h\) \emph{negatively}, then \(p_b \in P_i\),
+	\item If the predicate \(p_b\) occurs positively in the body of a rule
+	      defining the predicate \(p_h\), then \(p_b \in P_i\), \(p_h \in P_j\),
+		  and \(i \leq j\).
+	\item If the predicate \(p_b\) occurs negatively in the body of a rule
+	      defining the predicate \(p_h\), then \(p_b \in P_i\),
 	      \(p_h \in P_j\), and \(i < j\)~\cite{green2013datalog}.
 \end{itemize}
 
@@ -260,9 +259,9 @@ Furthermore, there is
 	      if \(p_i\) occurs \emph{negatively} in the body of a rule defining \(p_j\).
 \end{itemize}
 
-The precedence graph can be used to not only check whether a Datalog
+The precedence graph can be used not only to check whether a Datalog
 program is stratifiable but also to compute a stratification of it.
-The former is enabled by the theorem that a Datalog program is stratifiable,
+The former is enabled by the theorem that a Datalog program is stratifiable
 if and only if its precedence graph \(G_p\) does not contain a cycle
 with a negative edge~\cite{green2013datalog}.
 For the latter, two steps are required.
@@ -288,6 +287,10 @@ as long as the underlying data is the same~\cite{apt1988towards}.
 of \ref{code:mvr-crdt-datalog}.
 It contains two negative edges but since they are not part of a cycle,
 the program is stratifiable.
+For example, one possible stratification is
+\(P_0 = \{\mathit{set}, \mathit{pred}, \mathit{overwrites}, \mathit{overwritten}\}\)
+and
+\(P_1 = \{\mathit{isRoot}, \mathit{isLeaf}, \mathit{isCausallyReady}, \mathit{mvrStore}\}\).
 The only cycle is the self-recursion of the ``isCausallyReady'' predicate,
 denoted by a positive self-loop edge.
 In general, if a precedence graph contains a cycle involving multiple nodes,
@@ -295,19 +298,20 @@ the program contains \emph{mutually recursive} predicates.
 The Datalog dialect I define in \ref{sec:datalog-frontend} sits in between
 semipositive and stratified Datalog:
 While it permits the negation of \acp{IDBP} in the body of a rule just like
-stratified Datalog, it does not support mutually recursive predicates.
+stratified Datalog, and it supports non-negated self-recursive rules,
+it does not support mutually recursive predicates.
 
 \section{\acsp{CRDT} and Coordination-Free Environments}\label{sec:crdt-coordination-free}
 
-Some distributed applications require to continue to operate in the presence of
+Some distributed applications are required to continue operating in the presence of
 network partitions because they want to support offline use cases (high availability).
 Additionally, they may want support fast local writes because they cannot afford
 to wait for a network round trip to happen until the write becomes
 visible (low latency).
 For instance, collaborative editors may want both properties to allow users
 to work regardless of their network connectivity as well as to provide a
-responsive user experience, offering a latency within the order of magnitude
-of that of local disk access instead of a network round trip.
+responsive user experience, offering latency bounded by local disk access instead
+of a network round trip.
 The high availability and low latency properties define coordination-free
 environments and set them apart from distributed systems that require coordination.
 Yet, reads may be stale insofar that they do not always reflect the full global state.
@@ -320,7 +324,7 @@ of coordination-free environments.
 
 \acfp{CRDT}\footnotemark{} are one solution for implementing coordination-free
 environments.
-They address the challenges by coordination-free environments by augmenting
+They address the challenges of coordination-free environments by augmenting
 writes with additional metadata (1) to preserve the user's intention
 in the ``best'' possible manner and (2) to ensure the convergence of replicas,
 even after temporary divergence.
@@ -418,11 +422,11 @@ This renders the consumers of the output view \emph{stateful},
 unlike consumers of non-incremental queries which are stateless
 and obtain the full output view upon every evaluation.
 The goal of \ac{IVM} is to maintain the view \emph{efficiently}, that is,
-being faster than recomputing the view from scratch upon hitting an input change.
+faster than recomputing the view from scratch upon an input change.
 In theory, this allows maintaining output views in near-real-time over large
 inputs which are subject to frequent changes, which would otherwise be
 prohibitively expensive to recompute from scratch every time.
-In a nutshell, the promise of \ac{IVM} is to do only work proportional to the
+The promise of \ac{IVM} is to do only work proportional to the
 size of the \emph{input changes}, rather than the size of the \emph{full inputs},
 for a (re)evaluation of the output view.
 This draws a clear line to caching based approaches, e.g., periodically
@@ -477,25 +481,21 @@ SQL and Datalog.
 
 Although DBSP is more recent than differential dataflow,
 they make different trade-offs instead of one superseding the other.
-While differential dataflow is more complex, it offers more
-flexibility~\cite{budiu2025dbsp}:
-The order of inputs can be a partial order, i.e., inputs can be delivered
-out-of-order.
-On the other hand, DBSP requires a total order of inputs.
-Another advantage of DBSP is its modular theory:
+The main advantage of DBSP is its modular theory:
 If a new operator can be expressed as a DBSP circuit, it is incrementalizable
 and DBSP's framework can be used to obtain an efficient implementation
 of it~\cite{budiu2025dbsp}.
 In contrast, there is no general recipe to express an arbitrary operator
 as a differential dataflow operator.
 This work chooses DBSP over differential dataflow for three reasons.
-First, its open-source implementation~\cite{feldera} provides a rich,
+First, its open-source implementation~\cite{felderarepo} provides a rich,
 (somewhat) documented \acs{API}\footnotemark{} to build upon.
 Second, it is said to be less complex while still providing all the necessary
 ingredients to to express \acp{CRDT} for my use case.
 Third, differential dataflow's advantage of being able to handle out-of-order
-inputs is not relevant for my approach to \acp{CRDT}, as it is based on sets and
-set union to integrate updates, which is a commutative operation already.
+input updates is not relevant for my approach to \acp{CRDT},
+as it is based on sets and set union to integrate updates,
+which is a commutative operation already.
 
 \footnotetext{
 	While the documentation is not perfect and the \acs{API} surface quite involved,
@@ -536,7 +536,7 @@ is called the \emph{child circuit}.
 Streams are an infinite sequence of elements from \zsets{}.
 Operators used in this work are \emph{distinct},
 \emph{map} (for projections), \emph{filter} (for selections),
-\emph{join}, \emph{plus} and \emph{minus} (for ``set'' union and difference),
+\emph{join}, \emph{plus} and \emph{minus} (for multiset union and difference),
 \emph{antijoin} (for set difference with respect to some key),
 as well as the \emph{delta0} operator (required for importing streams
 from a parent circuit into a child circuit).

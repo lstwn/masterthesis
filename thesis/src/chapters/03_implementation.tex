@@ -26,7 +26,7 @@ The \ac{IR} and the interpreter are described in \ref{sec:ir}.
 Furthermore, the engine has a Datalog frontend.
 Due to Datalog's lack of standardization, I design a Datalog dialect which is
 discussed in \ref{sec:datalog-frontend}.
-Finally, the transpilation from an \ac{AST} of a Datalog program to a reasonably
+Finally, the translation from an \ac{AST} of a Datalog program to a reasonably
 efficient query plan expressed in the \ac{IR} is described
 in \ref{sec:datalog-to-relational-algebra}.
 
@@ -56,7 +56,7 @@ algebra has been studied for decades~\cite{selinger1979access} and this approach
 opens the gate to leverage this research.
 Query optimization on Datalog has also been studied but to a lesser extent.
 Its results could also be applied as part of the Datalog frontend prior to the
-transpilation into the \ac{IR}.
+translation into the \ac{IR}.
 Second, an \ac{IR} provides a layer of abstraction in two ways.
 It allows multiple frontends to be implemented, such as a SQL frontend,
 as long as the frontend can be translated into the relational algebra \ac{IR}.
@@ -116,7 +116,7 @@ of a query plan.
 		Cartesian Product  & \(R \times S\)                                              & Combines two relations by pairing every tuple from the left input relation \(R\) with every tuple from the right input relation \(S\).                                                                                                                                                                            \\
 		Equijoin           & \(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S\)        & Like the Cartesian product but it only emits a pair if all left-hand-side expressions of the list of pairs (\(\mathit{lexpr}\); evaluated in the context of a tuple from \(R\)) evaluate to equal values as all right-hand-side expressions (\(\mathit{rexpr}\); evaluated in the context of a tuple from \(S\)). \\
 		Antijoin           & \(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S\) & Returns all tuples from the left input relation \(R\) that do \emph{not} match any tuple from the right input relation \(S\) based on the list of expression pairs (which is evaluated as for the equijoin).                                                                                                      \\
-		Fixpoint Iteration & \(\mu(\mathit{acc}, \mathit{step})\)                        & Executes \(\mathit{step}\) starting from \(\mathit{acc}\) for as long as there are changes to its up-to-now computed output, i.e., it stops once the \emph{least fixpoint} is attained.                                                                                                                           \\
+		Fixed point Iteration & \(\mu(\mathit{acc}, \mathit{step})\)                        & Executes \(\mathit{step}\) starting from \(\mathit{acc}\) for as long as there are changes to its up-to-now computed output, i.e., it stops once the \emph{least fixed point} is attained.                                                                                                                           \\
 		\bottomrule
 	\end{tabular}
 	\caption{Relational operators of the \ac{IR}.}\label{tab:ir-operators}
@@ -161,19 +161,19 @@ are all variable assignments in this case.
 The defined variables, ``edges'', ``base'', and ``closure'', can then be referenced
 in subsequent statements, respectively.
 The ``edges'' variable is referenced by both the ``ProjectionExpr'' and the
-``FixPointIterExpr''.
-The ``base'' variable is referenced by the ``FixPointIterExpr''.
+``FixedPointIterExpr''.
+The ``base'' variable is referenced by the ``FixedPointIterExpr''.
 Due to statements returning their value as well (as long as they produce any),
 the ``closure'' variable's value is also the output of the \ac{IR} program,
 resembling implicit returns known from Rust or Ruby.
-The ``FixPointIterExpr'' requires to specify all relations it wants to use within
-its ``step'' body because DBSP requires to import relations from parent circuits
-into child circuits via its \emph{delta0} operator.
+The ``FixedPointIterExpr'' requires all relations it wants to use to be specified
+within its ``step'' body because DBSP requires relations from parent circuits
+to be imported into child circuits via its \emph{delta0} operator.
 To provide this, the ``imports'' and ``accumulator'' fields are used to
-specify the relations which have to be injected into the context of the fixpoint
+specify the relations which have to be injected into the context of the fixed point
 iteration's body.
 Note that the ``EquiJoinExpr'' supports including a projection step,
-making a trailing ``ProjectionExpr'' of the fixpoint iteration's body obsolete.
+making a trailing ``ProjectionExpr'' of the fixed point iteration's body obsolete.
 The highlighted code in blue shows the code which is executed at query
 execution-time in the context of a tuple.
 The other code is executed at query build-time to construct the DBSP circuit.
@@ -184,7 +184,7 @@ tuples' variables.
 Tuples' variables are not yet available at query build-time but are injected
 later during query execution-time. Hence, they require dynamic resolution.
 Yet, resolving regular variables and functions statically has the advantage that
-the interpreter can avoid dynamic lookups, which require to walk the program's
+the interpreter can avoid dynamic lookups, which require walking the program's
 static scope tree, at both query build and execution-time.
 Moreover, the static variable resolver pass fixes a problem with closures
 capturing their environment, which exists if environments are implemented with
@@ -252,7 +252,7 @@ Traditionally, Datalog uses positional indexing to access variables from a
 predicate. I decided to use name-based indexing for two reasons:
 First, it aligns better with the \ac{IR} which uses relational algebra
 that uses names to refer to relations' variables.
-Second, positional indexing is not really a viable option in practice because
+Second, positional indexing is inconvenient in practice because
 predicates (or relations) with many columns occur in real-world
 database schemas, rendering positional indexing cumbersome to use.
 Moreover, variables starting with an underscore are ignored but can be used
@@ -262,6 +262,8 @@ The grammar also allows the ``distinct'' keyword to be prepended to the name
 of a rule's head.
 This causes the facts of the rule to be distinct, i.e., it removes duplicates
 from the rule's output.
+If the distinct keyword is not given, the resulting relation is a multiset,
+like in SQL.
 As Datalog uses set semantics traditionally, an explicit distinct operator
 is usually not necessary because it is implicitly given.
 Nevertheless, I deviate to allow for multiset semantics for two reasons:
@@ -387,6 +389,9 @@ allows specifying a projection to apply onto its emitted tuples.
 The engine does not, however, optimize join ordering or apply other
 optimization techniques, such as predicate pushdown or expression simplification,
 which is why I call it \emph{subpar}.
+These optimizations could be added in future work.
+Currently, the join order reflects the order in which the predicates appear
+in the rule's body.
 
 \ref{fig:optimized-plan} shows the subpar query plan for the ``mvrStore''
 predicate.
@@ -436,7 +441,7 @@ ensure that the outputs of the operator trees share the same schema.
 If a rule's head is marked as ``distinct'', its output (after the projection
 to the heads' variables) is wrapped in a distinct operator to eliminate
 duplicates.
-Should \emph{all} rules, which share the same head, be marked as ``distinct'',
+Should \emph{all} rules that share the same head be marked as ``distinct'',
 the union is performed first and only a single distinct is applied to the union's
 output, as opposed to applying a distinct operator to each rule's output and
 then performing the union, which would not only be less efficient but also
@@ -448,14 +453,14 @@ is translated into a relation literal of the \ac{IR},
 specifying the relation's name and its field names which can be accessed.
 
 \textbf{Self-recursive rules}.
-Self-recursive predicates are translated into a fixpoint iteration of the \ac{IR},
+Self-recursive predicates are translated into a fixed point iteration of the \ac{IR},
 as shown in \ref{code:trans-closure-ir}.
-To do so, the fixpoint iteration's ``imports'', ``accumulator'', and ``step''
+To do so, the fixed point iteration's ``imports'', ``accumulator'', and ``step''
 (iteration body) have to be defined.
-They require to partition the aggregated rule's bodies into \emph{non-recursive}
+They require partitioning the aggregated rule's bodies into \emph{non-recursive}
 and \emph{recursive} bodies, which are individually translated into operator trees
 as described above.
-The accumulator is the initial value of the fixpoint iteration and given by
+The accumulator is the initial value of the fixed point iteration and given by
 the union of the \emph{non-recursive} bodies' operator trees of the aggregated rule.
 The imports are all predicates that are referenced in the rule's \emph{recursive}
 bodies, except for the recursive predicate itself, which does not require importing.

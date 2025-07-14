@@ -31,7 +31,7 @@ Tuples are currently represented as vectors and, hence, each tuple access
 may cause a cache miss.
 Testing different physical data layouts for tuples, e.g., overflow-to-heap
 vectors\footnotemark{}, could be an interesting direction to explore.
-To further optimize away cache misses, the physical representation of an
+To further reduce the number of cache misses, the physical representation of an
 \ac{IR} program could be adapted to use a more cache-friendly data layout, too:
 Instead of expressions storing references to other expressions in their
 input fields, they could be flattened by storing an index into a vector of
@@ -52,7 +52,7 @@ for creating the query plan.
 
 Applying serious query optimization has the potential to improve
 the performance of the query engine but this is a challenge in its own right.
-Particularly, in the context of \ac{IVM} and transpilation from Datalog to
+Particularly, in the context of \ac{IVM} and translation from Datalog to
 relational algebra, I want to emphasize three aspects:
 
 \begin{itemize}
@@ -65,6 +65,9 @@ relational algebra, I want to emphasize three aspects:
 	      in this context? Possibly, it may be better to let the query
 	      author choose a definitive join order or allow them to provide
 	      information about data distributions in case of automated join ordering.
+		  Alternatively, the query engine could remember statistics from one
+		  application run and use them to optimize the query plan for its next
+		  run when the query's operators need to be rehydrated anyways.
 	\item \textbf{Scheduling of antijoins}.
 	      Negative atoms are handled with antijoins in the query engine.
 	      So far, they are scheduled after the query plan covering the
@@ -86,6 +89,12 @@ relational algebra, I want to emphasize three aspects:
 		  Also, this requires researching the interaction between
 		  Datalog and relational algebra optimizations.
 \end{itemize}
+
+These aspects represent open ends to the bigger question if a query based
+approach to \acp{CRDT} can be made competitive in performance with hand-written
+\acp{CRDT} defined in general-purpose programming languages.
+If they lack in terms of performance, by what margin do they fall short?
+In other words, what is the price to pay for guaranteed convergence?
 
 Feature-wise, the query engine could be extended to support mutual recursion
 and aggregation but I do not consider these features essential for the
@@ -118,7 +127,7 @@ with Datalog's restricted expressiveness with stratified negation.
 A move operation in replicated trees~\cite{moveop1,moveop2} may be a challenging
 candidate, as it requires rolling back updates to a previous state,
 applying the move operation, then reapplying the previously undone updates,
-and potentially aborting if a cycle is detected.
+and potentially skipping operations if executing them would introduce a cycle.
 
 \section{Outlook}\label{sec:outlook}
 

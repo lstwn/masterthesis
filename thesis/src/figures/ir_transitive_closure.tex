@@ -13,7 +13,7 @@ base    <- ProjectionExpr {
                ("hopcnt", !\tikzmark{qtimes4}!LiteralExpr(UInt(1))!\tikzmark{qtimee4}!),
              ]
            }
-closure <- FixPointIterExpr {
+closure <- FixedPointIterExpr {
              imports: ["edges"],
              accumulator: ("acc", VarExpr("base")),
              step: BlockStmt {
@@ -71,5 +71,8 @@ closure <- FixPointIterExpr {
 		\end{scope}
 	\end{tikzpicture}
 
-	\caption{The computation of a transitive closure in the \ac{IR}.}\label{code:trans-closure-ir}
+	\caption{
+	    The computation of the transitive closure from \ref{code:trans-closure-datalog}
+		translated into the \ac{IR}.
+	}\label{code:trans-closure-ir}
 \end{figure}

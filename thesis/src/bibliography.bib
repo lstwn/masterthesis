@@ -115,17 +115,59 @@
   year   = {2025},
   note   = {\url{https://github.com/sraoss/pg_ivm}}
 }
-@manual{feldera,
+@manual{felderarepo,
   author = {{The Feldera Contributors}},
   title  = {{Feldera and DBSP Library}},
   year   = {2025},
   note   = {\url{https://github.com/feldera/feldera}}
+}
+@online{felderainc,
+  author = {{Feldera, Inc.}},
+  title = {{Feldera's} Homepage},
+  year = 2025,
+  url = {https://web.archive.org/web/20250714140906/https://www.feldera.com/},
+  urldate = {2025-07-14}
+}
+@manual{datafrog,
+  author = {{The Datafrog Contributors}},
+  title  = {Datafrog},
+  year   = {2025},
+  note   = {\url{https://github.com/rust-lang/datafrog}}
 }
 @manual{ddlog,
   author = {{The Differential Datalog Contributors}},
   title  = {Differential Datalog},
   year   = {2025},
   note   = {\url{https://github.com/vmware-archive/differential-datalog}}
+}
+@inproceedings{ddlogpaper,
+   author =	{Leonid Ryzhyk and Mihai Budiu},
+   title =	{Differential Datalog},
+   booktitle =	{Datalog 2.0},
+   address =	{Philadelphia, PA},
+   month =	{June 4-5},
+   year =	{2019},
+   abstract =	{Many real-world applications based on deductive databases require
+                 incrementally updating output relations (tables) in response to changes
+                 to input relations. To make such applications easier to implement we
+                 have created Differential Datalog (DDlog), a dialect of Datalog that
+                 automates incremental computation. A DDlog programmer writes
+                 traditional, non-incremental Datalog programs. The execution model of
+                 DDlog is however fully incremental: at runtime DDlog programs receive
+                 streams of changes to the input relations (insertions or deletions) and
+                 produce streams of corresponding changes to derived relations. The
+                 DDlog compiler translates DDlog programs to Differential Dataflow (DD)
+                 programs; DD provides an incremental execution engine supporting all
+                 the relational operators, including fixed-point. The DDlog runtime
+                 automatically maintains the indexes required to efficiently compute
+                 output updates. \par The DDlog language is targeted for system
+                 builders. In consequence, the language emphasizes usability, by
+                 providing a rich type system, a powerful expression language, a module
+                 system, including string manipulation, arithmetic, and integration with
+                 C, Rust, and Java. The code is open-source, available using an MIT
+                 permissive license.},
+   url =	{https://mihaibudiu.github.io/work/ddlog.pdf},
+   confweb =	{https://sites.sju.edu/plw/datalog2/}
 }
 @inproceedings{kleppmann2019local,
   author = {Kleppmann, Martin and Wiggins, Adam and van Hardenberg, Peter and McGranaghan, Mark},
@@ -215,6 +257,29 @@
   abstract = {Existing computational models for processing continuously changing input data are unable to efficiently support iterative queries except in limited special cases. This makes it difficult to perform complex tasks, such as social-graph analysis on changing data at interactive timescales, which would greatly benefit those analyzing the behavior of services like Twitter. In this paper we introduce a new model called differential computation, which extends traditional incremental computation to   allow arbitrarily nested iteration, and explain---with reference to a publicly available prototype system called Naiad---how differential computation can be efficiently implemented in the context of a declarative data-parallel dataflow language. The resulting system makes it easy to program previously intractable algorithms such as incrementally updated strongly connected components, and integrate them with data transformation operations to obtain practically relevant insights from real data streams.},
   url = {https://www.microsoft.com/en-us/research/publication/differential-dataflow/},
   edition = {Proceedings of {CIDR} 2013},
+}
+@inproceedings{timelydataflow,
+  author = {Murray, Derek G. and McSherry, Frank and Isaacs, Rebecca and Isard, Michael and Barham, Paul and Abadi, Mart\'{\i}n},
+  title = {Naiad: a timely dataflow system},
+  year = {2013},
+  isbn = {9781450323888},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/2517349.2522738},
+  doi = {10.1145/2517349.2522738},
+  abstract = {Naiad is a distributed system for executing data parallel, cyclic dataflow programs. It offers the high throughput of batch processors, the low latency of stream processors, and the ability to perform iterative and incremental computations. Although existing systems offer some of these features, applications that require all three have relied on multiple platforms, at the expense of efficiency, maintainability, and simplicity. Naiad resolves the complexities of combining these features in one   framework.A new computational model, timely dataflow, underlies Naiad and captures opportunities for parallelism across a wide class of algorithms. This model enriches dataflow computation with timestamps that represent logical points in the computation and provide the basis for an efficient, lightweight coordination mechanism.We show that many powerful high-level programming models can be built on Naiad's low-level primitives, enabling such diverse tasks as streaming data analysis, iterative machine   learning, and interactive graph mining. Naiad outperforms specialized systems in their target application domains, and its unique features enable the development of new high-performance applications.},
+  booktitle = {Proceedings of the Twenty-Fourth ACM Symposium on Operating Systems Principles},
+  pages = {439–455},
+  numpages = {17},
+  location = {Farminton, Pennsylvania},
+  series = {SOSP '13}
+}
+@online{materializeinc,
+  author = {{Materialize, Inc.}},
+  title = {{Materialize's} Homepage},
+  year = 2025,
+  url = {https://web.archive.org/web/20250714140957/https://materialize.com/},
+  urldate = {2025-07-14}
 }
 @article{abo2024convergence,
   author = {Abo Khamis, Mahmoud and Ngo, Hung Q. and Pichler, Reinhard and Suciu, Dan and Wang, Yisu Remy},
@@ -413,8 +478,8 @@
   location = {San Francisco, CA, USA},
   series = {UIST '23}
 }
-@online{ditto,
-  author = {{DittoLive Incorporated}},
+@online{dittoinc,
+  author = {{DittoLive Inc.}},
   title = {{DittoLive's} Homepage},
   year = 2025,
   url = {https://web.archive.org/web/20250613135524/https://www.ditto.com/},
@@ -741,4 +806,131 @@
   keywords = {CRDTs, collaborative text editing, operational transformation, strong eventual consistency},
   location = {Rotterdam, Netherlands},
   series = {EuroSys '25}
+}
+@inproceedings{souffle,
+  author = {Scholz, Bernhard and Jordan, Herbert and Suboti\'{c}, Pavle and Westmann, Till},
+  title = {On fast large-scale program analysis in Datalog},
+  year = {2016},
+  isbn = {9781450342414},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/2892208.2892226},
+  doi = {10.1145/2892208.2892226},
+  abstract = {Designing and crafting a static program analysis is challenging due to the complexity of the task at hand. Among the challenges are modelling the semantics of the input language, finding suitable abstractions for the analysis, and handwriting efficient code for the analysis in a traditional imperative language such as C++. Hence, the development of static program analysis tools is costly in terms of development time and resources for real world languages. To overcome, or at least alleviate the   costs of developing a static program analysis, Datalog has been proposed as a domain specific language (DSL). With Datalog, a designer expresses a static program analysis in the form of a logical specification. While a domain specific language approach aids in the ease of development of program analyses, it is commonly accepted that such an approach has worse runtime performance than handcrafted static analysis tools. In this work, we introduce a new program synthesis methodology for Datalog specifications   to produce highly efficient monolithic C++ analyzers. The synthesis technique requires the re-interpretation of the semi-naive evaluation as a scaffolding for translation using partial evaluation. To achieve high-performance, we employ staged-compilation techniques and specialize the underlying relational data structures for a given Datalog specification. Experimentation on benchmarks for large-scale program analysis validates the superior performance of our approach over available Datalog tools and   demonstrates our competitiveness with state-of-the-art handcrafted tools.},
+  booktitle = {Proceedings of the 25th International Conference on Compiler Construction},
+  pages = {196–206},
+  numpages = {11},
+  keywords = {Compiler, Datalog, Program Synthesis, Static Program Analysis},
+  location = {Barcelona, Spain},
+  series = {CC '16}
+}
+@inproceedings{dynamicdatalog,
+  author       = {Bruno Rucy Carneiro Alves de Lima and Kalmer Apinis and Merlin Kramer and Kristopher K. Micinski},
+  editor       = {Mario Alviano and Matthias Lanzinger},
+  title        = {Incremental Evaluation of Dynamic Datalog Programs as a Higher-order {DBSP} Program},
+  booktitle    = {Proceedings 5th International Workshop on the Resurgence of Datalog in Academia and Industry (Datalog-2.0 2024) co-located with the 17th International Conference on Logic Programming and Nonmonotonic Reasoning {(LPNMR} 2024), Dallas, Texas, USA, October 11, 2024},
+  series       = {{CEUR} Workshop Proceedings},
+  volume       = {3801},
+  pages        = {2--16},
+  publisher    = {CEUR-WS.org},
+  year         = {2024},
+  url          = {https://ceur-ws.org/Vol-3801/paper1.pdf},
+  timestamp    = {Fri, 08 Nov 2024 15:21:04 +0100},
+  biburl       = {https://dblp.org/rec/conf/datalog/LimaAKM24.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+@inproceedings{ascent,
+  author = {Sahebolamri, Arash and Gilray, Thomas and Micinski, Kristopher},
+  title = {Seamless deductive inference via macros},
+  year = {2022},
+  isbn = {9781450391832},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3497776.3517779},
+  doi = {10.1145/3497776.3517779},
+  abstract = {We present an approach to integrating state-of-art bottom-up logic programming within the Rust ecosystem, demonstrating it with Ascent, an extension of Datalog that performs well against comparable systems. Rust’s powerful macro system permits Ascent to be compiled uniformly with the Rust code it’s embedded in and to interoperate with arbitrary user-defined components written in Rust, addressing a challenge in real-world use of logic programming languages: the fact that logical programs are   parts of bigger software systems and need to interoperate with other components written in imperative programming languages. We leverage Rust’s trait system to extend Datalog semantics with non-powerset lattices, much like Flix, and with user-defined data types much like Formulog and Souffle. We use Ascent to re-implement the Rust borrow checker, a static analysis required by the Rust compiler. We evaluate our performance against Datafrog, Flix, and Souffl\'{e} using the borrow checker and other   benchmarks, observing comparable performance to Datafrog and Souffl\'{e}, and speedups of around two orders of magnitude compared to Flix.},
+  booktitle = {Proceedings of the 31st ACM SIGPLAN International Conference on Compiler Construction},
+  pages = {77–88},
+  numpages = {12},
+  keywords = {Static Analysis, Rust, Program Analysis, Logic Programming, Datalog, Ascent},
+  location = {Seoul, South Korea},
+  series = {CC 2022}
+}
+@article{flix,
+  author = {Madsen, Magnus and Yee, Ming-Ho and Lhot\'{a}k, Ond\v{r}ej},
+  title = {From Datalog to flix: a declarative language for fixed points on lattices},
+  year = {2016},
+  issue_date = {June 2016},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  volume = {51},
+  number = {6},
+  issn = {0362-1340},
+  url = {https://doi.org/10.1145/2980983.2908096},
+  doi = {10.1145/2980983.2908096},
+  abstract = {We present Flix, a declarative programming language for specifying and solving least fixed point problems, particularly static program analyses. Flix is inspired by Datalog and extends it with lattices and monotone functions. Using Flix, implementors of static analyses can express a broader range of analyses than is currently possible in pure Datalog, while retaining its familiar rule-based syntax. We define a model-theoretic semantics of Flix as a natural extension of the Datalog semantics.   This semantics captures the declarative meaning of Flix programs without imposing any specific evaluation strategy. An efficient strategy is semi-naive evaluation which we adapt for Flix. We have implemented a compiler and runtime for Flix, and used it to express several well-known static analyses, including the IFDS and IDE algorithms. The declarative nature of Flix clearly exposes the similarity between these two algorithms.},
+  journal = {SIGPLAN Not.},
+  month = jun,
+  pages = {194–208},
+  numpages = {15},
+  keywords = {Datalog, logic programming, static analysis}
+}
+@inproceedings{ratelesssetreconc,
+  author = {Yang, Lei and Gilad, Yossi and Alizadeh, Mohammad},
+  title = {Practical Rateless Set Reconciliation},
+  year = {2024},
+  isbn = {9798400706141},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3651890.3672219},
+  doi = {10.1145/3651890.3672219},
+  abstract = {Set reconciliation, where two parties hold fixed-length bit strings and run a protocol to learn the strings they are missing from each other, is a fundamental task in many distributed systems. We present Rateless Invertible Bloom Lookup Tables (Rateless IBLTs), the first set reconciliation protocol, to the best of our knowledge, that achieves low computation cost and near-optimal communication cost across a wide range of scenarios: set differences of one to millions, bit strings of a few bytes   to megabytes, and workloads injected by potential adversaries. Rateless IBLT is based on a novel encoder that incrementally encodes the set difference into an infinite stream of coded symbols, resembling rateless error-correcting codes. We compare Rateless IBLT with state-of-the-art set reconciliation schemes and demonstrate significant improvements. Rateless IBLT achieves 3--4\texttimes{} lower communication cost than non-rateless schemes with similar computation cost, and 2--2000\texttimes{} lower   computation cost than schemes with similar communication cost. We show the real-world benefits of Rateless IBLT by applying it to synchronize the state of the Ethereum blockchain, and demonstrate 5.6\texttimes{} lower end-to-end completion time and 4.4\texttimes{} lower communication cost compared to the system used in production.},
+  booktitle = {Proceedings of the ACM SIGCOMM 2024 Conference},
+  pages = {595–612},
+  numpages = {18},
+  keywords = {set reconciliation, rateless codes, universal codes, data synchronization, randomized algorithms},
+  location = {Sydney, NSW, Australia},
+  series = {ACM SIGCOMM '24}
+}
+@misc{rangebasedsetreconc,
+  title={Range-Based Set Reconciliation},
+  author={Aljoscha Meyer},
+  year={2023},
+  eprint={2212.13567},
+  archivePrefix={arXiv},
+  primaryClass={cs.CR},
+  url={https://arxiv.org/abs/2212.13567},
+}
+@inproceedings{timestamped-insertion-trees,
+  author = {Attiya, Hagit and Burckhardt, Sebastian and Gotsman, Alexey and Morrison, Adam and Yang, Hongseok and Zawirski, Marek},
+  title = {Specification and Complexity of Collaborative Text Editing},
+  year = {2016},
+  isbn = {9781450339643},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/2933057.2933090},
+  doi = {10.1145/2933057.2933090},
+  abstract = {Collaborative text editing systems allow users to concurrently edit a shared document, inserting and deleting elements (e.g., characters or lines). There are a number of protocols for collaborative text editing, but so far there has been no precise specification of their desired behavior, and several of these protocols have been shown not to satisfy even basic expectations. This paper provides a precise specification of a replicated list object, which models the core functionality of replicated   systems for collaborative text editing. We define a strong list specification, which we prove is implemented by an existing protocol, as well as a weak list specification, which admits additional protocol behaviors.A major factor determining the efficiency and practical feasibility of a collaborative text editing protocol is the space overhead of the metadata that the protocol must maintain to ensure correctness. We show that for a large class of list protocols, implementing either the strong or the weak   list specification requires a metadata overhead that is at least linear in the number of elements deleted from the list. The class of protocols to which this lower bound applies includes all list protocols that we are aware of, and we show that one of these protocols almost matches the bound.},
+  booktitle = {Proceedings of the 2016 ACM Symposium on Principles of Distributed Computing},
+  pages = {259–268},
+  numpages = {10},
+  keywords = {eventual consistency, collaborative text editing},
+  location = {Chicago, Illinois, USA},
+  series = {PODC '16}
+}
+@inproceedings{causal-trees,
+  author = {Grishchenko, Victor},
+  title = {Deep hypertext with embedded revision control implemented in regular expressions},
+  year = {2010},
+  isbn = {9781450300568},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/1832772.1832777},
+  doi = {10.1145/1832772.1832777},
+  abstract = {While text versioning was definitely a part of the original hypertext concept [21, 36, 44], it is rarely considered in this context today. Still, we know that revision control underlies the most exciting social co-authoring projects of the today's Internet, namely the Wikipedia and the Linux kernel. With an intention to adapt the advanced revision control technologies and practices to the conditions of the Web, the paper reconsiders some obsolete assumptions and develops a new versioned text   format perfectly processable with standard regular expressions (PCRE [6]). The resulting deep hypertext model allows instant access to past/concurrent versions, authorship, changes; enables deep links to reference changing parts of a changing text. Effectively, it allows distributed and real-time revision control on the Web, implementing the vision of co-evolution and mutation exchange among multiple competing versions of the same text.},
+  booktitle = {Proceedings of the 6th International Symposium on Wikis and Open Collaboration},
+  articleno = {3},
+  numpages = {10},
+  location = {Gdansk, Poland},
+  series = {WikiSym '10}
 }

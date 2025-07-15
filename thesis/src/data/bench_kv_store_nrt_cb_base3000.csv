@@ -1,0 +1,6 @@
+group;id;crdt;setting;cb;base;delta;parameter;mean_point_estimate;mean_std_err;median_point_estimate;median_std_err;std_dev_point_estimate;std_dev_std_err
+kv_stores_near_real_time_setting;crdt=w_cb base_diameter=3000 delta_diameter=20;kv_store;near_real_time;TRUE;3000;20;20;56.83110752;0.07168313176911555;56.726271;0.03943728854547487;0.7224193297321692;0.1364772456268439
+kv_stores_near_real_time_setting;crdt=w_cb base_diameter=3000 delta_diameter=40;kv_store;near_real_time;TRUE;3000;40;40;57.486145869999994;0.05720374926341825;57.5129585;0.0727799093671943;0.5749118216425161;0.04125711559506964
+kv_stores_near_real_time_setting;crdt=w_cb base_diameter=3000 delta_diameter=60;kv_store;near_real_time;TRUE;3000;60;60;58.685983289999996;0.07147741263762165;58.623854;0.08608591476378916;0.7168685931639461;0.07395249400607433
+kv_stores_near_real_time_setting;crdt=w_cb base_diameter=3000 delta_diameter=80;kv_store;near_real_time;TRUE;3000;80;80;59.32854836;0.06398188743866584;59.2278125;0.06553155469828197;0.6442592718897334;0.05270125582955692
+kv_stores_near_real_time_setting;crdt=w_cb base_diameter=3000 delta_diameter=100;kv_store;near_real_time;TRUE;3000;100;100;60.24223748;0.08597760290454665;60.2353335;0.09583607874786812;0.8612228340816596;0.05196672921740949

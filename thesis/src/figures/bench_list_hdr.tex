@@ -1,0 +1,28 @@
+\begin{figure}[htpb]
+	\centering
+    \begin{tikzpicture}
+    \begin{axis}[
+        axis on top, ymin=0,
+    	legend pos=north east,
+    	legend style={
+    	    anchor=north west,xshift=15pt,
+        },
+        grid=major,
+    	thick,
+    	xlabel={Base Text Length},
+    	ylabel={Median Runtime (ms)},
+    	sharp plot,
+    ]
+    \addplot+[mark=*] table [
+        x=base,
+        y=median_point_estimate,
+        col sep=semicolon,
+    ] {data/bench_list_hdr.csv};
+    % No legend as there is only one measurement in here.
+    % \addlegendentryexpanded{\ref{code:mvr-store-datalog-dialect}}
+    \end{axis}
+    \end{tikzpicture}
+    \caption{
+        Hydration setting benchmark for the list \ac{CRDT} from \ref{code:list-crdt-datalog-dialect}.
+    }\label{fig:bench-list-hdr}
+\end{figure}

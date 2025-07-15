@@ -14,17 +14,17 @@
     	sharp plot,
     ]
     \addplot+[mark=*] table [
-        x=diameter,
+        x=base,
         y=median_point_estimate,
         col sep=semicolon,
-    ] {data/bench_hdr_nocb.csv};
+    ] {data/bench_kv_store_hdr_nocb.csv};
     \addlegendentryexpanded{\ref{code:mvr-store-datalog-dialect}}
 
     \addplot+[mark=+] table [
-        x=diameter,
+        x=base,
         y=median_point_estimate,
         col sep=semicolon,
-    ] {data/bench_hdr_cb.csv};
+    ] {data/bench_kv_store_hdr_cb.csv};
     \addlegendentryexpanded{\ref{code:mvr-crdt-datalog-dialect}}
     \end{axis}
     \end{tikzpicture}

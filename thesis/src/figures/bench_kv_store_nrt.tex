@@ -1,0 +1,80 @@
+\begin{figure}[htpb]
+	\centering
+
+	\begin{subfigure}[b]{\textwidth}
+	    \centering
+        \begin{tikzpicture}
+        \begin{axis}[
+            axis on top, ymin=0,
+       	legend pos=north east,
+       	legend style={
+       	    anchor=north west,xshift=15pt,
+        },
+        grid=major,
+       	thick,
+       	xlabel={Delta Diameter},
+       	ylabel={Median Runtime (ms)},
+       	sharp plot,
+        ]
+        \foreach \i in {1000, 2000, 3000, 4000, 5000} {
+            \addplot+[mark=*] table [
+                x=delta,
+                y=median_point_estimate,
+                col sep=semicolon,
+            ] {data/bench_kv_store_nrt_nocb_base\i.csv};
+            \addlegendentryexpanded{Base Diameter \i}
+        }
+
+        \end{axis}
+        \end{tikzpicture}
+        \caption{
+            Key-value store without causal broadcast from \ref{code:mvr-store-datalog-dialect}.
+        }\label{fig:bench-kv-store-nrt-nocb}
+    \end{subfigure}
+
+    \vspace{1em}
+
+    \begin{subfigure}[b]{\textwidth}
+        \centering
+        \begin{tikzpicture}
+        \begin{axis}[
+            axis on top, ymin=0,
+       	legend pos=north east,
+       	legend style={
+       	    anchor=north west,xshift=15pt,
+        },
+        grid=major,
+       	thick,
+       	xlabel={Delta Diameter},
+       	ylabel={Median Runtime (ms)},
+       	sharp plot,
+        ]
+        \foreach \i in {1000, 2000, 3000, 4000, 5000} {
+            \addplot+[mark=+] table [
+                x=delta,
+                y=median_point_estimate,
+                col sep=semicolon,
+            ] {data/bench_kv_store_nrt_cb_base\i.csv};
+            \addlegendentryexpanded{\ref{code:mvr-crdt-datalog-dialect}, Base Diameter \i}
+        }
+
+        \addplot+[mark=*,TUMDarkGray] table [
+            x=delta,
+            y=median_point_estimate,
+            col sep=semicolon,
+        ] {data/bench_kv_store_nrt_nocb_base5000.csv};
+        \addlegendentryexpanded{\ref{code:mvr-store-datalog-dialect}, Base Diameter 5000}
+        \end{axis}
+        \end{tikzpicture}
+        \caption{
+            Key-value store including causal broadcast from \ref{code:mvr-crdt-datalog-dialect}.
+            The measurement of the key-value store \emph{without} causal broadcast
+            for the worst case
+            is shown for reference.
+        }\label{fig:bench-kv-store-nrt-cb}
+       \end{subfigure}
+
+    \caption{
+        Near-real-time setting benchmark for the key-value stores.
+    }\label{fig:bench-kv-stores-nrt}
+\end{figure}

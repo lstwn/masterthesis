@@ -127,67 +127,14 @@ The final list order is given by a depth-first, pre-order traversal of the tree.
 At its core, the Datalog query has to implement this depth-first, pre-order
 traversal of the tree.
 
-\input{figures/list_crdt.tex}
-
-\ref{code:list-crdt-datalog-dialect} shows the definition of a list \ac{CRDT}
-in my Datalog dialect.
-To explain the query, I use \ref{fig:list-crdt} as an example in which
-three replicas, with id 1, 2, and 3, insert elements into the list.
-\ref{fig:list-crdt} visualizes the ``insert(RepId, Ctr, ParentRepId, ParentCtr)''
-\ac{EDBP} with entries:
-
-\[\{ (2,1,0,0), (2,3,2,1), (1,3,2,1), (3,2,2,1), (1,1,0,0), (2,2,1,1) \}\]
-
-Every node (except for the sentinel root) depicts a (\textit{RepId}, \textit{Ctr})
-pair and its black edge points to its parent defined by
-a (\textit{ParentRepId}, \textit{ParentCtr}) pair.
-The result of the depth-first, pre-order traversal is:
-
-\[[ (0,0), (2,1), (2,3), (1,3), (3,2), (1,1), (2,2) ]\]
-
-Despite the absence of a built-in list type in Datalog, I reproduce this result
-as an (unsorted) linked list of nodes in \ref{code:list-crdt-datalog-dialect}
-with the help of the ``nextElem'' \ac{IDBP}.
-Its definition is divided into three parts.
-First, the ``firstChild'' \ac{IDBP} (\ref{code:list-crdt-datalog-dialect-part1})
-finds the first child of each parent
-(the dotted, green edges in \ref{fig:list-crdt}).
-To do so, it relies on the ``laterChild'' \ac{IDBP} to find all parents with
-their children such that the children are not their first but a later child.
-Second, the ``nextSibling'' \ac{IDBP} (\ref{code:list-crdt-datalog-dialect-part2})
-provides the next sibling of each child
-(the dashed, orange edges in \ref{fig:list-crdt}).
-Its definition makes use of the ``laterSibling'' and ``laterIndirectSibling''
-\acp{IDBP}. The former finds all later siblings of a child, and the latter
-finds all later siblings of a child that are not direct siblings but have
-at least one sibling in between them.
-Then, the next sibling of a child is given by filtering out all later
-\emph{indirect} siblings from the later siblings.
-Third, the ``nextSiblingAnc'' \ac{IDBP} (\ref{code:list-crdt-datalog-dialect-part3})
-gives the next sibling of each child, or, recursively,
-the next sibling of the parent if a child has no next sibling
-(the dashdotted, blue edges in \ref{fig:list-crdt}).
-Finally, the ``nextElem'' \ac{IDBP} defines the depth-first, pre-order traversal
-by either yielding a link from the parent to its first child (as ``previous''
-and ``next'', respectively) or a link defined by the ``nextSiblingAnc'' \ac{IDBP}
-if the ``previous'' node has no child.
-This outputs the above result as a linked list of nodes where each node is
-defined by a (\textit{RepId}, \textit{Ctr}) pair:
-
-\[[ (0,0,2,1), (2,1,2,3), (2,3,1,3), (1,3,3,2), (3,2,1,1), (1,1,2,2) ]\]
-
-TODO:
-How to assign values to the list?
-How to handle deletions?
-How to output the order with the values?
-
 \begin{figure}[htpb]
 	\centering
 
 	\begin{subfigure}[b]{\textwidth}
 		\begin{lstlisting}[keepspaces,escapechar=!]
 // Black edges in !\ref{fig:list-crdt}!.
-insert(RepId, Ctr, ParentRepId, ParentCtr) :- .
+insert(RepId, Ctr, ParentRepId, ParentCtr, Value) :- .
+remove(ElemId, ElemCtr) :- .
 
 laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
     insert(SiblingRepId = RepId, SiblingCtr = Ctr, ParentRepId, ParentCtr),
@@ -259,17 +206,111 @@ nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
         NextRepId = AncRepId, NextCtr = AncCtr).\end{lstlisting}
 		\caption{Part 3: Definition of ``nextSiblingAnc'' and ``nextElem'' \acp{IDBP}.}\label{code:list-crdt-datalog-dialect-part3}
 	\end{subfigure}
+\end{figure}
+
+\begin{figure}[htpb]\ContinuedFloat
+	\centering
+
+	\begin{subfigure}[b]{\textwidth}
+		\begin{lstlisting}[keepspaces,escapechar=!]
+distinct hasValue(ElemId, ElemCtr) :-
+    // Fix for not being able to assign anything to the sentinel element.
+    insert(ElemId = ParentRepId, ElemCtr = ParentCtr),
+    ElemId == 0, ElemCtr == 0.
+distinct hasValue(ElemId, ElemCtr) :-
+    insert(ElemId = RepId, ElemCtr = Ctr),
+    not remove(ElemId, ElemCtr).
+
+nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
+    nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr).
+nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
+    nextElem(PrevRepId, PrevCtr, ViaRepId = NextRepId, ViaCtr = NextCtr),
+    not hasValue(ViaRepId = ElemId, ViaCtr = ElemCtr),
+    nextElemSkipTombstones(ViaRepId = PrevRepId, ViaCtr = PrevCtr,
+        NextRepId, NextCtr).
+
+nextVisible(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
+    hasValue(PrevRepId = ElemId, PrevCtr = ElemCtr),
+    nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr),
+    hasValue(NextRepId = ElemId, NextCtr = ElemCtr).
+
+listElem(PrevRepId, PrevCtr, Value, NextRepId, NextCtr) :-
+    nextVisible(PrevRepId, PrevCtr, NextCtr, NextRepId),
+    insert(NextRepId = RepId, NextCtr = Ctr, Value).\end{lstlisting}
+		\caption{Part 4: Definition of ``listElem'' \ac{IDBP}.}\label{code:list-crdt-datalog-dialect-part4}
+	\end{subfigure}
 	\caption{A list \ac{CRDT} in my Datalog dialect, adapted from~\cite{kleppmann2018data}.}\label{code:list-crdt-datalog-dialect}
 \end{figure}
+
+\input{figures/list_crdt.tex}
+
+\ref{code:list-crdt-datalog-dialect} shows the definition of a list \ac{CRDT}
+in my Datalog dialect.
+To explain the query, I use \ref{fig:list-crdt} as an example in which
+three replicas, with id 1, 2, and 3, insert elements into the list.
+\ref{fig:list-crdt} visualizes the ``insert(RepId, Ctr, ParentRepId, ParentCtr)''
+\ac{EDBP} with entries:
+
+\[\{ (2,1,0,0), (2,3,2,1), (1,3,2,1), (3,2,2,1), (1,1,0,0), (2,2,1,1) \}\]
+
+Every node (except for the sentinel root) depicts a (\textit{RepId}, \textit{Ctr})
+pair and its black edge points to its parent defined by
+a (\textit{ParentRepId}, \textit{ParentCtr}) pair.
+The result of the depth-first, pre-order traversal is:
+
+\[[ (0,0), (2,1), (2,3), (1,3), (3,2), (1,1), (2,2) ]\]
+
+Despite the absence of a built-in list type in Datalog, I reproduce this result
+as an (unsorted) linked list of nodes in \ref{code:list-crdt-datalog-dialect}
+with the help of the ``nextElem'' \ac{IDBP}.
+Its definition is divided into three parts.
+First, the ``firstChild'' \ac{IDBP} (\ref{code:list-crdt-datalog-dialect-part1})
+finds the first child of each parent
+(the dotted, green edges in \ref{fig:list-crdt}).
+To do so, it relies on the ``laterChild'' \ac{IDBP} to find all parents with
+their children such that the children are not their first but a later child.
+Second, the ``nextSibling'' \ac{IDBP} (\ref{code:list-crdt-datalog-dialect-part2})
+provides the next sibling of each child
+(the dashed, orange edges in \ref{fig:list-crdt}).
+Its definition makes use of the ``laterSibling'' and ``laterIndirectSibling''
+\acp{IDBP}. The former finds all later siblings of a child, and the latter
+finds all later siblings of a child that are not direct siblings but have
+at least one sibling in between them.
+Then, the next sibling of a child is given by filtering out all later
+\emph{indirect} siblings from the later siblings.
+Third, the ``nextSiblingAnc'' \ac{IDBP} (\ref{code:list-crdt-datalog-dialect-part3})
+gives the next sibling of each child, or, recursively,
+the next sibling of the parent if a child has no next sibling
+(the dashdotted, blue edges in \ref{fig:list-crdt}).
+Finally, the ``nextElem'' \ac{IDBP} defines the depth-first, pre-order traversal
+by either yielding a link from the parent to its first child (as ``previous''
+and ``next'', respectively) or a link defined by the ``nextSiblingAnc'' \ac{IDBP}
+if the ``previous'' node has no child.
+This outputs the above result as a linked list of nodes where each node is
+defined by a (\textit{RepId}, \textit{Ctr}) pair:
+
+\[[ (0,0,2,1), (2,1,2,3), (2,3,1,3), (1,3,3,2), (3,2,1,1), (1,1,2,2) ]\]
+
+TODO:
+How to assign values to the list?
+How to handle deletions?
+How to output the order with the values?
 
 \section{Performance Evaluation}\label{sec:benchmarks}
 
 \ref{sec:near-real-time-benchmark} and \ref{sec:hydration-benchmark}
 provide benchmarks of the three \acp{CRDT} from the previous section.
 Benchmarking happens in two different settings which are distinguished by
-the operators of the query plan being either ``warm'' or ``cold'':
+the operators of the query plan being either ``cold'' or ``warm'':
 
 \begin{itemize}
+	\item \textbf{Hydration setting} (\ref{sec:hydration-benchmark}).
+	      As outlined in \ref{sec:ivm}, all bilinear operators are stateful.
+	      Hence, all stateful operators of the query plan have to restore
+	      their state before processing any new updates, e.g., in case of a
+		  ``cold'' application restart. This benchmark measures the time it takes
+	      until the application can show its last state and process \emph{new}
+		  updates again on top of an existing operation history.
 	\item \textbf{Near-real time setting} (\ref{sec:near-real-time-benchmark}).
 	      In this setting, the operators are assumed to be ``warm'' and only
 	      a small number of updates are new to them.
@@ -277,13 +318,6 @@ the operators of the query plan being either ``warm'' or ``cold'':
 		  the application has started up. It measures how much time it takes
 		  to process a small number of updates on top of an already ``hydrated''
 		  query plan.
-	\item \textbf{Hydration setting} (\ref{sec:hydration-benchmark}).
-	      As outlined in \ref{sec:ivm}, all bilinear operators are stateful.
-	      Hence, all stateful operators of the query plan have to restore
-	      their state before processing any new updates, e.g., in case of a
-		  ``cold'' application restart. This benchmark measures the time it takes
-	      until the application can show its last state and process \emph{new}
-		  updates again on top of an existing history of operations.
 \end{itemize}
 
 All benchmarks are executed on a 2024 MacBook Pro with an Apple M4 Pro CPU.
@@ -300,9 +334,29 @@ and does not explain the issue any further\footnotemark{}.
     \url{https://docs.rs/dbsp/0.64.0/dbsp/circuit/struct.Runtime.html\#method.init_circuit}
 }
 
+\subsection{Hydration Setting}\label{sec:hydration-benchmark}
+
+\input{figures/bench_kv_store_hdr.tex}
+
+\ref{fig:hydration-kv-store} shows benchmarks of the simple and advanced
+\ac{MVR} key-value stores in the hydration setting.
+There is only one parameter in this setting,
+the \emph{base diameter} \(\in \{1000, 2000, 3000, 4000, 5000\}\).
+The benchmarks measure the time it takes to apply all operations of a
+causal history with the given base diameter.
+For the key-value stores, a similar pattern emerges.
+The causal broadcast mechanism has a significant impact on the performance:
+While an increase of the base diameter by 1000 causes the performance of the
+simple key-value store to increase by about two milliseconds,
+the advanced key-value store's performance increases by about 40 milliseconds.
+The reason for this is again the costly fixed point iteration of the causal
+broadcast mechanism.
+
+\input{figures/bench_list_hdr.tex}
+
 \subsection{Near-Real-Time Setting}\label{sec:near-real-time-benchmark}
 
-\input{figures/bench_near_real_time_kv_store.tex}
+\input{figures/bench_kv_store_nrt.tex}
 
 \ref{fig:near-real-time-kv-store} shows benchmarks of the simple \ac{MVR} key-value
 store (\ref{code:mvr-store-datalog-dialect}) and the advanced \ac{MVR} key-value
@@ -358,23 +412,7 @@ from the current leaves of the causal history and thus avoiding the
 costly search from the roots, as most new operations are likely a causal successor
 of the current leaves.
 
-\subsection{Hydration Setting}\label{sec:hydration-benchmark}
-
-\input{figures/bench_hydration_kv_store.tex}
-
-\ref{fig:hydration-kv-store} shows benchmarks of the simple and advanced
-\ac{MVR} key-value stores in the hydration setting.
-There is only one parameter in this setting,
-the \emph{base diameter} \(\in \{1000, 2000, 3000, 4000, 5000\}\).
-The benchmarks measure the time it takes to apply all operations of a
-causal history with the given base diameter.
-For the key-value stores, a similar pattern emerges.
-The causal broadcast mechanism has a significant impact on the performance:
-While an increase of the base diameter by 1000 causes the performance of the
-simple key-value store to increase by about two milliseconds,
-the advanced key-value store's performance increases by about 40 milliseconds.
-The reason for this is again the costly fixed point iteration of the causal
-broadcast mechanism.
+\input{figures/bench_list_nrt.tex}
 
 \section{Related Work}\label{sec:related-work}
 

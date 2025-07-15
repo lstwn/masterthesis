@@ -91,11 +91,9 @@ Additionally, advances in query optimization and performance improvements
 of the query engine can be introduced without breaking changes,
 something relational databases have benefitted from over the years and
 has arguably contributed towards their widespread adoption.
-The data stored in \acp{CRDT} can benefit from the durability guarantees of
-database systems, which are often not provided by \ac{CRDT} libraries.
-
-% TODO: Maybe add the read finality issue of \acp{CRDT} here and cite with
-% \cite{laddad2022keep}.
+% Maybe add the read finality issue of \acp{CRDT} here and cite with
+% \cite{laddad2022keep}. Explain the read finality issue and show how it can
+% be addressed with queries.
 
 Conversely, database systems can be introduced to coordination-free environments,
 in which every replica can read and write to the database without

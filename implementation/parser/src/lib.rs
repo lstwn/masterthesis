@@ -45,7 +45,7 @@ mod test {
     use super::*;
     use crate::{
         key_value_store_crdts::{MVR_KV_STORE_CRDT_W_CB_DATALOG, MVR_KV_STORE_CRDT_WO_CB_DATALOG},
-        list_crdt::{AssignOp, InsertOp, LIST_CRDT_DATALOG, RemoveOp},
+        list_crdt::{InsertOp, LIST_CRDT_DATALOG, RemoveOp},
     };
     use compute::{
         dbsp::zset,
@@ -160,7 +160,6 @@ mod test {
         })?;
 
         let insert_op_input = inputs.get("insert").unwrap();
-        let assign_op_input = inputs.get("assign").unwrap();
         let remove_op_input = inputs.get("remove").unwrap();
 
         // Example tree, encoded as `insert(Child, Parent)` facts.
@@ -174,45 +173,32 @@ mod test {
         //   / | \   |
         //  6  5  3  4
         // ```
-        let data: [(Vec<InsertOp>, Vec<AssignOp>, Vec<RemoveOp>); 1] = [(
+        let data: [(Vec<InsertOp>, Vec<RemoveOp>); 1] = [(
             vec![
-                InsertOp::new(0, 1, 0, 0),
-                InsertOp::new(0, 2, 0, 0),
-                InsertOp::new(0, 3, 0, 2),
-                InsertOp::new(0, 4, 0, 1),
-                InsertOp::new(0, 5, 0, 2),
-                InsertOp::new(0, 6, 0, 2),
-            ],
-            vec![
-                // Oddly, another replica assigns the values to the list elements.
-                // I think it should be alternating between the insert ops and assign
-                // ops but this would break Martin's example.
-                AssignOp::new(0, 0, 0, 0, '#'), // dummy element
-                AssignOp::new(1, 2, 0, 2, 'H'),
-                AssignOp::new(1, 3, 0, 6, 'E'),
-                AssignOp::new(1, 4, 0, 5, 'L'),
-                AssignOp::new(1, 5, 0, 3, 'L'),
-                AssignOp::new(1, 6, 0, 1, 'O'),
-                AssignOp::new(1, 7, 0, 4, '!'),
+                InsertOp::new(0, 1, 0, 0, 'O'),
+                InsertOp::new(0, 2, 0, 0, 'H'),
+                InsertOp::new(0, 3, 0, 2, 'L'),
+                InsertOp::new(0, 4, 0, 1, '!'),
+                InsertOp::new(0, 5, 0, 2, 'L'),
+                InsertOp::new(0, 6, 0, 2, 'E'),
             ],
             // No removals here.
             vec![],
         )];
 
         let mut expected = [zset! {
-            // Schema: PrevRepId, PrevCtr, Char (Value), AssignRepId, AssignCtr, NextRepId, NextCtr.
-            tuple!(0_u64, 0_u64, 'H', 1_u64, 2_u64, 0_u64, 2_u64) => 1,
-            tuple!(0_u64, 1_u64, '!', 1_u64, 7_u64, 0_u64, 4_u64) => 1,
-            tuple!(0_u64, 2_u64, 'E', 1_u64, 3_u64, 0_u64, 6_u64) => 1,
-            tuple!(0_u64, 3_u64, 'O', 1_u64, 6_u64, 0_u64, 1_u64) => 1,
-            tuple!(0_u64, 5_u64, 'L', 1_u64, 5_u64, 0_u64, 3_u64) => 1,
-            tuple!(0_u64, 6_u64, 'L', 1_u64, 4_u64, 0_u64, 5_u64) => 1,
+            // Schema: PrevRepId, PrevCtr, Char (Value), NextRepId, NextCtr.
+            tuple!(0_u64, 0_u64, 'H', 0_u64, 2_u64) => 1,
+            tuple!(0_u64, 1_u64, '!', 0_u64, 4_u64) => 1,
+            tuple!(0_u64, 2_u64, 'E', 0_u64, 6_u64) => 1,
+            tuple!(0_u64, 3_u64, 'O', 0_u64, 1_u64) => 1,
+            tuple!(0_u64, 5_u64, 'L', 0_u64, 3_u64) => 1,
+            tuple!(0_u64, 6_u64, 'L', 0_u64, 5_u64) => 1,
         }]
         .into_iter();
 
-        for (insert_op_step, assign_op_step, remove_op_step) in data {
+        for (insert_op_step, remove_op_step) in data {
             insert_op_input.insert_with_same_weight(&insert_op_step, 1);
-            assign_op_input.insert_with_same_weight(&assign_op_step, 1);
             remove_op_input.insert_with_same_weight(&remove_op_step, 1);
             handle.step()?;
             let batch = output.to_batch();
@@ -231,7 +217,6 @@ mod test {
         })?;
 
         let insert_op_input = inputs.get("insert").unwrap();
-        let assign_op_input = inputs.get("assign").unwrap();
         let remove_op_input = inputs.get("remove").unwrap();
 
         // Example tree, encoded as `insert(ChildRepId, ChildCtr, ParentRepId, ParentCtr)`
@@ -244,41 +229,31 @@ mod test {
         //     /   |   \        |
         // (2,3) (1,3) (3,2)  (2,5)
         // ```
-        let data: [(Vec<InsertOp>, Vec<AssignOp>, Vec<RemoveOp>); 1] = [(
+        let data: [(Vec<InsertOp>, Vec<RemoveOp>); 1] = [(
             vec![
-                InsertOp::new(2, 1, 0, 0),
-                InsertOp::new(1, 1, 0, 0),
-                InsertOp::new(2, 5, 1, 1),
-                InsertOp::new(2, 3, 2, 1),
-                InsertOp::new(1, 3, 2, 1),
-                InsertOp::new(3, 2, 2, 1),
-            ],
-            vec![
-                AssignOp::new(0, 0, 0, 0, '#'), // dummy element
-                AssignOp::new(2, 2, 2, 1, 'H'),
-                AssignOp::new(2, 4, 2, 3, 'E'),
-                AssignOp::new(1, 4, 1, 3, 'L'),
-                AssignOp::new(3, 3, 3, 2, 'L'),
-                AssignOp::new(1, 2, 1, 1, 'O'),
-                AssignOp::new(2, 6, 2, 5, '!'),
+                InsertOp::new(2, 1, 0, 0, 'H'),
+                InsertOp::new(1, 1, 0, 0, 'O'),
+                InsertOp::new(2, 5, 1, 1, '!'),
+                InsertOp::new(2, 3, 2, 1, 'E'),
+                InsertOp::new(1, 3, 2, 1, 'L'),
+                InsertOp::new(3, 2, 2, 1, 'L'),
             ],
             // We can remove the 'E' in the *middle* of the list! :)
-            vec![RemoveOp::new(2, 4)],
+            vec![RemoveOp::new(2, 3)],
         )];
 
         let mut expected = [zset! {
-            // Schema: PrevRepId, PrevCtr, Char (Value), AssignRepId, AssignCtr, NextRepId, NextCtr.
-            tuple!(0_u64, 0_u64, 'H', 2_u64, 2_u64, 2_u64, 1_u64) => 1,
-            tuple!(2_u64, 1_u64, 'L', 1_u64, 4_u64, 1_u64, 3_u64) => 1,
-            tuple!(1_u64, 3_u64, 'L', 3_u64, 3_u64, 3_u64, 2_u64) => 1,
-            tuple!(3_u64, 2_u64, 'O', 1_u64, 2_u64, 1_u64, 1_u64) => 1,
-            tuple!(1_u64, 1_u64, '!', 2_u64, 6_u64, 2_u64, 5_u64) => 1,
+            // Schema: PrevRepId, PrevCtr, Char (Value), NextRepId, NextCtr.
+            tuple!(0_u64, 0_u64, 'H', 2_u64, 1_u64) => 1,
+            tuple!(2_u64, 1_u64, 'L', 1_u64, 3_u64) => 1,
+            tuple!(1_u64, 3_u64, 'L', 3_u64, 2_u64) => 1,
+            tuple!(3_u64, 2_u64, 'O', 1_u64, 1_u64) => 1,
+            tuple!(1_u64, 1_u64, '!', 2_u64, 5_u64) => 1,
         }]
         .into_iter();
 
-        for (insert_op_step, assign_op_step, remove_op_step) in data {
+        for (insert_op_step, remove_op_step) in data {
             insert_op_input.insert_with_same_weight(&insert_op_step, 1);
-            assign_op_input.insert_with_same_weight(&assign_op_step, 1);
             remove_op_input.insert_with_same_weight(&remove_op_step, 1);
             handle.step()?;
             let batch = output.to_batch();

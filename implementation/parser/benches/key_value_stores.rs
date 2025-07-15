@@ -27,18 +27,15 @@ fn bench_hydration(c: &mut Criterion) {
                 BenchmarkId::new(name, diameter),
                 &diameter,
                 |b, &diameter| {
-                    b.iter_batched(
-                        || KeyValueStoreReplica::new(REPLICA_ID, datalog),
-                        |mut replica| {
-                            replica.feed_ops(&set_ops, &pred_ops);
-                            let result = replica.derive_state();
-                            debug_assert_eq!(
-                                result,
-                                &HashMap::from([(0, HashSet::from([(diameter - 1) as u64]))])
-                            )
-                        },
-                        criterion::BatchSize::SmallInput,
-                    );
+                    b.iter(|| {
+                        let mut replica = KeyValueStoreReplica::new(REPLICA_ID, datalog);
+                        replica.feed_ops(&set_ops, &pred_ops);
+                        let result = replica.derive_state();
+                        debug_assert_eq!(
+                            result,
+                            &HashMap::from([(0, HashSet::from([(diameter - 1) as u64]))])
+                        )
+                    });
                 },
             );
         }

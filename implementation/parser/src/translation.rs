@@ -391,10 +391,16 @@ impl<'a> Translator<'a> {
         // We have to check the condition for each individual rule and _not_
         // on the aggregated level!
         for body in rule.bodies() {
-            let positive_vars: HashSet<_> = body
+            let positive_vars: HashSet<&String> = body
                 .positive_variables()
                 .map(|var| var.target_name())
                 .collect();
+            // TODO: Deal with expressions in the head. That is, check if the
+            // variables of a head's expression are bound in the body if a field
+            // is defined with an expression. In that case, the name of the head
+            // variable itself does not need to occur in the positive variables
+            // but only the names of the variables its defining expression refers
+            // to.
             for head_var in rule.head().variables() {
                 if !positive_vars.contains(&head_var.target_name()) {
                     return Err(SyntaxError::new(format!(

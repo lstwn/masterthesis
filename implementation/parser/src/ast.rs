@@ -60,14 +60,21 @@ impl Head {
     pub fn name(&self) -> &String {
         &self.name.identifier.inner
     }
-    /// Two heads are aggregatable if they share the same name and the sequence
-    /// of variables.
+    /// Two heads are aggregatable if they share the same name and the same
+    /// sequence of variable names. We enforce the same _sequence_ despite
+    /// using name-based indexing to force people write cleaner code ;)
+    /// ... and maybe ease the implementation a bit but we don't dare to say
+    /// that out loud!
     /// This is used to determine if two rules can be collapsed into an
     /// [`crate::analysis::AggregatedRule`].
     /// If the heads carry a distinct or not, does not matter for aggregation purposes.
     pub fn aggregatable_with(&self, other: &Self) -> bool {
-        // Two heads are aggregatable if they have the same name and the same variables.
-        self.name == other.name && self.variables == other.variables
+        self.name == other.name
+            && self
+                .variables
+                .iter()
+                .map(|var| &var.identifier)
+                .eq(other.variables.iter().map(|var| &var.identifier))
     }
     pub fn variables(&self) -> impl Iterator<Item = &VarStmt> {
         self.variables.iter()

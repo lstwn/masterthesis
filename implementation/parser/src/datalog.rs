@@ -3,9 +3,9 @@
 //! program     = rule* EOF ;
 //! rule        = head ":-" body "." ;
 //! head        = "distinct"? IDENTIFIER "(" field ( "," field )* ")" ;
-//! field       = IDENTIFIER ( "=" expression )? ;
+//! field       = IDENTIFIER ( "=" safe_expr )? ;
 //! body        = ( atom ( "," atom )* )? ;
-//! atom        = ( "not"? predicate ) | "(" expression ")" | comparison ;
+//! atom        = ( "not"? predicate ) | safe_expr ;
 //! predicate   = IDENTIFIER "(" variable ( "," variable )* ")" ;
 //! variable    = IDENTIFIER ( "=" IDENTIFIER )? ;
 //! ```
@@ -15,7 +15,7 @@
 
 use crate::{
     ast::{Atom, Body, Head, Predicate, Program, Rule, VarExpr, VarStmt},
-    expr::{comparison, expression},
+    expr::safe_expr,
     literal::identifier,
     parser_helper::{lead_ws, lead_ws_cmt},
 };
@@ -83,7 +83,7 @@ fn head(input: &str) -> IResult<&str, Head> {
 
 fn field(input: &str) -> IResult<&str, VarStmt> {
     let (input, name) = identifier.parse(input)?;
-    let (input, expr) = opt(preceded(lead_ws(tag(ASSIGN)), lead_ws(expression))).parse(input)?;
+    let (input, expr) = opt(preceded(lead_ws(tag(ASSIGN)), lead_ws(safe_expr))).parse(input)?;
     if let Some(source_name) = expr {
         Ok((input, VarStmt::with_expr(name, source_name)))
     } else {
@@ -110,20 +110,8 @@ fn atom(input: &str) -> IResult<&str, Atom> {
             Atom::Negative(predicate)
         }
     });
-    // Only parenthesized expressions are allowed to contain logical operators,
-    // such as `and` and `or`, on the top level. Otherwise, we cannot escape
-    // to the next atom containing another comparison, but are forced to extend
-    // the current expression with an `and`.
-    let parenthesized_expression = delimited(
-        tag(LEFT_PAREN),
-        map(lead_ws(expression), Atom::Comparison),
-        lead_ws(tag(RIGHT_PAREN)),
-    );
-    // But we allow comparisons to use logical operators on a _nested_ level.
-    // See test [`test_program_with_complex_filters`] below.
-    let comparison = map(comparison, Atom::Comparison);
 
-    alt((positive_or_negative, parenthesized_expression, comparison)).parse(input)
+    alt((positive_or_negative, map(safe_expr, Atom::Comparison))).parse(input)
 }
 
 fn predicate(input: &str) -> IResult<&str, Predicate> {
@@ -203,6 +191,21 @@ pub mod test {
                 })],
             },
         };
+        assert_eq!(result, Ok(("", expected)));
+    }
+
+    #[test]
+    fn test_head() {
+        // It is okay to have all head variables be defined through expressions.
+        let input = "distinct x(a = 0, b = 0)";
+        let result = head(input);
+        let expected = Head::with_distinct(
+            "x",
+            [
+                VarStmt::with_expr("a", Expr::from(LiteralExpr::from(0u64))),
+                VarStmt::with_expr("b", Expr::from(LiteralExpr::from(0u64))),
+            ],
+        );
         assert_eq!(result, Ok(("", expected)));
     }
 

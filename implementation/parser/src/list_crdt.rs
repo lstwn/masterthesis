@@ -13,9 +13,8 @@ use std::{cmp::max, collections::BTreeMap, iter::Peekable, num::NonZeroUsize};
 /// Credits are due to Martin Kleppmann.
 pub const LIST_CRDT_DATALOG: &str = r#"
         // These are extensional database predicates (EDBPs).
-        insert(RepId, Ctr, ParentRepId, ParentCtr) :- .
-        assign(RepId, Ctr, ElemId, ElemCtr, Value) :- .
-        remove(RepId, Ctr) :- .
+        insert(RepId, Ctr, ParentRepId, ParentCtr, Value) :- .
+        remove(ElemId, ElemCtr) :- .
 
         // These are intensional database predicates (IDBPs).
         laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
@@ -64,27 +63,28 @@ pub const LIST_CRDT_DATALOG: &str = r#"
           not hasChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr),
           nextSiblingAnc(PrevRepId = ChildRepId, PrevCtr = ChildCtr, NextRepId = AncRepId, NextCtr = AncCtr).
 
-        currentValue(AssignId, AssignCtr, ElemId, ElemCtr, Value) :-
-            assign(AssignId = RepId, AssignCtr = Ctr, ElemId, ElemCtr, Value),
-            not remove(AssignId = RepId, AssignCtr = Ctr).
-
-        distinct hasValue(ElemId, ElemCtr) :- currentValue(ElemId, ElemCtr).
+        distinct hasValue(ElemId, ElemCtr) :-
+          // Fix for not being able to assign anything to the sentinel element.
+          insert(ElemId = ParentRepId, ElemCtr = ParentCtr), ElemId == 0, ElemCtr == 0.
+        distinct hasValue(ElemId, ElemCtr) :-
+          insert(ElemId = RepId, ElemCtr = Ctr),
+          not remove(ElemId, ElemCtr).
 
         nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
-            nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr).
+          nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr).
         nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
-            nextElem(PrevRepId, PrevCtr, ViaRepId = NextRepId, ViaCtr = NextCtr),
-            not hasValue(ViaRepId = ElemId, ViaCtr = ElemCtr),
-            nextElemSkipTombstones(ViaRepId = PrevRepId, ViaCtr = PrevCtr, NextRepId, NextCtr).
+          nextElem(PrevRepId, PrevCtr, ViaRepId = NextRepId, ViaCtr = NextCtr),
+          not hasValue(ViaRepId = ElemId, ViaCtr = ElemCtr),
+          nextElemSkipTombstones(ViaRepId = PrevRepId, ViaCtr = PrevCtr, NextRepId, NextCtr).
 
         nextVisible(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
-            hasValue(PrevRepId = ElemId, PrevCtr = ElemCtr),
-            nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr),
-            hasValue(NextRepId = ElemId, NextCtr = ElemCtr).
+          hasValue(PrevRepId = ElemId, PrevCtr = ElemCtr),
+          nextElemSkipTombstones(PrevRepId, PrevCtr, NextRepId, NextCtr),
+          hasValue(NextRepId = ElemId, NextCtr = ElemCtr).
 
-        listElem(PrevRepId, PrevCtr, Value, AssignId, AssignCtr, NextRepId, NextCtr) :-
-            nextVisible(PrevRepId, PrevCtr, NextCtr, NextRepId),
-            currentValue(AssignId, AssignCtr, NextRepId = ElemId, NextCtr = ElemCtr, Value).
+        listElem(PrevRepId, PrevCtr, Value, NextRepId, NextCtr) :-
+          nextVisible(PrevRepId, PrevCtr, NextCtr, NextRepId),
+          insert(NextRepId = RepId, NextCtr = Ctr, Value).
     "#;
 
 /// This relation represents an insertion operation in a list.
@@ -96,15 +96,17 @@ pub struct InsertOp {
     ctr: u64,
     parent_rep_id: u64,
     parent_ctr: u64,
+    value: char,
 }
 
 impl InsertOp {
-    pub fn new(rep_id: u64, ctr: u64, parent_rep_id: u64, parent_ctr: u64) -> Self {
+    pub fn new(rep_id: u64, ctr: u64, parent_rep_id: u64, parent_ctr: u64, value: char) -> Self {
         Self {
             rep_id,
             ctr,
             parent_rep_id,
             parent_ctr,
+            value,
         }
     }
 }
@@ -122,59 +124,17 @@ impl From<InsertOp> for TupleKey {
 
 impl From<InsertOp> for TupleValue {
     fn from(insert_op: InsertOp) -> Self {
-        TupleValue::from_iter([
+        tuple!(
             insert_op.rep_id,
             insert_op.ctr,
             insert_op.parent_rep_id,
             insert_op.parent_ctr,
-        ])
-    }
-}
-
-/// This relation represents an assignment operation of a value to a position in
-/// a list.
-///
-/// It is an input in the [`LIST_CRDT_DATALOG`] Datalog program.
-#[derive(Copy, Clone, Debug)]
-pub struct AssignOp {
-    rep_id: u64,
-    ctr: u64,
-    elem_id: u64,
-    elem_ctr: u64,
-    value: char,
-}
-
-impl AssignOp {
-    pub fn new(rep_id: u64, ctr: u64, elem_id: u64, elem_ctr: u64, value: char) -> Self {
-        Self {
-            rep_id,
-            ctr,
-            elem_id,
-            elem_ctr,
-            value,
-        }
-    }
-}
-
-impl From<AssignOp> for TupleKey {
-    fn from(assign_op: AssignOp) -> Self {
-        TupleKey::from_iter([assign_op.rep_id, assign_op.ctr])
-    }
-}
-
-impl From<AssignOp> for TupleValue {
-    fn from(assign_op: AssignOp) -> Self {
-        tuple!(
-            assign_op.rep_id,
-            assign_op.ctr,
-            assign_op.elem_id,
-            assign_op.elem_ctr,
-            assign_op.value
+            insert_op.value,
         )
     }
 }
 
-/// This relation a deletion of an element in a list.
+/// This relation represents a deletion of an element in a list.
 /// The `rep_id` and `ctr` relate to an assign operation's `rep_id` and `ctr`.
 ///
 /// It is an input in the [`LIST_CRDT_DATALOG`] Datalog program.
@@ -221,9 +181,6 @@ type NextId = (NextRepId, NextCtr);
 type ElemRepId = u64;
 type ElemCtr = u64;
 type ElemId = (ElemRepId, ElemCtr);
-type AssignRepId = u64;
-type AssignCtr = u64;
-type AssignId = (AssignRepId, AssignCtr);
 type Value = char;
 
 pub struct ListReplica {
@@ -233,15 +190,14 @@ pub struct ListReplica {
     /// Whether the replica has seen any new updates since the last evaluation.
     is_dirty: bool,
     /// For walking the Datalog program's output of a linked list.
-    lookup_table: BTreeMap<PrevId, (Value, AssignId, NextId)>,
+    lookup_table: BTreeMap<PrevId, (Value, NextId)>,
     /// Cached list order for fast repeated access if there are no updates.
-    cached_list_order: Vec<(PrevId, ElemId, AssignId, Value)>,
+    cached_list_order: Vec<(PrevId, ElemId, Value)>,
     /// Cached string for fast repeated access if there are no updates.
     cached_string: String,
     handle: CircuitHandle,
     output: DbspOutput,
     insert_input: DbspInput,
-    assign_input: DbspInput,
     remove_input: DbspInput,
 }
 
@@ -258,14 +214,11 @@ impl ListReplica {
         let insert_input = inputs
             .take("insert")
             .expect("Insert input should be present");
-        let assign_input = inputs
-            .take("assign")
-            .expect("Assign input should be present");
         let remove_input = inputs
             .take("remove")
             .expect("Remove input should be present");
         // Assign a dummy value to the sentinel element.
-        assign_input.insert_with_same_weight([&AssignOp::new(0, 0, 0, 0, '#')], 1);
+        // assign_input.insert_with_same_weight([&AssignOp::new(0, 0, 0, 0, '#')], 1);
         Self {
             rep_id,
             ctr: 0,
@@ -275,7 +228,6 @@ impl ListReplica {
             handle,
             output,
             insert_input,
-            assign_input,
             remove_input,
             is_dirty: false,
         }
@@ -289,7 +241,7 @@ impl ListReplica {
         let list_order = &self.cached_list_order;
         list_order
             .get(idx)
-            .map(|(prev_id, _elem_id, _assign_id, _value)| *prev_id)
+            .map(|(prev_id, _elem_id, _value)| *prev_id)
             .or(match idx {
                 0 if self.lookup_table.is_empty() => {
                     // If the list is empty, we return the sentinel ID.
@@ -300,7 +252,7 @@ impl ListReplica {
                     // we return the last element's ID.
                     list_order
                         .last()
-                        .map(|(_prev_id, elem_id, _assign_id, _value)| *elem_id)
+                        .map(|(_prev_id, elem_id, _value)| *elem_id)
                 }
                 _ => None,
             })
@@ -309,59 +261,46 @@ impl ListReplica {
         let list_order = &self.cached_list_order;
         list_order
             .get(idx)
-            .map(|(_prev_id, elem_id, _assign_id, _value)| *elem_id)
-    }
-    fn get_assign_op_id_from_idx(&self, idx: usize) -> Option<AssignId> {
-        let list_order = &self.cached_list_order;
-        list_order
-            .get(idx)
-            .map(|(_prev_id, elem_id, assign_id, _value)| *assign_id)
+            .map(|(_prev_id, elem_id, _value)| *elem_id)
     }
     /// Generates CRDT list operations, either an [`InsertOp`], an [`AssignOp`],
     /// and/or a [`RemoveOp`] from a local event defined by a [`ListOperation`].
     pub fn generate_ops(
         &mut self,
         local_event: &ListOperation,
-    ) -> (Option<InsertOp>, Option<AssignOp>, Option<RemoveOp>) {
+    ) -> (Option<InsertOp>, Option<RemoveOp>) {
         match local_event {
             ListOperation::InsertAt(idx, char) => {
                 let parent_id = self.get_parent_op_id_from_idx(*idx).unwrap_or_else(|| {
                     panic!("Invalid index for insertion {idx}, op {local_event:#?}")
                 });
-                let insert_op =
-                    InsertOp::new(self.rep_id, self.consume_ctr(), parent_id.0, parent_id.1);
-                let assign_op = AssignOp::new(
+                let insert_op = InsertOp::new(
                     self.rep_id,
                     self.consume_ctr(),
-                    insert_op.rep_id,
-                    insert_op.ctr,
+                    parent_id.0,
+                    parent_id.1,
                     *char,
                 );
-                (Some(insert_op), Some(assign_op), None)
+                (Some(insert_op), None)
             }
             ListOperation::DeleteAt(idx) => {
-                let assign_op_id = self
-                    .get_assign_op_id_from_idx(*idx)
+                let elem_op_id = self
+                    .get_elem_op_id_from_idx(*idx)
                     .unwrap_or_else(|| panic!("Invalid index for deletion {idx}"));
-                let remove_op = RemoveOp::new(assign_op_id.0, assign_op_id.1);
-                (None, None, Some(remove_op))
+                let remove_op = RemoveOp::new(elem_op_id.0, elem_op_id.1);
+                (None, Some(remove_op))
             }
         }
     }
     pub fn feed_ops<'a>(
         &mut self,
         insert_ops: impl IntoIterator<Item = &'a InsertOp>,
-        assign_ops: impl IntoIterator<Item = &'a AssignOp>,
         remove_ops: impl IntoIterator<Item = &'a RemoveOp>,
     ) {
         let mut insert_ops = insert_ops.into_iter().peekable();
-        let mut assign_ops = assign_ops.into_iter().peekable();
         let mut remove_ops = remove_ops.into_iter().peekable();
-        self.is_dirty = insert_ops.peek().is_some()
-            || assign_ops.peek().is_some()
-            || remove_ops.peek().is_some();
+        self.is_dirty = insert_ops.peek().is_some() || remove_ops.peek().is_some();
         self.insert_input.insert_with_same_weight(insert_ops, 1);
-        self.assign_input.insert_with_same_weight(assign_ops, 1);
         self.remove_input.insert_with_same_weight(remove_ops, 1);
     }
     pub fn derive_state(&mut self) -> &String {
@@ -375,7 +314,7 @@ impl ListReplica {
         self.is_dirty = false;
         &self.cached_string
     }
-    pub fn list_order(&self) -> &[(PrevId, ElemId, AssignId, Value)] {
+    pub fn list_order(&self) -> &[(PrevId, ElemId, Value)] {
         &self.cached_list_order
     }
     pub fn string(&self) -> &String {
@@ -386,18 +325,14 @@ impl ListReplica {
             let prev_rep_id = tuple_value.data[0].unwrap_into_uint();
             let prev_ctr = tuple_value.data[1].unwrap_into_uint();
             let value = tuple_value.data[2].unwrap_into_char();
-            let assign_rep_id = tuple_value.data[3].unwrap_into_uint();
-            let assign_ctr = tuple_value.data[4].unwrap_into_uint();
-            let next_rep_id = tuple_value.data[5].unwrap_into_uint();
-            let next_ctr = tuple_value.data[6].unwrap_into_uint();
+            let next_rep_id = tuple_value.data[3].unwrap_into_uint();
+            let next_ctr = tuple_value.data[4].unwrap_into_uint();
 
             let prev_id = (prev_rep_id, prev_ctr);
-            let assign_id = (assign_rep_id, assign_ctr);
             let next_id = (next_rep_id, next_ctr);
             match zweight {
                 1 => {
-                    self.lookup_table
-                        .insert(prev_id, (value, assign_id, next_id));
+                    self.lookup_table.insert(prev_id, (value, next_id));
                 }
                 -1 => {
                     self.lookup_table.remove(&prev_id);
@@ -416,11 +351,10 @@ impl ListReplica {
             .reserve(max(expected_len - self.cached_string.len(), 0));
         self.cached_string.clear();
         self.cached_list_order.clear();
-        while let Some((value, assign_id, next_id)) = self.lookup_table.get(&current) {
+        while let Some((value, next_id)) = self.lookup_table.get(&current) {
             current = *next_id;
             self.cached_string.push(*value);
-            self.cached_list_order
-                .push((current, *next_id, *assign_id, *value));
+            self.cached_list_order.push((current, *next_id, *value));
         }
     }
 }
@@ -431,18 +365,12 @@ impl ListReplica {
     pub fn generate_burst<'a, Stream: Iterator<Item = &'a ListOperation>>(
         &mut self,
         mut list_ops: Peekable<Stream>,
-    ) -> Option<(
-        Peekable<Stream>,
-        Vec<InsertOp>,
-        Vec<AssignOp>,
-        Vec<RemoveOp>,
-    )> {
+    ) -> Option<(Peekable<Stream>, Vec<InsertOp>, Vec<RemoveOp>)> {
         // Have a stack of last insert CRDT ops to support deletion?
         let mut last_op = None;
         // Pointer into the insert_ops and assign_ops stack of this burst.
         let mut stack_ptr = -1_i64;
         let mut insert_ops: Vec<InsertOp> = Vec::new();
-        let mut assign_ops: Vec<AssignOp> = Vec::new();
         let mut remove_ops = Vec::new();
 
         while let Some(op) = list_ops.peek() {
@@ -462,7 +390,7 @@ impl ListReplica {
                 .unwrap_or(true);
             if !is_consecutive {
                 // We yield due to a cursor jump.
-                return Some((list_ops, insert_ops, assign_ops, remove_ops));
+                return Some((list_ops, insert_ops, remove_ops));
             }
             let op = list_ops.next().unwrap(); // Safe to call due to peek.
             match op {
@@ -484,28 +412,25 @@ impl ListReplica {
                             .map(|insert_op| (insert_op.rep_id, insert_op.ctr))
                             .unwrap()
                     };
-                    let insert_op =
-                        InsertOp::new(self.rep_id, self.consume_ctr(), parent_id.0, parent_id.1);
-                    insert_ops.push(insert_op);
-                    let assign_op = AssignOp::new(
+                    let insert_op = InsertOp::new(
                         self.rep_id,
                         self.consume_ctr(),
-                        insert_op.rep_id,
-                        insert_op.ctr,
+                        parent_id.0,
+                        parent_id.1,
                         *value,
                     );
-                    assign_ops.push(assign_op);
+                    insert_ops.push(insert_op);
                     // Reset stack_ptr to point to last insertion.
                     stack_ptr = (insert_ops.len() as i64) - 1;
                 }
                 ListOperation::DeleteAt(idx) => {
                     let elem_id = if stack_ptr < 0 {
-                        self.get_assign_op_id_from_idx(*idx)
+                        self.get_elem_op_id_from_idx(*idx)
                             .unwrap_or_else(|| panic!("Invalid index for deletion {idx}"))
                     } else {
-                        assign_ops
+                        insert_ops
                             .get(stack_ptr as usize)
-                            .map(|assign_op| (assign_op.rep_id, assign_op.ctr))
+                            .map(|insert_op| (insert_op.rep_id, insert_op.ctr))
                             .unwrap()
                     };
                     let remove_op = RemoveOp::new(elem_id.0, elem_id.1);
@@ -518,7 +443,7 @@ impl ListReplica {
         // The stream is exhausted.
         if last_op.is_some() {
             // We have found new ops in this run.
-            Some((list_ops, insert_ops, assign_ops, remove_ops))
+            Some((list_ops, insert_ops, remove_ops))
         } else {
             None
         }

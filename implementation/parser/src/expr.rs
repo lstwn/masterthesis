@@ -1,13 +1,14 @@
 //! This module parses the following grammar of an expression language:
 //! ```ebnf
-//! expression  = logical_or ;
+//! safe_expr   = "(" expr ")" | comparison ;
+//! expr        = logical_or ;
 //! logical_or  = logical_and ( ";" logical_and )* ;
 //! logical_and = comparison ( "," comparison )* ;
 //! comparison  = term ( ( "==" | "!=" | ">" | ">=" | "<" | "<=" ) term )? ;
 //! term        = factor ( ( "+" | "-" ) factor )* ;
 //! factor      = unary ( ( "*" | "/" ) unary )* ;
 //! unary       = ( "-" | "!" ) unary | primary ;
-//! primary     = literal | IDENTIFIER | "(" expression ")" ;
+//! primary     = literal | IDENTIFIER | "(" expr ")" ;
 //! literal     = BOOL | UINT | IINT | STRING | NULL ;
 //! ```
 
@@ -47,8 +48,23 @@ const BANG: &str = "!";
 const LEFT_PAREN: &str = "(";
 const RIGHT_PAREN: &str = ")";
 
+/// Because commas (`,`) are used differently in different contexts, we need
+/// to wrap expressions in parenthesis to avoid being stuck in an expression.
+/// However, we still allow comparisons, which cannot contain a comma, to be
+/// used without parenthesis.
+///
+/// A comma can refer to:
+/// 1. A logical `and` within an expression.
+/// 2. A separator of fields of a rule's head in a Datalog rule.
+/// 3. A separator of fields of a predicate's variables in a body of a Datalog rule.
+/// 4. A logical `and` but between atoms in a body of a Datalog rule.
+pub fn safe_expr(input: &str) -> IResult<&str, Expr> {
+    let parenthesized_expr = delimited(tag(LEFT_PAREN), lead_ws(expr), lead_ws(tag(RIGHT_PAREN)));
+    alt((parenthesized_expr, comparison)).parse(input)
+}
+
 #[inline(always)]
-pub fn expression(input: &str) -> IResult<&str, Expr> {
+fn expr(input: &str) -> IResult<&str, Expr> {
     logical_or(input)
 }
 
@@ -96,7 +112,7 @@ fn logical_and(input: &str) -> IResult<&str, Expr> {
     })
 }
 
-pub fn comparison(input: &str) -> IResult<&str, Expr> {
+fn comparison(input: &str) -> IResult<&str, Expr> {
     let equals = map(tag(EQUAL), |_: &str| Operator::Equal);
     let not_equals = map(tag(NOT_EQUAL), |_: &str| Operator::NotEqual);
     let greater = map(tag(GREATER), |_: &str| Operator::Greater);
@@ -193,11 +209,7 @@ fn primary(input: &str) -> IResult<&str, Expr> {
     let literal = map(literal, |literal| Expr::from(LiteralExpr::from(literal)));
     let identifier = map(identifier, |ident| Expr::from(VarExpr::from(ident)));
     let grouping = map(
-        delimited(
-            tag(LEFT_PAREN),
-            lead_ws(expression),
-            lead_ws(tag(RIGHT_PAREN)),
-        ),
+        delimited(tag(LEFT_PAREN), lead_ws(expr), lead_ws(tag(RIGHT_PAREN))),
         |expr| Expr::from(GroupingExpr { expr }),
     );
 
@@ -209,9 +221,9 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_expression() {
+    fn test_expr() {
         let input = "Ctr1 > Ctr2; !(Ctr1 == Ctr2, RepId1 > RepId2)";
-        let result = expression(input);
+        let result = expr(input);
         let expected = Expr::from(BinaryExpr {
             operator: Operator::Or,
             left: Expr::from(BinaryExpr {

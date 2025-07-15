@@ -206,21 +206,22 @@ on the relation's tuples during query execution-time.
 program     = rule* EOF ;
 rule        = head ":-" body "." ;
 head        = "distinct"? IDENTIFIER "(" field ( "," field )* ")" ;
-field       = IDENTIFIER ( "=" expression )? ;
+field       = IDENTIFIER ( "=" safe_expr )? ;
 body        = ( atom ( "," atom )* )? ;
-atom        = ( "not"? predicate ) | "(" expression ")" | comparison ;
+atom        = ( "not"? predicate ) | safe_expr ;
 predicate   = IDENTIFIER "(" variable ( "," variable )* ")" ;
 variable    = IDENTIFIER ( "=" IDENTIFIER )? ;
 
 // Scalar expressions grammar.
-expression  = logical_or ;
+safe_expr   = "(" expr ")" | comparison ;
+expr        = logical_or ;
 logical_or  = logical_and ( ";" logical_and )* ;
 logical_and = comparison ( "," comparison )* ;
 comparison  = term ( ( "==" | "!=" | ">" | ">=" | "<" | "<=" ) term )? ;
 term        = factor ( ( "+" | "-" ) factor )* ;
 factor      = unary ( ( "*" | "/" ) unary )* ;
 unary       = ( "-" | "!" ) unary | primary ;
-primary     = literal | IDENTIFIER | "(" expression ")" ;
+primary     = literal | IDENTIFIER | "(" expr ")" ;
 literal     = BOOL | UINT | IINT | STRING | NULL ;
 
 // Primitives and literals.

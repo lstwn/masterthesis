@@ -83,7 +83,7 @@ pub const LIST_CRDT_DATALOG: &str = r#"
           hasValue(NextRepId = ElemId, NextCtr = ElemCtr).
 
         listElem(PrevRepId, PrevCtr, Value, NextRepId, NextCtr) :-
-          nextVisible(PrevRepId, PrevCtr, NextCtr, NextRepId),
+          nextVisible(PrevRepId, PrevCtr, NextRepId, NextCtr),
           insert(NextRepId = RepId, NextCtr = Ctr, Value).
     "#;
 

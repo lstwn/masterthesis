@@ -99,7 +99,7 @@ of \ac{RGA}.
 List \acp{CRDT} are more complex than key-value stores because they have to
 converge to the \emph{same order} of elements across replicas under concurrent
 updates.
-The list \ac{CRDT} presented here resembles \ac{RGA}'s design,
+The list \ac{CRDT} presented here resembles the causal tree \ac{RGA} formulation,
 which is based on the idea that insertions do not specify an index for their
 position, but instead each list element is assigned a unique, immutable identifier,
 and each insertion references the identifier of the element after which it wants
@@ -115,9 +115,10 @@ and they provide a total order by first comparing the counters and,
 in case of ties, by breaking them through comparing the replica ids.
 I initially focus only on insertions into the list, and discuss deletions later.
 
-Logically, insertions in \ac{RGA} can be represented in a tree structure,
-where each node's \emph{parent} is the element after which it is supposed to be
-inserted (but may not in the final list order due to concurrent insertions).
+Logically, each insertion of an element into the list can be represented in a
+tree structure, where each node's \emph{parent} is the element after which it
+is supposed to be inserted (but may not in the final list order due to
+concurrent insertions).
 The root element is some sentinel element that is always present and does not
 contribute to the list's content.
 A node's \emph{children} are \emph{descendingly} ordered by their identifiers.
@@ -235,7 +236,7 @@ nextVisible(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
     hasValue(NextRepId = ElemId, NextCtr = ElemCtr).
 
 listElem(PrevRepId, PrevCtr, Value, NextRepId, NextCtr) :-
-    nextVisible(PrevRepId, PrevCtr, NextCtr, NextRepId),
+    nextVisible(PrevRepId, PrevCtr, NextRepId, NextCtr),
     insert(NextRepId = RepId, NextCtr = Ctr, Value).\end{lstlisting}
 		\caption{Part 4: Definition of ``listElem'' \ac{IDBP}.}\label{code:list-crdt-datalog-dialect-part4}
 	\end{subfigure}
@@ -248,14 +249,15 @@ listElem(PrevRepId, PrevCtr, Value, NextRepId, NextCtr) :-
 in my Datalog dialect.
 To explain the query, I use \ref{fig:list-crdt} as an example in which
 three replicas, with id 1, 2, and 3, insert elements into the list.
-\ref{fig:list-crdt} visualizes the ``insert(RepId, Ctr, ParentRepId, ParentCtr)''
-\ac{EDBP} with entries:
+\ref{fig:list-crdt} visualizes the
+``insert(RepId, Ctr, ParentRepId, ParentCtr, Value)'' \ac{EDBP} with entries:
 
-\[\{ (2,1,0,0), (2,3,2,1), (1,3,2,1), (3,2,2,1), (1,1,0,0), (2,2,1,1) \}\]
+\[\{ (2,1,0,0,'H'), (2,3,2,1,'E'), (1,3,2,1,'L'), (3,2,2,1,'L'), (1,1,0,0,'O'), (2,2,1,1,'!') \}\]
 
 Every node (except for the sentinel root) depicts a (\textit{RepId}, \textit{Ctr})
 pair and its black edge points to its parent defined by
 a (\textit{ParentRepId}, \textit{ParentCtr}) pair.
+The edge's label shows the value of the inserted element.
 The result of the depth-first, pre-order traversal is:
 
 \[[ (0,0), (2,1), (2,3), (1,3), (3,2), (1,1), (2,2) ]\]
@@ -291,14 +293,31 @@ defined by a (\textit{RepId}, \textit{Ctr}) pair:
 
 \[[ (0,0,2,1), (2,1,2,3), (2,3,1,3), (1,3,3,2), (3,2,1,1), (1,1,2,2) ]\]
 
-TODO:
-How to assign values to the list?
-How to handle deletions?
-How to output the order with the values?
+Every deletion generates an entry in the ``remove'' \ac{EDBP} with the
+(\textit{RepId}, \textit{Ctr}) pair of the node to be deleted.
+Therefore, some nodes may not have a value assigned anymore, in which case
+they represent a tombstone and must be skipped in the output.
+To achieve that, the ``listElem'' \ac{IDBP}
+(\ref{code:list-crdt-datalog-dialect-part4}) is used, which relies on
+the ``nextElemSkipTombstones'' and ``nextVisible'' \acp{IDBP}.
+The former is based on the ``nextElem'' \ac{IDBP} but additionally contains
+longer paths derived from the ``nextElem`` predicate which skip tombstoned nodes.
+The ``hasValue'' \ac{IDBP} checks whether a node has been tombstoned or not,
+and the first rule of its definition ensures that the sentinel root element
+(with id \((0, 0)\)) is always considered to have a value assigned to it.
+This is required to prevent the ``nextVisible'' \ac{IDBP} from skipping the
+first list element.
+The ``nextVisible'' \ac{IDBP} ensures that each node from the node pairs
+reported by the  ``nextElemSkipTombstones'' \ac{IDBP} has a value assigned to it.
+Finally, the ``nextElem'' \ac{IDBP} joins the non-tombstoned list elements'
+values to the pairs of nodes from the ``nextVisible'' \ac{IDBP}.
+Assuming a deletion of the node with id \((2, 2)\), the final list result is:
+
+\[\{ (0,0,'H',2,1), (2,1,'E',2,3), (2,3,'L',1,3), (1,3,'L',3,2), (3,2,'O',1,1) \}\]
 
 \section{Performance Evaluation}\label{sec:benchmarks}
 
-\ref{sec:near-real-time-benchmark} and \ref{sec:hydration-benchmark}
+\ref{sec:hydration-benchmark} and \ref{sec:near-real-time-benchmark}
 provide benchmarks of the three \acp{CRDT} from the previous section.
 Benchmarking happens in two different settings which are distinguished by
 the operators of the query plan being either ``cold'' or ``warm'':

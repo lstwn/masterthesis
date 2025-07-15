@@ -227,28 +227,27 @@ mod test {
         //         /           \
         //       (2,1)        (1,1)
         //     /   |   \        |
-        // (2,3) (1,3) (3,2)  (2,5)
+        // (2,3) (1,3) (3,2)  (2,2)
         // ```
         let data: [(Vec<InsertOp>, Vec<RemoveOp>); 1] = [(
             vec![
                 InsertOp::new(2, 1, 0, 0, 'H'),
-                InsertOp::new(1, 1, 0, 0, 'O'),
-                InsertOp::new(2, 5, 1, 1, '!'),
                 InsertOp::new(2, 3, 2, 1, 'E'),
                 InsertOp::new(1, 3, 2, 1, 'L'),
                 InsertOp::new(3, 2, 2, 1, 'L'),
+                InsertOp::new(1, 1, 0, 0, 'O'),
+                InsertOp::new(2, 2, 1, 1, '!'),
             ],
-            // We can remove the 'E' in the *middle* of the list! :)
-            vec![RemoveOp::new(2, 3)],
+            vec![RemoveOp::new(2, 2)],
         )];
 
         let mut expected = [zset! {
             // Schema: PrevRepId, PrevCtr, Char (Value), NextRepId, NextCtr.
             tuple!(0_u64, 0_u64, 'H', 2_u64, 1_u64) => 1,
-            tuple!(2_u64, 1_u64, 'L', 1_u64, 3_u64) => 1,
+            tuple!(2_u64, 1_u64, 'E', 2_u64, 3_u64) => 1,
+            tuple!(2_u64, 3_u64, 'L', 1_u64, 3_u64) => 1,
             tuple!(1_u64, 3_u64, 'L', 3_u64, 2_u64) => 1,
             tuple!(3_u64, 2_u64, 'O', 1_u64, 1_u64) => 1,
-            tuple!(1_u64, 1_u64, '!', 2_u64, 5_u64) => 1,
         }]
         .into_iter();
 

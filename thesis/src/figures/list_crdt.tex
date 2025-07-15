@@ -45,12 +45,12 @@
 
 		\def\offset{4pt}
 		\begin{scope}[on background layer]
-			\draw[parent] (sentinel) to[] (11);
-			\draw[parent] (sentinel) to[] (21);
-			\draw[parent] (11) to[] (22);
-			\draw[parent] (21) to[] (23);
-			\draw[parent] (21) to[] (13);
-			\draw[parent] (21) to[] (32);
+		    \draw[parent] (sentinel) to[] node[edgelabel,above]{H} (21);
+			\draw[parent] (sentinel) to[] node[edgelabel,above]{O} (11);
+			\draw[parent] (21) to[] node[edgelabel,above]{E} (23);
+			\draw[parent] (21) to[] node[edgelabel,above]{L} (13);
+			\draw[parent] (21) to[] node[edgelabel,above]{L} (32);
+			\draw[parent] (11) to[] node[edgelabel,above]{!} (22);
 
 			\draw[firstChild] (sentinel) to[bend right] node[edgelabel,above]{firstChild} (21);
 			\draw[firstChild] (21) to[bend right] node[edgelabel,above]{firstChild} (23);
@@ -67,6 +67,6 @@
 		\end{scope}
 	\end{tikzpicture}
 	\caption{
-		The tree spanned by RGA's updates.
+		An example tree spanned by insertions into the list \ac{CRDT}.
 	}\label{fig:list-crdt}
 \end{figure}

@@ -36,7 +36,7 @@ but the verification of the RGA list \ac{CRDT}, which I define in Datalog in
 Fractional-indexing uses arbitrary precision rational numbers for the list
 elements' indices and insertions pick a value between its predecessor and
 successor elements as their index.
-While this is verfiable, it is inefficient in practice and causes
+While this is verifiable, it is inefficient in practice and causes
 interleaving issues of concurrent insertions from different replicas~\cite{fugue}.
 
 Previous work~\cite{kleppmann2018data} has proposed Datalog as a \ac{DSL}
@@ -75,8 +75,8 @@ expressing \acp{CRDT} as Datalog queries through:
 	\item \textbf{Providing \ac{CRDT} definitions} of a \ac{MVR} key-value store
 	      (\ref{sec:motivating-example,sec:key-value-stores-datalog-dialect}),
 	      a list (\ref{sec:list-crdt-datalog-dialect}), and a causal broadcast
-		  (\ref{sec:advanced_example,sec:key-value-stores-datalog-dialect})
-		  in my Datalog dialect.
+	      (\ref{sec:advanced_example,sec:key-value-stores-datalog-dialect})
+	      in my Datalog dialect.
 	      \ref{sec:benchmarks} evaluates their performance in two settings:
 	      (1) simulating an application restart by feeding in all updates to
 	      the \ac{CRDT} at once, and (2) simulating near-real-time collaboration

@@ -67,12 +67,12 @@ closure <- FixedPointIterExpr {
 			\foreach \i in {9,10}
 				{\node[qtime,minimum height=6*2.0ex,
 						fit=(pic cs:qtime\i1) (pic cs:qtime\i2) (pic cs:qtime\i3)
-					] (sadf) {};}
+					] () {};}
 		\end{scope}
 	\end{tikzpicture}
 
 	\caption{
-	    The computation of the transitive closure from \ref{code:trans-closure-datalog}
+		The computation of the transitive closure from \ref{code:trans-closure-datalog}
 		translated into the \ac{IR}.
 	}\label{code:trans-closure-ir}
 \end{figure}

@@ -27,10 +27,12 @@ to support a non-incremental mode at all.
 
 To minimize the interpretation overhead of the query engine, it could
 benefit from some performance engineering.
-Tuples are currently represented as vectors and, hence, each tuple access
-may cause a cache miss.
-Testing different physical data layouts for tuples, e.g., overflow-to-heap
-vectors\footnotemark{}, could be an interesting direction to explore.
+The physical representation of a tuple is currently a vector of scalar values.
+Hence, accessing a tuple's fields requires dereferencing a pointer and thereby
+potentially causing a cache miss with each (first) access.
+By inlining so many fields into the tuple representation that a cache line
+is filled, the number of cache misses can be reduced.
+If necessary, further fields could overflow to the heap\footnotemark{}.
 To further reduce the number of cache misses, the physical representation of an
 \ac{IR} program could be adapted to use a more cache-friendly data layout, too:
 Instead of expressions storing references to other expressions in their
@@ -42,10 +44,6 @@ it is executed frequently (per tuple) instead of just once at query build-time
 for creating the query plan.
 
 \footnotetext{
-	Overflow-to-heap vectors are vectors that store their elements
-	in a contiguous memory region, but if the vector grows beyond a certain
-	threshold, it allocates a new memory region on the heap and moves new
-	elements there.
 	Rust's \href{https://docs.rs/smallvec/latest/smallvec/}{\texttt{smallvec}}
 	library implements this concept.
 }

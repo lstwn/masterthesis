@@ -369,7 +369,7 @@ the operators of the query plan being either ``cold'' or ``warm'':
 		  ``cold'' application restart. This benchmark measures the time it takes
 	      until the application can show its last state and process \emph{new}
 		  updates again on top of an existing operation history.
-	\item \textbf{Near-real time setting} (\ref{sec:bench-nrt}).
+	\item \textbf{Near-real-time setting} (\ref{sec:bench-nrt}).
 	      In this setting, the operators are assumed to be ``warm'' and only
 	      a small number of updates are new to them.
 	      This benchmark measures the common operation mode of \acp{CRDT} after
@@ -427,68 +427,69 @@ base diameter.
 
 \ref{fig:bench-list-hdr} shows the benchmark results of the list \ac{CRDT}
 in the hydration setting.
-The \emph{base text length} \(\in \{1000, 2000, 3000, 4000, 5000\}\) is the number of
-characters in the text that is used to generate the causal history.
+The benchmark generates a causal history of successive insert operations, i.e.,
+there are no deletions and cursor jumps but only consecutive insertions that
+gradually build up the text by inserting new characters at the end of the list.
+Hence, the \emph{base text length} \(\in \{10000, 20000, 30000, 40000, 50000\}\)
+is the number of insert operations.
+The benchmark shows that an increase in the base text length by 10000 insertions
+causes an increase in the runtime of about 200 milliseconds.
+Loading a document with 50000 operations in this scenario takes about a second.
 
 \subsection{Near-Real-Time Setting}\label{sec:bench-nrt}
 
+The near-real-time setting extends the hydration setting insofar that it builds
+upon the states of the hydration setting.
+After the operators have been hydrated according to the parameters of the
+hydration setting, this benchmark feeds in only a small number of additional updates.
+It does not include the time it takes to parse the Datalog query nor to set up
+the DBSP circuit, as the near-real-time setting simulates the situation
+in which the application has already started up and is running.
+
 \input{figures/bench_kv_store_nrt.tex}
 
-\ref{fig:bench-kv-stores-nrt} shows benchmarks of the simple \ac{MVR} key-value
-store (\ref{code:mvr-store-datalog-dialect}) and the advanced \ac{MVR} key-value
-store (\ref{code:mvr-crdt-datalog-dialect}) in the near-real-time
-setting.
-Their distinguishing factor is the inclusion of the causal broadcast mechanism
-and this can be seen in their performance difference, too.
-The benchmark is set up as follows:
-The \emph{base diameter} \(\in \{1000, 2000, 3000, 4000, 5000\}\) is the diameter
-of the causal history if viewed as a directed graph,
-i.e., the longest shortest path from a root to a leaf.
-The base diameter is also equal to the number of operations (plus one),
-yielding a long chain of operations in the causal history.
+\ref{fig:bench-kv-stores-nrt} shows benchmarks for the key-value stores.
 The \emph{delta diameter} \(\in \{20, 40, 60, 80, 100\}\) is the diameter of the
-updates, again viewed as a directed graph.
-The benchmark measures the time it takes to apply an update with the given
-delta diameter on top of a causal history with the given base diameter.
-For instance, the first ``+'' mark of the blue line in
-\ref{fig:bench-kv-stores-nrt} shows that it takes about 20 milliseconds
-to apply 20 new operations on top of a causal history with a base diameter of
-1000 for the CRDT from \ref{code:mvr-crdt-datalog-dialect}.
-
+updates, again viewed as a directed graph, and generated as in the hydration
+setting.
 The benchmark reveals some interesting patterns.
-First, the base diameter and the delta diameter have no significant impact
-on the performance of the simple key-value store without the causal broadcast
-mechanism.
-In fact, varying the base diameter has no impact on the performance, i.e.,
-the the age of the causal history does not matter in this case.
-Therefore, only one measurement for this \ac{CRDT} is visible at all
-in \ref{fig:bench-kv-stores-nrt}.
-Varying the delta diameter lets the performance change by less than one millisecond
-and is therefore negligible, too.
-In total, the runtimes are less than one millisecond for all base and delta diameters.
-
-Second, the advanced key-value store with the causal broadcast mechanism
-is significantly slower than the simple key-value store.
+For the key-value store without causal broadcast
+from \ref{code:mvr-store-datalog-dialect}, the base diameter has no impact on
+the performance.
+Varying the delta diameter has only a small impact on the
+performance (\ref{fig:bench-kv-store-nrt-nocb}).
+Regardless, in any case the time to process the updates is less than a quarter
+of a millisecond.
+However, the key-value store with causal broadcast
+from \ref{code:mvr-crdt-datalog-dialect} also shows only a small impact from
+varying the delta diameter.
+The base diameter, on the other hand, has a significant impact on the performance
+(\ref{fig:bench-kv-store-nrt-cb}):
 An increase in the base diameter by 1000 causes an increase of the runtime of
 about 20 milliseconds, rendering this \ac{CRDT} \emph{dependent} on the age
 of the causal history.
-Yet, an increase in the delta diameter has little impact on the performance
-for a given base diameter.
-The results match their query patterns:
-The advanced key-value store has to traverse the causal history from its
-roots to its leaves to find the causally ready operations.
-The fixed point iteration responsible for this graph traversal encompasses the
-evaluation of dependent joins relative to the size of the diameter of the causal
-history.
-Due to the \emph{dependent} joins, I suspect that even a multi-threaded execution
-would not improve the performance in this case.
+This is again due to the dependent joins of the causal broadcast's fixed point
+iteration.
+I suspect that even a multi-threaded execution would not improve the performance
+in this case, as the joins are dependent, rendering the computation inherently
+sequential.
 A clever query optimizer could possibly turn the causal broadcast into
 a near constant time operation by, e.g., testing causal readiness of a new operation
 from the current leaves of the causal history and thus avoiding the
 costly search from the roots, as most new operations are likely a causal successor
 of the current leaves.
 
+% TODO: Include above
+The advanced key-value store has to traverse the causal history from its
+roots to its leaves to find the causally ready operations.
+The fixed point iteration responsible for this graph traversal encompasses the
+evaluation of dependent joins relative to the size of the diameter of the causal
+history.
+
 \input{figures/bench_list_nrt.tex}
+
+% TODO: Text list results
+% TODO: Mention the primitive nature of the benchmarks
 
 \section{Related Work}\label{sec:related-work}
 

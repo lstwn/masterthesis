@@ -175,12 +175,12 @@ mod test {
         // ```
         let data: [(Vec<InsertOp>, Vec<RemoveOp>); 1] = [(
             vec![
-                InsertOp::new(0, 1, 0, 0, 'O'),
                 InsertOp::new(0, 2, 0, 0, 'H'),
-                InsertOp::new(0, 3, 0, 2, 'L'),
-                InsertOp::new(0, 4, 0, 1, '!'),
-                InsertOp::new(0, 5, 0, 2, 'L'),
                 InsertOp::new(0, 6, 0, 2, 'E'),
+                InsertOp::new(0, 5, 0, 2, 'L'),
+                InsertOp::new(0, 3, 0, 2, 'L'),
+                InsertOp::new(0, 1, 0, 0, 'O'),
+                InsertOp::new(0, 4, 0, 1, '!'),
             ],
             // No removals here.
             vec![],
@@ -189,11 +189,11 @@ mod test {
         let mut expected = [zset! {
             // Schema: PrevRepId, PrevCtr, Char (Value), NextRepId, NextCtr.
             tuple!(0_u64, 0_u64, 'H', 0_u64, 2_u64) => 1,
-            tuple!(0_u64, 1_u64, '!', 0_u64, 4_u64) => 1,
             tuple!(0_u64, 2_u64, 'E', 0_u64, 6_u64) => 1,
-            tuple!(0_u64, 3_u64, 'O', 0_u64, 1_u64) => 1,
-            tuple!(0_u64, 5_u64, 'L', 0_u64, 3_u64) => 1,
             tuple!(0_u64, 6_u64, 'L', 0_u64, 5_u64) => 1,
+            tuple!(0_u64, 5_u64, 'L', 0_u64, 3_u64) => 1,
+            tuple!(0_u64, 3_u64, 'O', 0_u64, 1_u64) => 1,
+            tuple!(0_u64, 1_u64, '!', 0_u64, 4_u64) => 1,
         }]
         .into_iter();
 
@@ -219,8 +219,9 @@ mod test {
         let insert_op_input = inputs.get("insert").unwrap();
         let remove_op_input = inputs.get("remove").unwrap();
 
-        // Example tree, encoded as `insert(ChildRepId, ChildCtr, ParentRepId, ParentCtr)`
-        // facts. Below, a node depicts `(RepId, Ctr)`:
+        const CYCLES: usize = 3;
+        // Example tree, encoded as `insert(ChildRepId, ChildCtr, ParentRepId, ParentCtr, Value)`
+        // facts. Below, a node depicts a `(RepId, Ctr)` pair. The `Value` is not shown though.
         //
         // ```text
         //             (0,0) <- sentinel element
@@ -229,27 +230,42 @@ mod test {
         //     /   |   \        |
         // (2,3) (1,3) (3,2)  (2,2)
         // ```
-        let data: [(Vec<InsertOp>, Vec<RemoveOp>); 1] = [(
-            vec![
-                InsertOp::new(2, 1, 0, 0, 'H'),
-                InsertOp::new(2, 3, 2, 1, 'E'),
-                InsertOp::new(1, 3, 2, 1, 'L'),
-                InsertOp::new(3, 2, 2, 1, 'L'),
-                InsertOp::new(1, 1, 0, 0, 'O'),
-                InsertOp::new(2, 2, 1, 1, '!'),
-            ],
-            vec![RemoveOp::new(2, 2)],
-        )];
+        let data: [(Vec<InsertOp>, Vec<RemoveOp>); CYCLES] = [
+            (
+                vec![
+                    InsertOp::new(2, 1, 0, 0, 'H'),
+                    InsertOp::new(2, 3, 2, 1, 'E'),
+                    InsertOp::new(1, 3, 2, 1, 'L'),
+                    InsertOp::new(3, 2, 2, 1, 'L'),
+                    InsertOp::new(1, 1, 0, 0, 'O'),
+                    InsertOp::new(2, 2, 1, 1, '!'),
+                ],
+                vec![],
+            ),
+            (vec![], vec![RemoveOp::new(2, 2)]),
+            (vec![], vec![RemoveOp::new(2, 1)]),
+        ];
 
-        let mut expected = [zset! {
-            // Schema: PrevRepId, PrevCtr, Char (Value), NextRepId, NextCtr.
-            tuple!(0_u64, 0_u64, 'H', 2_u64, 1_u64) => 1,
-            tuple!(2_u64, 1_u64, 'E', 2_u64, 3_u64) => 1,
-            tuple!(2_u64, 3_u64, 'L', 1_u64, 3_u64) => 1,
-            tuple!(1_u64, 3_u64, 'L', 3_u64, 2_u64) => 1,
-            tuple!(3_u64, 2_u64, 'O', 1_u64, 1_u64) => 1,
-        }]
-        .into_iter();
+        let mut expected = ([
+            zset! {
+                // Schema: PrevRepId, PrevCtr, Char (Value), NextRepId, NextCtr.
+                tuple!(0_u64, 0_u64, 'H', 2_u64, 1_u64) => 1,
+                tuple!(2_u64, 1_u64, 'E', 2_u64, 3_u64) => 1,
+                tuple!(2_u64, 3_u64, 'L', 1_u64, 3_u64) => 1,
+                tuple!(1_u64, 3_u64, 'L', 3_u64, 2_u64) => 1,
+                tuple!(3_u64, 2_u64, 'O', 1_u64, 1_u64) => 1,
+                tuple!(1_u64, 1_u64, '!', 2_u64, 2_u64) => 1,
+            },
+            zset! {
+                tuple!(1_u64, 1_u64, '!', 2_u64, 2_u64) => -1,
+            },
+            zset! {
+                tuple!(0_u64, 0_u64, 'H', 2_u64, 1_u64) => -1,
+                tuple!(2_u64, 1_u64, 'E', 2_u64, 3_u64) => -1,
+                tuple!(0_u64, 0_u64, 'E', 2_u64, 3_u64) => 1,
+            },
+        ] as [_; CYCLES])
+            .into_iter();
 
         for (insert_op_step, remove_op_step) in data {
             insert_op_input.insert_with_same_weight(&insert_op_step, 1);

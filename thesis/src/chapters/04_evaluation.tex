@@ -10,7 +10,7 @@ To evaluate the approach's viability in practice,
 \ref{sec:benchmarks} presents benchmarks of the implemented \acp{CRDT}
 which are executed on my query engine from \ref{ch:implementation}.
 
-\section{\acp{CRDT} as Queries}\label{sec:crdts-as-queries}
+\section{\acsp{CRDT} as Queries}\label{sec:crdts-as-queries}
 
 \ref{sec:key-value-stores-datalog-dialect} shows the familiar \ac{MVR} key-value
 stores from \ref{ch:intro} in my Datalog dialect.
@@ -80,7 +80,7 @@ Key differences are the inclusion of \acp{EDBP}, the use of name-based indexing,
 and the explicit use of the ``distinct'' operator to ensure that a predicate
 has set (instead of multiset) semantics.
 
-\subsection{List \ac{CRDT}}\label{sec:list-crdt-datalog-dialect}
+\subsection{List \acs{CRDT}}\label{sec:list-crdt-datalog-dialect}
 
 List \acp{CRDT} enable replicas to converge to the same sequence of elements.
 Fundamentally, they support two kinds of operations:
@@ -416,17 +416,18 @@ without causal broadcast from \ref{code:mvr-store-datalog-dialect} and the
 key-value store including causal broadcast from \ref{code:mvr-crdt-datalog-dialect}.
 The causal broadcast mechanism has a significant impact on the performance:
 While an increase of the base diameter by 1000 causes the performance of the
-key-value store without causal broadcast to increase by about two milliseconds,
+key-value store without causal broadcast to increase by roughly two milliseconds,
 the key-value store's performance including causal broadcast increases by about
 40 milliseconds.
-The reason for this behavior is the costly fixed point iteration of the causal
-broadcast mechanism which require as many \emph{dependent} joins as the
-base diameter.
+The reason for this behavior the graph traversal of the causal history from its
+roots to its leaves to find the causally ready operations.
+The fixed point iteration responsible for this graph traversal requires evaluating
+a sequence of \emph{dependent} joins relative to the size of the diameter
+of the causal history.
 
 \input{figures/bench_list_hdr.tex}
 
-\ref{fig:bench-list-hdr} shows the benchmark results of the list \ac{CRDT}
-in the hydration setting.
+\ref{fig:bench-list-hdr} shows the benchmark results of the list \ac{CRDT}.
 The benchmark generates a causal history of successive insert operations, i.e.,
 there are no deletions and cursor jumps but only consecutive insertions that
 gradually build up the text by inserting new characters at the end of the list.
@@ -442,27 +443,26 @@ The near-real-time setting extends the hydration setting insofar that it builds
 upon the states of the hydration setting.
 After the operators have been hydrated according to the parameters of the
 hydration setting, this benchmark feeds in only a small number of additional updates.
-It does not include the time it takes to parse the Datalog query nor to set up
-the DBSP circuit, as the near-real-time setting simulates the situation
-in which the application has already started up and is running.
+The new batch of updates is inserted at once and then processed by the DBSP circuit.
+The benchmark does not account for the time it takes to parse the Datalog query
+nor to set up the DBSP circuit, as the near-real-time setting simulates
+the situation in which the application has already started up and is running.
 
 \input{figures/bench_kv_store_nrt.tex}
 
-\ref{fig:bench-kv-stores-nrt} shows benchmarks for the key-value stores.
-The \emph{delta diameter} \(\in \{20, 40, 60, 80, 100\}\) is the diameter of the
-updates, again viewed as a directed graph, and generated as in the hydration
-setting.
+\ref{fig:bench-kv-stores-nrt} shows benchmark results of the key-value stores.
+A \emph{delta diameter} of size \(d \in \{20, 40, 60, 80, 100\}\) extends the
+chain of operations from the hydration setting by \(d\) additional operations.
 The benchmark reveals some interesting patterns.
 For the key-value store without causal broadcast
-from \ref{code:mvr-store-datalog-dialect}, the base diameter has no impact on
-the performance.
+from \ref{code:mvr-store-datalog-dialect},
+the base diameter has no impact on the performance.
 Varying the delta diameter has only a small impact on the
 performance (\ref{fig:bench-kv-store-nrt-nocb}).
-Regardless, in any case the time to process the updates is less than a quarter
-of a millisecond.
-However, the key-value store with causal broadcast
-from \ref{code:mvr-crdt-datalog-dialect} also shows only a small impact from
-varying the delta diameter.
+In any case, processing the updates takes less than a quarter of a millisecond.
+The key-value store including causal broadcast
+from \ref{code:mvr-crdt-datalog-dialect} shows only a small impact from
+varying the delta diameter, too.
 The base diameter, on the other hand, has a significant impact on the performance
 (\ref{fig:bench-kv-store-nrt-cb}):
 An increase in the base diameter by 1000 causes an increase of the runtime of
@@ -473,23 +473,25 @@ iteration.
 I suspect that even a multi-threaded execution would not improve the performance
 in this case, as the joins are dependent, rendering the computation inherently
 sequential.
-A clever query optimizer could possibly turn the causal broadcast into
+However, a clever query optimizer could possibly turn the causal broadcast into
 a near constant time operation by, e.g., testing causal readiness of a new operation
 from the current leaves of the causal history and thus avoiding the
 costly search from the roots, as most new operations are likely a causal successor
 of the current leaves.
 
-% TODO: Include above
-The advanced key-value store has to traverse the causal history from its
-roots to its leaves to find the causally ready operations.
-The fixed point iteration responsible for this graph traversal encompasses the
-evaluation of dependent joins relative to the size of the diameter of the causal
-history.
-
 \input{figures/bench_list_nrt.tex}
 
-% TODO: Text list results
-% TODO: Mention the primitive nature of the benchmarks
+\ref{fig:bench-list-nrt} shows the benchmark results of the list \ac{CRDT}.
+A \emph{delta text length} of size \(d \in \{20, 40, 60, 80, 100\}\) adds
+a burst of \(d\) successive insertions at the end of the list, respectively.
+Applying the burst and evaluating the list \ac{CRDT} takes between 1.5 and
+5.25 milliseconds depending on the base text length and the delta text length.
+Similar to the key-value store including causal broadcast,
+the base text length has an impact on the performance, albeit not as significant.
+A base text length increase of 10000 causes an increase in the runtime by roughly
+half a millisecond.
+Increasing the delta text length by 20 causes an increase in the runtime
+by about 0.4 milliseconds for all base text lengths.
 
 \section{Related Work}\label{sec:related-work}
 
@@ -559,7 +561,7 @@ being analyzed more closely, especially in the context of \emph{incremental}
 query engines.
 Only \cite{dynamicdatalog} explores executing Datalog queries incrementally
 on top of DBSP through an interpreter but it only supports positive Datalog.
-In comparison to my approach, it allows to add and remove rules dynamically
+In comparison to my approach, it allows adding and removing rules dynamically
 at run-time and it is more tied to DBSP because the evaluation happens
 directly on a DBSP circuit without an \ac{IR} as an abstraction.
 
@@ -573,7 +575,7 @@ Feldera~\cite{felderainc} and Materialize~\cite{materializeinc}, respectively.
 A prominent representative of non-incremental Datalog engines is
 Soufflé~\cite{souffle} which compiles Datalog queries into C++ code to execute
 them efficiently.
-Ascent~\cite{ascent} allows to seamlessly embed Datalog queries into Rust
+Ascent~\cite{ascent} allows seamlessly embedding Datalog queries into Rust
 programs by defining them through Rust's macros.
 Flix~\cite{flix} extends Datalog's semantics with support for lattices to
 facilitate expressing programs to solve problems in static program analysis.

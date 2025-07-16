@@ -303,7 +303,7 @@ impl TupleSchema {
         // For keeping track of duplicated field names.
         let mut active = HashSet::with_capacity(fields.len());
         // Don't use active_fields() here because the tuple is not coalesced
-        // but we only allow to pick from the set of active fields though.
+        // but we only allow picking from the set of active fields though.
         self.all_fields()
             .map(|(_index, info)| {
                 // We do not reactivate already inactive fields.

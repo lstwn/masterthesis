@@ -158,7 +158,7 @@ pub struct KeyValueStoreReplica {
     /// The current key value store data. Both keys and values are u64s.
     store: HashMap<u64, HashSet<u64>>,
     /// The heads (leafs) of the causal broadcast graph. Would be nice to have
-    /// them be obtained from their Datalog definition but this requires to support
+    /// them be obtained from their Datalog definition but this requires supporting
     /// specifying multiple predicates of interest first.
     ///
     /// So for now, we resort to maintaining them manually.

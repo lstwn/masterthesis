@@ -117,9 +117,13 @@ set of updates.
 \ref{sec:crdts-as-queries} defines map and list \acp{CRDT} as queries.
 More research is needed to define and benchmark further \acp{CRDT} as queries
 before putting this idea into practice.
-It is especially important to better understand their performance under various
-workloads, e.g., different concurrency patterns, to guide future directions for
-optimizing the query engine.
+It is especially important to better understand the performance under various
+workloads, e.g., different concurrency patterns, to guide future directions
+for optimizing the query engine.
+A sophisticated simulation framework which can not only model concurrency among
+replicas but also network delays and allows writing adapters to different
+\ac{CRDT} implementations would be useful for testing and benchmarking
+different \acp{CRDT}.
 Finally, the question remains if there are \acp{CRDT} that cannot be expressed
 with Datalog's restricted expressiveness with stratified negation.
 A move operation in replicated trees~\cite{moveop1,moveop2} may be a challenging

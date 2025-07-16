@@ -58,7 +58,7 @@ impl IndexedTestStream {
         let selected = self.a.inner.filter(move |tuple| {
             // Put attributes into scope. How?
             // - Define vars uninitialized beforehand and just assign them here?
-            //   This would allow to run the resolver just once before the
+            //   This would allow running the resolver just once before the
             //   interpreter starts.
             // - Define vars with a var declaration stmt with an initializer?
             //   But this requires running the resolver for each tuple.

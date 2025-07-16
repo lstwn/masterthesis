@@ -1,22 +1,19 @@
 \chapter{\abstractname}
 
-Concurrent writes make it challenging to define \acsp{CRDT} correctly and
+\acsp{CRDT} are data structures which allow replicas to converge to the same
+state in the presence of uncoordinated, concurrent writes.
+The latter make it challenging to define \acsp{CRDT} correctly and
 complicate the proof of their convergence.
 To eliminate an entire class of convergence-related errors,
 researchers have proposed defining \acsp{CRDT} in restricted,
-\aclp{DSL} that ensure \acsp{CRDT} always converge to the same result across replicas.
+\aclp{DSL} that ensure \acsp{CRDT} always converge.
 
 This work explores using Datalog --- applied over a monotonically growing set of
 operations --- as a \acl{DSL} for defining \acsp{CRDT} with guaranteed convergence.
 To avoid performance degradation as the set of operations grows,
-I investigate the use of incremental computation via the recent DBSP framework
-to evaluate Datalog-based \acs{CRDT}  queries.
-I present \acs{CRDT} implementations of a key value store and a list using a custom
-Datalog dialect that supports negation and self-recursion.
-Their performance is evaluated on a custom-built, incremental query engine based
-on relational algebra.
-Consequently, this work also encompasses the translation from Datalog programs
-into reasonably efficient relational query plans.
+I utilize incremental computation via the recent DBSP framework to evaluate
+Datalog \acs{CRDT} queries on a custom-built query engine.
+Its performance is evaluated using a key-value store and a list \acs{CRDT}.
 
 This work is an initial step towards a future in which application developers are
 empowered to define their own \acsp{CRDT} in a high-level query language without
@@ -27,30 +24,26 @@ cost of guaranteed convergence.
 \selectlanguage{ngerman}
 \chapter{Kurzfassung}
 
-Gleichzeitige Schreibzugriffe erschweren die korrekte Definition von CRDTs und
-verkomplizieren den Beweis ihrer Konvergenz.
-Um eine ganze Klasse konvergenzbezogener Fehler zu eliminieren,
-haben Forscher vorgeschlagen, CRDTs in eingeschränkten, domänenspezifischen Sprachen
-zu definieren, die sicherstellen, dass CRDTs auf allen Replikaten stets zum
-gleichen Ergebnis konvergieren.
+\acsp{CRDT} sind Datenstrukturen, die es Replikaten ermöglichen, zum gleichen Zustand
+zu konvergieren, trotz unkoordinierter, nebenläufiger Schreibzugriffe.
+Letztere erschweren die korrekte Definition von \acsp{CRDT} und
+machen den Beweis ihrer Konvergenz kompliziert.
+Um eine ganze Klasse konvergenzbezogener Fehler zu eliminieren, haben Forscher
+vorgeschlagen, \acsp{CRDT} in eingeschränkten, domänenspezifischen Sprachen
+zu definieren, die ihre Konvergenz garantieren.
 
 Diese Arbeit untersucht die Verwendung von Datalog --- angewendet auf eine monoton
 wachsende Menge von Operationen --- als domänenspezifische Sprache zur Definition
-von CRDTs mit garantierter Konvergenz.
+von \acsp{CRDT} mit garantierter Konvergenz.
 Um einer Leistungsverschlechterung bei wachsender Operationsmenge entgegenzuwirken,
-wird der Einsatz inkrementeller Berechnung mithilfe des DBSP-Frameworks zur
-Auswertung von Datalog-basierten CRDT-Anfragen untersucht.
-Es werden CRDT Implementierungen eines Key-Value-Stores und einer Liste vorgestellt,
-die eine eigene Datalog Variante nutzen, welche Negation und Selbstrekursion unterstützt.
-Die Performance wird mithilfe einer eigens entwickelten, inkrementellen Anfrage-Engine
-auf Basis relationaler Algebra evaluiert.
-Infolgedessen umfasst diese Arbeit auch die Übersetzung von Datalog Programmen
-in effizient ausführbare relationale Anfragepläne.
+wird inkrementelle Berechnung mit Hilfe des DBSP-Frameworks benutzt,
+um Datalog-\acs{CRDT}-Abfragen auf einer eigens entwickelten Abfrage-Engine auszuführen.
+Die Performance wird mithilfe eines Key-Value-Stores und einer Listen-\acs{CRDT} evaluiert.
 
-Diese Arbeit stellt einen ersten Schritt in Richtung einer Zukunft dar,
-in der Anwendungsentwickler ihre eigenen CRDTs in einer Abfragesprache
+Diese Arbeit stellt einen ersten Schritt für eine Zukunft dar,
+in der Anwendungsentwickler ihre eigenen \acsp{CRDT} in einer Abfragesprache
 definieren können, ohne sich um deren konkrete Implementierung oder
-Konvergenzeigenschaften kümmern zu müssen.
+Konvergenzeigenschaften sorgen zu müssen.
 Im weiteren Sinne trägt sie zur laufenden Erforschung der Kosten garantierter
 Konvergenz bei.
 \selectlanguage{american}

@@ -1,18 +1,18 @@
 \begin{figure}[hbt]
-	\centering
+    \centering
 
     \begin{tikzpicture}
     \begin{axis}[
         axis on top, ymin=0,
-   	legend pos=north east,
-   	legend style={
-   	    anchor=north west,xshift=15pt,
+    legend pos=north east,
+    legend style={
+        anchor=north west,xshift=15pt,
     },
     grid=major,
-   	thick,
-   	xlabel={Delta Text Length},
-   	ylabel={Median Runtime (ms)},
-   	sharp plot,
+    thick,
+    xlabel={Delta Text Length},
+    ylabel={Median Runtime (ms)},
+    sharp plot,
     ]
     \foreach \i in {10000, 20000, 30000, 40000, 50000} {
         \addplot+[mark=*] table [

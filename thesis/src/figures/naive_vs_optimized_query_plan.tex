@@ -1,121 +1,121 @@
 \begin{figure}[tpb]
-	\centering
+    \centering
 
-	\begin{subfigure}[b]{\textwidth}
-		\centering
-		\begin{tabular}{c}
-			\begin{lstlisting}[keepspaces]
+    \begin{subfigure}[b]{\textwidth}
+        \centering
+        \begin{tabular}{c}
+            \begin{lstlisting}[keepspaces]
 mvrStore(Key, Value) :- set(RepId, Ctr, Key, Value),
                         isCausallyReady(RepId, Ctr),
                         isLeaf(RepId, Ctr).\end{lstlisting}
-		\end{tabular}
-		\caption{The ``mvrStore'' rule to optimize.}\label{code:mvr-store-rule}
-	\end{subfigure}
+        \end{tabular}
+        \caption{The ``mvrStore'' rule to optimize.}\label{code:mvr-store-rule}
+    \end{subfigure}
 
-	\vspace{1em}
+    \vspace{1em}
 
-	\begin{subfigure}[b]{0.46\textwidth}
-		\centering
-		\begin{tikzpicture}
-			\small
+    \begin{subfigure}[b]{0.46\textwidth}
+        \centering
+        \begin{tikzpicture}
+            \small
 
-			\tikzset{
-				node distance=38pt and 48pt,
-				on grid,
-				node/.style={rectangle,minimum width=0pt,minimum height=0pt,align=center,fill=white},
-				input/.style={edge},
-				edgelabel/.style={midway},
-			}
+            \tikzset{
+                node distance=38pt and 48pt,
+                on grid,
+                node/.style={rectangle,minimum width=0pt,minimum height=0pt,align=center,fill=white},
+                input/.style={edge},
+                edgelabel/.style={midway},
+            }
 
-			\node[node] (projection) {\(\pi_{[\mathit{Key}, \mathit{Value}]}\)};
-			\node[node,below=of projection,align=center] (selection) {\(\sigma_{
-					\substack{
-						s.RepId = c.RepId \land s.Ctr = c.Ctr \land \\
-						c.RepId = l.RepId \land c.Ctr = l.Ctr
-					}
-				}\)};
-			\node[node,below=of selection] (cartesian) {\(\times\)};
+            \node[node] (projection) {\(\pi_{[\mathit{Key}, \mathit{Value}]}\)};
+            \node[node,below=of projection,align=center] (selection) {\(\sigma_{
+                    \substack{
+                        s.RepId = c.RepId \land s.Ctr = c.Ctr \land \\
+                        c.RepId = l.RepId \land c.Ctr = l.Ctr
+                    }
+                }\)};
+            \node[node,below=of selection] (cartesian) {\(\times\)};
 
-			% set
-			\node[node,below left=of cartesian] (setalias) {\(\rho_{s}\)};
-			\node[node,below=of setalias] (setprojection) {\(\pi_{[\mathit{RepId}, \mathit{Ctr}, \mathit{Key}, \mathit{Value}]}\)};
-			\node[node,below=of setprojection] (set) {set};
+            % set
+            \node[node,below left=of cartesian] (setalias) {\(\rho_{s}\)};
+            \node[node,below=of setalias] (setprojection) {\(\pi_{[\mathit{RepId}, \mathit{Ctr}, \mathit{Key}, \mathit{Value}]}\)};
+            \node[node,below=of setprojection] (set) {set};
 
-			\node[node,below right=of cartesian] (cartesian2) {\(\times\)};
+            \node[node,below right=of cartesian] (cartesian2) {\(\times\)};
 
-			% isCausallyReady
-			\node[node,below left=of cartesian2] (causalias) {\(\rho_{c}\)};
-			\node[node,below=of causalias] (causprojection) {\(\pi_{[\mathit{RepId}, \mathit{Ctr}]}\)};
-			\node[node,below=of causprojection] (caus) {isCausallyReady};
+            % isCausallyReady
+            \node[node,below left=of cartesian2] (causalias) {\(\rho_{c}\)};
+            \node[node,below=of causalias] (causprojection) {\(\pi_{[\mathit{RepId}, \mathit{Ctr}]}\)};
+            \node[node,below=of causprojection] (caus) {isCausallyReady};
 
-			% isLeaf
-			\node[node,below right=of cartesian2] (leafalias) {\(\rho_{l}\)};
-			\node[node,below=of leafalias] (leafprojection) {\(\pi_{[\mathit{RepId}, \mathit{Ctr}]}\)};
-			\node[node,below=of leafprojection] (leaf) {isLeaf};
+            % isLeaf
+            \node[node,below right=of cartesian2] (leafalias) {\(\rho_{l}\)};
+            \node[node,below=of leafalias] (leafprojection) {\(\pi_{[\mathit{RepId}, \mathit{Ctr}]}\)};
+            \node[node,below=of leafprojection] (leaf) {isLeaf};
 
-			\begin{scope}[on background layer]
-				\draw[input] (selection) to[] (projection);
-				\draw[input] (cartesian) to[] (selection);
+            \begin{scope}[on background layer]
+                \draw[input] (selection) to[] (projection);
+                \draw[input] (cartesian) to[] (selection);
 
-				% set
-				\draw[input] (setalias) to[] (cartesian);
-				\draw[input] (setprojection) to[] (setalias);
-				\draw[input] (set) to[] (setprojection);
+                % set
+                \draw[input] (setalias) to[] (cartesian);
+                \draw[input] (setprojection) to[] (setalias);
+                \draw[input] (set) to[] (setprojection);
 
-				\draw[input] (cartesian2) to[] (cartesian);
+                \draw[input] (cartesian2) to[] (cartesian);
 
-				% isCausallyReady
-				\draw[input] (causalias) to[] (cartesian2);
-				\draw[input] (causprojection) to[] (causalias);
-				\draw[input] (caus) to[] (causprojection);
+                % isCausallyReady
+                \draw[input] (causalias) to[] (cartesian2);
+                \draw[input] (causprojection) to[] (causalias);
+                \draw[input] (caus) to[] (causprojection);
 
-				% isLeaf
-				\draw[input] (leafalias) to[] (cartesian2);
-				\draw[input] (leafprojection) to[] (leafalias);
-				\draw[input] (leaf) to[] (leafprojection);
-			\end{scope}
-		\end{tikzpicture}
-		\caption{The naive query plan.}\label{fig:naive-plan}
-	\end{subfigure}
-	\hspace{1em}
-	\begin{subfigure}[b]{0.46\textwidth}
-		\centering
-		\begin{tikzpicture}
-			\small
+                % isLeaf
+                \draw[input] (leafalias) to[] (cartesian2);
+                \draw[input] (leafprojection) to[] (leafalias);
+                \draw[input] (leaf) to[] (leafprojection);
+            \end{scope}
+        \end{tikzpicture}
+        \caption{The naive query plan.}\label{fig:naive-plan}
+    \end{subfigure}
+    \hspace{1em}
+    \begin{subfigure}[b]{0.46\textwidth}
+        \centering
+        \begin{tikzpicture}
+            \small
 
-			\tikzset{
-				node distance=38pt and 48pt,
-				on grid,
-				node/.style={rectangle,minimum width=0pt,minimum height=0pt,align=center,fill=white},
-				input/.style={edge},
-				edgelabel/.style={midway},
-			}
+            \tikzset{
+                node distance=38pt and 48pt,
+                on grid,
+                node/.style={rectangle,minimum width=0pt,minimum height=0pt,align=center,fill=white},
+                input/.style={edge},
+                edgelabel/.style={midway},
+            }
 
-			\node[node,minimum width=55pt] (projection) {\(\pi_{[\mathit{Key}, \mathit{Value}]}\)};
-			\node[node,below=of projection,minimum width=55pt] (equijoin) {\(\bowtie_{[\mathit{RepId}, \mathit{Ctr}]}\)};
+            \node[node,minimum width=55pt] (projection) {\(\pi_{[\mathit{Key}, \mathit{Value}]}\)};
+            \node[node,below=of projection,minimum width=55pt] (equijoin) {\(\bowtie_{[\mathit{RepId}, \mathit{Ctr}]}\)};
 
-			\node[node,below left=of equijoin] (set) {set};
-			\node[node,below right=of equijoin] (equijoin2) {\(\bowtie_{[\mathit{RepId}, \mathit{Ctr}]}\)};
+            \node[node,below left=of equijoin] (set) {set};
+            \node[node,below right=of equijoin] (equijoin2) {\(\bowtie_{[\mathit{RepId}, \mathit{Ctr}]}\)};
 
-			\node[node,below left=of equijoin2] (caus) {isCausallyReady};
-			\node[node,below right=of equijoin2] (leaf) {isLeaf};
+            \node[node,below left=of equijoin2] (caus) {isCausallyReady};
+            \node[node,below right=of equijoin2] (leaf) {isLeaf};
 
-			\begin{scope}[on background layer]
-				\draw[input] (equijoin) to[] (projection);
-				\draw[input] (set) to[] (equijoin);
+            \begin{scope}[on background layer]
+                \draw[input] (equijoin) to[] (projection);
+                \draw[input] (set) to[] (equijoin);
 
-				\draw[input] (equijoin2) to[] (equijoin);
-				\draw[input] (caus) to[] (equijoin2);
-				\draw[input] (leaf) to[] (equijoin2);
+                \draw[input] (equijoin2) to[] (equijoin);
+                \draw[input] (caus) to[] (equijoin2);
+                \draw[input] (leaf) to[] (equijoin2);
 
-				\draw [decorate,decoration={brace,amplitude=4pt},xshift=0pt,yshift=0pt]
-				(projection.east) -- (equijoin.east) node [midway,right,xshift=4pt,yshift=-0pt,align=left] {Collapsed into\\ one operator in \ac{IR}};
-			\end{scope}
-		\end{tikzpicture}
-		\caption{The subpar query plan.}\label{fig:optimized-plan}
-	\end{subfigure}
+                \draw [decorate,decoration={brace,amplitude=4pt},xshift=0pt,yshift=0pt]
+                (projection.east) -- (equijoin.east) node [midway,right,xshift=4pt,yshift=-0pt,align=left] {Collapsed into\\ one operator in \ac{IR}};
+            \end{scope}
+        \end{tikzpicture}
+        \caption{The subpar query plan.}\label{fig:optimized-plan}
+    \end{subfigure}
 
-	\caption{
-		Different query plans for the ``mvrStore'' predicate of \ref{code:mvr-crdt-datalog}.
-	}\label{fig:query-opt}
+    \caption{
+        Different query plans for the ``mvrStore'' predicate of \ref{code:mvr-crdt-datalog}.
+    }\label{fig:query-opt}
 \end{figure}

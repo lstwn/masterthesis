@@ -7,14 +7,14 @@
 \usepackage[ngerman,american]{babel}
 \usepackage[autostyle]{csquotes}
 \usepackage[%
-	backend=biber,
-	url=false,
-	style=ieee,
-	maxnames=4,
-	minnames=3,
-	maxbibnames=99,
-	giveninits,
-	uniquename=init]{biblatex}
+    backend=biber,
+    url=false,
+    style=ieee,
+    maxnames=4,
+    minnames=3,
+    maxbibnames=99,
+    giveninits,
+    uniquename=init]{biblatex}
 \usepackage{graphicx}
 \usepackage{scrhack} % Necessary for listings package.
 \usepackage{listings}
@@ -33,7 +33,7 @@
 \usepackage[nameinlink,noabbrev]{cleveref}
 
 \hypersetup{
-	hidelinks, % Remove colored boxes around references and links.
+    hidelinks, % Remove colored boxes around references and links.
 }
 
 % Without \AtBeginDocument it does not persist.
@@ -42,35 +42,35 @@
 % for fachschaft_print.pdf
 \makeatletter
 \if@twoside
-	\typeout{TUM-Dev LaTeX-Thesis-Template: twoside}
+    \typeout{TUM-Dev LaTeX-Thesis-Template: twoside}
 \else
-	\typeout{TUM-Dev LaTeX-Thesis-Template: oneside}
+    \typeout{TUM-Dev LaTeX-Thesis-Template: oneside}
 \fi
 \makeatother
 
 \addto\extrasamerican{
-	\def\lstnumberautorefname{Line}
-	\def\chapterautorefname{Chapter}
-	\def\sectionautorefname{Section}
-	\def\subsectionautorefname{Subsection}
-	\def\subsubsectionautorefname{Subsubsection}
+    \def\lstnumberautorefname{Line}
+    \def\chapterautorefname{Chapter}
+    \def\sectionautorefname{Section}
+    \def\subsectionautorefname{Subsection}
+    \def\subsubsectionautorefname{Subsubsection}
 }
 
 \addto\extrasngerman{
-	\def\lstnumberautorefname{Zeile}
+    \def\lstnumberautorefname{Zeile}
 }
 
 % Themes
 \ifthenelse{\equal{\detokenize{dark}}{\jobname}}{%
-	% Dark theme
-	\newcommand{\bg}{black} % background
-	\newcommand{\fg}{white} % foreground
-	\usepackage[pagecolor=\bg]{pagecolor}
-	\color{\fg}
+    % Dark theme
+    \newcommand{\bg}{black} % background
+    \newcommand{\fg}{white} % foreground
+    \usepackage[pagecolor=\bg]{pagecolor}
+    \color{\fg}
 }{%
-	% Light theme
-	\newcommand{\bg}{white} % background
-	\newcommand{\fg}{black} % foreground
+    % Light theme
+    \newcommand{\bg}{white} % background
+    \newcommand{\fg}{black} % foreground
 }
 
 \bibliography{bibliography}
@@ -100,11 +100,11 @@
 % Settings for pgfplots.
 \pgfplotsset{compat=newest}
 \pgfplotsset{
-	% For available color names, see http://www.latextemplates.com/svgnames-colors
-	cycle list={
-	    {TUMBlue},{TUMAccentOrange},{TUMAccentGreen},{TUMSecondaryBlue2},{TUMDarkGray}
-	},
-	legend style={
+    % For available color names, see http://www.latextemplates.com/svgnames-colors
+    cycle list={
+        {TUMBlue},{TUMAccentOrange},{TUMAccentGreen},{TUMSecondaryBlue2},{TUMDarkGray}
+    },
+    legend style={
         anchor=north west,
         draw=none,
         % legend columns=2,
@@ -125,21 +125,21 @@
 
 % Settings for lstlistings.
 \lstset{%
-	basicstyle=\ttfamily\small,
-	columns=fullflexible,
-	autogobble,
-	keywordstyle=\bfseries\color{TUMBlue},
-	stringstyle=\color{TUMAccentGreen},
-	captionpos=b
+    basicstyle=\ttfamily\small,
+    columns=fullflexible,
+    autogobble,
+    keywordstyle=\bfseries\color{TUMBlue},
+    stringstyle=\color{TUMAccentGreen},
+    captionpos=b
 }
 
 % verbatim does not work here, use some alternative like listing or minted?
 \newenvironment{codeblock}{
-	\begin{small}
-		\begin{verbatim}
+    \begin{small}
+        \begin{verbatim}
 }{
     \end{verbatim}
-	\end{small}
+    \end{small}
 }
 \newcommand{\code}[1]{\texttt{#1}}
 \newcommand{\setop}[5][set]{$\mathit{#1}_{#2}^{#3} (#4, #5)$}
@@ -155,49 +155,49 @@
 
 % Settings for TikZ.
 \usetikzlibrary{
-	automata,
-	positioning,
-	arrows.meta,
-	calc, backgrounds, quotes,
-	patterns, fit,
-	decorations.pathreplacing,
-	shapes,
-	shapes.geometric,
-	tikzmark
+    automata,
+    positioning,
+    arrows.meta,
+    calc, backgrounds, quotes,
+    patterns, fit,
+    decorations.pathreplacing,
+    shapes,
+    shapes.geometric,
+    tikzmark
 }
 \tikzset{
 op/.style={
-		font=\footnotesize,
-		state,
-		minimum size=56.0pt,
-		fill=white,
-		scale=0.9,
-	},
+        font=\footnotesize,
+        state,
+        minimum size=56.0pt,
+        fill=white,
+        scale=0.9,
+    },
 head/.style={
-		op,
-		accepting,
-	},
+        op,
+        accepting,
+    },
 edge/.style={
 ->,
 >={Stealth[round]},
 },
 pred/.style={
-		edge,
-	},
+        edge,
+    },
 anchorref/.style={
-		edge,
-		blue,
-		densely dashed,
-	},
+        edge,
+        blue,
+        densely dashed,
+    },
 stepmarker/.style={
-		font=\footnotesize,
-		fill=black!10,
-	},
+        font=\footnotesize,
+        fill=black!10,
+    },
 stepline/.style={
-		edge,
-		black!70,
-		dotted,
-		semithick,
-		-,
-	},
+        edge,
+        black!70,
+        dotted,
+        semithick,
+        -,
+    },
 }

@@ -1,41 +1,41 @@
 \begin{figure}[tpb]
-	\centering
-	\begin{tikzpicture}
-		\small
-		\def\not{\(\lnot\)}
+    \centering
+    \begin{tikzpicture}
+        \small
+        \def\not{\(\lnot\)}
 
-		\tikzset{
-			node/.style={rectangle,draw,minimum width=0.5cm, minimum height=0cm, align=center,fill=white},
-			edbp/.style={densely dashed},
-			precedence/.style={edge},
-			edgelabel/.style={midway},
-		}
+        \tikzset{
+            node/.style={rectangle,draw,minimum width=0.5cm, minimum height=0cm, align=center,fill=white},
+            edbp/.style={densely dashed},
+            precedence/.style={edge},
+            edgelabel/.style={midway},
+        }
 
-		\node[node,edbp] (pred) {pred};
-		\node[node,edbp,right=100pt of pred] (set) {set};
-		\node[node,above left=25pt of pred] (ows) {overwrites};
-		\node[node,above right=25pt of pred] (own) {overwritten};
-		\node[node,above=50pt of set] (root) {isRoot};
-		\node[node,right=of root] (leaf) {isLeaf};
-		\node[node,above=of root] (cr) {isCausallyReady};
-		\node[node,above=of cr] (mvr) {mvrStore};
+        \node[node,edbp] (pred) {pred};
+        \node[node,edbp,right=100pt of pred] (set) {set};
+        \node[node,above left=25pt of pred] (ows) {overwrites};
+        \node[node,above right=25pt of pred] (own) {overwritten};
+        \node[node,above=50pt of set] (root) {isRoot};
+        \node[node,right=of root] (leaf) {isLeaf};
+        \node[node,above=of root] (cr) {isCausallyReady};
+        \node[node,above=of cr] (mvr) {mvrStore};
 
-		\begin{scope}[on background layer]
-			\draw[precedence] (pred) to[bend left] (ows);
-			\draw[precedence] (pred) to[bend right] (own);
-			\draw[precedence] (pred) to[bend left] (cr.west);
-			\draw[precedence] (set.north west) to[bend left=8] (root.south);
-			\draw[precedence] (set.east) to[bend right] (leaf);
-			\draw[precedence] (set.north east) to[bend right=40] (mvr);
-			\draw[precedence] (root) to[] (cr.south);
-			\draw[precedence] (cr) to[] (mvr.south);
-			\draw[precedence] (cr) to[out=315, in=225, looseness=5] (cr);
-			\draw[precedence] (leaf) to[bend right] (mvr);
-			\draw[precedence] (ows.east) to[] node[edgelabel, above]{\not} (root);
-			\draw[precedence] (own.east) to[] node[edgelabel, below]{\not} (leaf);
-		\end{scope}
-	\end{tikzpicture}
-	\caption{
-		The precedence graph of the \ac{MVR} key-value store \ac{CRDT} of \ref{code:mvr-crdt-datalog}.
-	}\label{fig:precedence-graph-mvr-crdt}
+        \begin{scope}[on background layer]
+            \draw[precedence] (pred) to[bend left] (ows);
+            \draw[precedence] (pred) to[bend right] (own);
+            \draw[precedence] (pred) to[bend left] (cr.west);
+            \draw[precedence] (set.north west) to[bend left=8] (root.south);
+            \draw[precedence] (set.east) to[bend right] (leaf);
+            \draw[precedence] (set.north east) to[bend right=40] (mvr);
+            \draw[precedence] (root) to[] (cr.south);
+            \draw[precedence] (cr) to[] (mvr.south);
+            \draw[precedence] (cr) to[out=315, in=225, looseness=5] (cr);
+            \draw[precedence] (leaf) to[bend right] (mvr);
+            \draw[precedence] (ows.east) to[] node[edgelabel, above]{\not} (root);
+            \draw[precedence] (own.east) to[] node[edgelabel, below]{\not} (leaf);
+        \end{scope}
+    \end{tikzpicture}
+    \caption{
+        The precedence graph of the \ac{MVR} key-value store \ac{CRDT} of \ref{code:mvr-crdt-datalog}.
+    }\label{fig:precedence-graph-mvr-crdt}
 \end{figure}

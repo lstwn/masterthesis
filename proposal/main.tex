@@ -106,14 +106,14 @@ with than lower-level, in-memory, object-oriented data structures.
 \section{Background on CRDTs and Coordination-free Environments}
 
 Convergent Replicated Data Types (CRDTs)\footnote{
-	Although CRDTs are often referred to as \emph{Conflict-free} Replicated
-	Data Types, we use the term \emph{convergent} here because the former term
-	is a bit misleading as conflicts can still occur
-	(see \autoref{sec:motivating-example}).
-	We think CRDTs are better characterized by their property that diverging
-	replicas eventually \emph{converge} to the same state,
-	given the delivery of the same updates,
-	and that state may include conflicts, e.g., within a register.
+    Although CRDTs are often referred to as \emph{Conflict-free} Replicated
+    Data Types, we use the term \emph{convergent} here because the former term
+    is a bit misleading as conflicts can still occur
+    (see \autoref{sec:motivating-example}).
+    We think CRDTs are better characterized by their property that diverging
+    replicas eventually \emph{converge} to the same state,
+    given the delivery of the same updates,
+    and that state may include conflicts, e.g., within a register.
 } try to solve the problems arising from asynchronous collaboration over
 message-passing networks on the data structure level.
 In these coordination-free environments, in which replicas can be offline
@@ -154,16 +154,16 @@ The rules are written in the form of Horn clauses
 which are logical implications of the form
 
 \[
-	\underbrace{
-	\underbrace{A}_{\text{head}}
-	\text{ :- }
-	\underbrace{
-	\underbrace{B_1}_{\text{atom}},
-	\underbrace{B_2}_{\text{atom}},
-	\ldots,
-	\underbrace{B_n}_{\text{atom}}
-	}_{\text{body}}
-	}_{\text{rule}}
+    \underbrace{
+    \underbrace{A}_{\text{head}}
+    \text{ :- }
+    \underbrace{
+    \underbrace{B_1}_{\text{atom}},
+    \underbrace{B_2}_{\text{atom}},
+    \ldots,
+    \underbrace{B_n}_{\text{atom}}
+    }_{\text{body}}
+    }_{\text{rule}}
 \]
 
 \noindent{}and can be read (rather from right to left) as
@@ -171,10 +171,10 @@ which are logical implications of the form
 Written in more mathematical notation, this can be expressed as:
 
 \[
-	\begin{aligned}
-		                & A \Leftarrow B_1 \land B_2 \land \ldots \land B_n          \\
-		\Leftrightarrow & A \lor \lnot B_1 \lor \lnot B_2 \lor \ldots \lor \lnot B_n
-	\end{aligned}
+    \begin{aligned}
+                        & A \Leftarrow B_1 \land B_2 \land \ldots \land B_n          \\
+        \Leftrightarrow & A \lor \lnot B_1 \lor \lnot B_2 \lor \ldots \lor \lnot B_n
+    \end{aligned}
 \]
 
 If there are multiple rules with the same head,
@@ -197,8 +197,9 @@ as a consequence of concurrent writes to the register.
 Therefore, a concurrency detection mechanism is required.
 We use causal histories in which every operation specifies a set of
 predecessor operations on which it causally depends on\footnote{
-	Version vectors are another mechanism to detect concurrency
-	but they do not play as nice with relational data models.}.
+    Version vectors are another mechanism to detect concurrency
+    but they do not play as nice with relational data models.
+}.
 In its totality, this example demonstrates how a key value store
 consisting of MVR registers can be expressed with a query language.
 
@@ -207,71 +208,71 @@ the base atoms: \code{set} and \code{pred}.
 We assume that they are in the state depicted in \autoref{tab:fact-tables}.
 
 \begin{table*}[h]\center
-	\small
-	\begin{tabular}{@{}llll@{}}
-		\toprule
-		NodeId  & Counter & Key     & Value  \\
-		\midrule
-		\(n_1\) & 1       & \(k_1\) & \(x\)  \\
-		\(n_1\) & 2       & \(k_1\) & \(y\)  \\
-		\(n_2\) & 2       & \(k_1\) & \(z\)  \\
-		\midrule
-		\ldots  & \ldots  & \ldots  & \ldots \\
-		\midrule
-		\(n_1\) & 3       & \(k_2\) & \(a\)  \\
-		\(n_2\) & 4       & \(k_2\) & \(b\)  \\
-		\(n_2\) & 5       & \(k_2\) & \(c\)  \\
-		\bottomrule
-	\end{tabular}
-	\vskip1em
-	\begin{tabular}{@{}llll@{}}
-		\toprule
-		FromNodeId & FromCounter & ToNodeId & ToCounter \\
-		\midrule
-		\(n_1\)    & 1           & \(n_1\)  & 2         \\
-		\(n_1\)    & 1           & \(n_2\)  & 2         \\
-		\midrule
-		\ldots     & \ldots      & \ldots   & \ldots    \\
-		\midrule
-		\(n_1\)    & 3           & \(n_2\)  & 5         \\
-		\(n_2\)    & 4           & \(n_2\)  & 5         \\
-		\bottomrule
-	\end{tabular}
-	\caption{The two EDBs \code{set} (above) and \code{pred} (below).}
-	\label{tab:fact-tables}
+    \small
+    \begin{tabular}{@{}llll@{}}
+        \toprule
+        NodeId  & Counter & Key     & Value  \\
+        \midrule
+        \(n_1\) & 1       & \(k_1\) & \(x\)  \\
+        \(n_1\) & 2       & \(k_1\) & \(y\)  \\
+        \(n_2\) & 2       & \(k_1\) & \(z\)  \\
+        \midrule
+        \ldots  & \ldots  & \ldots  & \ldots \\
+        \midrule
+        \(n_1\) & 3       & \(k_2\) & \(a\)  \\
+        \(n_2\) & 4       & \(k_2\) & \(b\)  \\
+        \(n_2\) & 5       & \(k_2\) & \(c\)  \\
+        \bottomrule
+    \end{tabular}
+    \vskip1em
+    \begin{tabular}{@{}llll@{}}
+        \toprule
+        FromNodeId & FromCounter & ToNodeId & ToCounter \\
+        \midrule
+        \(n_1\)    & 1           & \(n_1\)  & 2         \\
+        \(n_1\)    & 1           & \(n_2\)  & 2         \\
+        \midrule
+        \ldots     & \ldots      & \ldots   & \ldots    \\
+        \midrule
+        \(n_1\)    & 3           & \(n_2\)  & 5         \\
+        \(n_2\)    & 4           & \(n_2\)  & 5         \\
+        \bottomrule
+    \end{tabular}
+    \caption{The two EDBs \code{set} (above) and \code{pred} (below).}
+    \label{tab:fact-tables}
 \end{table*}
 
 \begin{figure*}
-	\centering
-	\begin{tikzpicture}[node distance=50pt]
-		\small
-		\def\dist{15pt}
+    \centering
+    \begin{tikzpicture}[node distance=50pt]
+        \small
+        \def\dist{15pt}
 
-		% nodes and edges
-		\node[op] (k10) {\setop{1}{n_1}{k_1}{x}};
+        % nodes and edges
+        \node[op] (k10) {\setop{1}{n_1}{k_1}{x}};
 
-		\node[head,above right=\dist of k10] (k11) {\setop{2}{n_1}{k_1}{y}} edge [pred] (k10);
-		\node[head,below right=\dist of k10] (k12) {\setop{2}{n_2}{k_1}{z}} edge [pred] (k10);
+        \node[head,above right=\dist of k10] (k11) {\setop{2}{n_1}{k_1}{y}} edge [pred] (k10);
+        \node[head,below right=\dist of k10] (k12) {\setop{2}{n_2}{k_1}{z}} edge [pred] (k10);
 
-	\end{tikzpicture}
-	\hskip8em
-	\begin{tikzpicture}[node distance=50pt]
-		\small
-		\def\dist{22pt}
+    \end{tikzpicture}
+    \hskip8em
+    \begin{tikzpicture}[node distance=50pt]
+        \small
+        \def\dist{22pt}
 
-		% nodes and edges
-		\node[op] (k20) {\setop{3}{n_1}{k_2}{a}};
-		\node[op,below=of k20] (k21) {\setop{4}{n_2}{k_2}{b}};
+        % nodes and edges
+        \node[op] (k20) {\setop{3}{n_1}{k_2}{a}};
+        \node[op,below=of k20] (k21) {\setop{4}{n_2}{k_2}{b}};
 
-		\node[head,below right=\dist of k20] (k22) {\setop{5}{n_2}{k_2}{c}} edge [pred] (k20) edge [pred] (k21);
+        \node[head,below right=\dist of k20] (k22) {\setop{5}{n_2}{k_2}{c}} edge [pred] (k20) edge [pred] (k21);
 
-	\end{tikzpicture}
-	\caption{
-		The state from \autoref{tab:fact-tables} illustrated.
-		The graph on the left depicts the operation history of the register with key \(k_1\)
-		and the graph on the right of the register associated with key \(k_2\).
-	}
-	\label{fig:register-ops}
+    \end{tikzpicture}
+    \caption{
+        The state from \autoref{tab:fact-tables} illustrated.
+        The graph on the left depicts the operation history of the register with key \(k_1\)
+        and the graph on the right of the register associated with key \(k_2\).
+    }
+    \label{fig:register-ops}
 \end{figure*}
 
 The causal history between the operations is illustrated on a logical level
@@ -281,9 +282,9 @@ The edges denote the \code{pred} EDB and a node's
 To obtain the state of the key value store, the following set must be computed:
 
 \begin{align*}
-	\var{mvrStore} = \{ (\var{Key}, \var{Value}) \mid & (\var{NodeId}, \var{Counter}, \var{Key}, \var{Value}) \in \var{set}                \\
-	\land \text{ }                                    & \nexists (\var{FromNodeId}, \var{FromCounter}, \var{\_}, \var{\_}) \in \var{pred}: \\
-	                                                  & \var{NodeId} = \var{FromNodeId} \land \var{Counter} = \var{FromCounter} \}
+    \var{mvrStore} = \{ (\var{Key}, \var{Value}) \mid & (\var{NodeId}, \var{Counter}, \var{Key}, \var{Value}) \in \var{set}                \\
+    \land \text{ }                                    & \nexists (\var{FromNodeId}, \var{FromCounter}, \var{\_}, \var{\_}) \in \var{pred}: \\
+                                                      & \var{NodeId} = \var{FromNodeId} \land \var{Counter} = \var{FromCounter} \}
 \end{align*}
 
 Intuitively, the query selects all key-value pairs from the \code{set} EDB
@@ -296,7 +297,7 @@ Formulating the query in Datalog is straightforward,
 as it matches its mathematical counterpart quite well:
 
 \begin{small}
-	\begin{verbatim}
+    \begin{verbatim}
 overwritten(NodeId, Counter) :- pred(NodeId, Counter, ToNodeId, ToCounter)
 mvrStore(Key, Value)         :- set(NodeId, Counter, Key, Value),
                                 not overwritten(NodeId, Counter)
@@ -307,7 +308,7 @@ We may also use SQL to express this query. We show two variants.
 The first one uses a \code{LEFT JOIN} and a \code{null} filter:
 
 \begin{small}
-	\begin{verbatim}
+    \begin{verbatim}
 SELECT key, value
 FROM set LEFT JOIN pred ON set.NodeId = pred.FromNodeId
                        AND set.Counter = pred.FromCounter
@@ -319,7 +320,7 @@ Alternatively, we can use a subquery and negated set inclusion,
 to align the SQL query closer with the mathematical notation:
 
 \begin{small}
-	\begin{verbatim}
+    \begin{verbatim}
 WITH overwritten AS (SELECT FromNodeId, FromCounter FROM pred)
 SELECT key, value FROM set WHERE (NodeId, Counter) NOT IN overwritten;
 \end{verbatim}
@@ -355,11 +356,11 @@ Both models must adhere to these properties under the strong eventual consistenc
 model which demands three properties~\cite{shapiro2011comprehensive}:
 
 \begin{enumerate}
-	\item \textbf{Eventual Delivery}: All updates are eventually delivered to
-	      all replicas.
-	\item \textbf{Termination}: All method executions terminate.
-	\item \textbf{Convergence}: All replicas that have delivered the same set of
-	      updates are in an equivalent state.
+    \item \textbf{Eventual Delivery}: All updates are eventually delivered to
+          all replicas.
+    \item \textbf{Termination}: All method executions terminate.
+    \item \textbf{Convergence}: All replicas that have delivered the same set of
+          updates are in an equivalent state.
 \end{enumerate}
 
 Verifying the correctness for a CRDT is a complex,
@@ -372,7 +373,7 @@ The critical convergence property demanded by the strong eventual consistency
 model is then also trivially satisfied because the state is by definition
 the set of all (delivered) operations.
 Moreover, applying any \emph{pure}\footnote{
-	That is, the function is deterministic and side-effect-free.
+    That is, the function is deterministic and side-effect-free.
 }
 function \( f: S \to T \) on the state does not impede the convergence property,
 as the function is applied on all replicas in the same deterministic way.
@@ -425,8 +426,9 @@ e.g., a star network topology with a central server for more efficient update
 gossiping.
 Yet, the issue of update propagation (and update integrity) is not the focus
 of this research and various approaches exist in the literature~\cite{
-	auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
-	kleppmann2022making}.
+    auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
+    kleppmann2022making
+}.
 This also excludes the question of how to efficiently send just the minimum
 set of missing updates to each replica.
 We only make the basic assumption of some network topology and protocol
@@ -434,77 +436,77 @@ which ensures that each update will eventually be delivered to all replicas.
 Replicas are assumed to be non-byzantine.
 
 \begin{figure*}
-	\centering
+    \centering
 
-	\newcommand{\replica}{
-		\begin{tikzpicture}
-			\tikzset{
-			layer/.style={
-					rectangle, draw, minimum height=1.5cm, minimum width=2.3cm,
-					rounded corners=1mm,
-					font=\footnotesize, align=center,
-				},
-			rel/.style={
-			->, >={Stealth[round]}, },
-			}
-			\node[layer] (app) {\textbf{Application}\\ \textbf{Layer}};
-			\node[layer,right=of app] (db) {
-				\textbf{Database Layer}\\
-				Maintains Datalog\\
-				Queries \(\delta I \to \delta O\)
-			};
-			\node[layer,above=2.0cm of app] (user) {\textbf{User}};
+    \newcommand{\replica}{
+        \begin{tikzpicture}
+            \tikzset{
+            layer/.style={
+                    rectangle, draw, minimum height=1.5cm, minimum width=2.3cm,
+                    rounded corners=1mm,
+                    font=\footnotesize, align=center,
+                },
+            rel/.style={
+            ->, >={Stealth[round]}, },
+            }
+            \node[layer] (app) {\textbf{Application}\\ \textbf{Layer}};
+            \node[layer,right=of app] (db) {
+                \textbf{Database Layer}\\
+                Maintains Datalog\\
+                Queries \(\delta I \to \delta O\)
+            };
+            \node[layer,above=2.0cm of app] (user) {\textbf{User}};
 
-			\draw[rel] (user) to["issues \deltaI{local}", bend left, near start] (app);
-			\draw[rel] (app) to["sees \deltaO", bend left,auto=right] (user);
+            \draw[rel] (user) to["issues \deltaI{local}", bend left, near start] (app);
+            \draw[rel] (app) to["sees \deltaO", bend left,auto=right] (user);
 
-			\draw[rel] (app) to["forwards \deltaI{local} and \deltaI{remote}", bend right=45, auto=right] (db);
-			\draw[rel] (db) to["provides \deltaO", bend right=45, auto=right,near start] (app);
-		\end{tikzpicture}
-	}
+            \draw[rel] (app) to["forwards \deltaI{local} and \deltaI{remote}", bend right=45, auto=right] (db);
+            \draw[rel] (db) to["provides \deltaO", bend right=45, auto=right,near start] (app);
+        \end{tikzpicture}
+    }
 
-	\begin{tikzpicture}
-		\tikzset{
-		replica/.style={rectangle, draw, rounded corners=1mm,fill=white},
-		local_replica/.style={replica},
-		remote_replica/.style={replica,scale=0.66},
-		label/.style={font=\bfseries},
-		rel/.style={
-		->, >={Stealth[round]},bend left,},
-		}
+    \begin{tikzpicture}
+        \tikzset{
+        replica/.style={rectangle, draw, rounded corners=1mm,fill=white},
+        local_replica/.style={replica},
+        remote_replica/.style={replica,scale=0.66},
+        label/.style={font=\bfseries},
+        rel/.style={
+        ->, >={Stealth[round]},bend left,},
+        }
 
-		\node[local_replica] (local) {\replica};
-		\node[label] (local-label) [above=0pt of local] {Local Replica};
+        \node[local_replica] (local) {\replica};
+        \node[label] (local-label) [above=0pt of local] {Local Replica};
 
-		\node[remote_replica] (remote3) [right=of local,yshift=+15pt,xshift=+15pt] {\replica};
-		\node[remote_replica] (remote2) [right=of local,yshift=+10pt,xshift=+10pt] {\replica};
-		\node[remote_replica] (remote1) [right=of local,yshift=+5pt,xshift=+5pt] {\replica};
-		\node[remote_replica] (remote0) [right=of local] {\replica};
-		\node[label] (remote-label) [above=0pt of remote3] {Remote Replicas};
+        \node[remote_replica] (remote3) [right=of local,yshift=+15pt,xshift=+15pt] {\replica};
+        \node[remote_replica] (remote2) [right=of local,yshift=+10pt,xshift=+10pt] {\replica};
+        \node[remote_replica] (remote1) [right=of local,yshift=+5pt,xshift=+5pt] {\replica};
+        \node[remote_replica] (remote0) [right=of local] {\replica};
+        \node[label] (remote-label) [above=0pt of remote3] {Remote Replicas};
 
-		\begin{scope}[on background layer]
-			\draw[rel] (local.north east) to[] (remote0.north west);
-			\draw[rel] (local.north east) to[] (remote1.north west);
-			\draw[rel] (local.north east) to[] (remote2.north west);
-			\draw[rel] (local.north east) to["distributes \deltaI{local}"] (remote3.north west);
+        \begin{scope}[on background layer]
+            \draw[rel] (local.north east) to[] (remote0.north west);
+            \draw[rel] (local.north east) to[] (remote1.north west);
+            \draw[rel] (local.north east) to[] (remote2.north west);
+            \draw[rel] (local.north east) to["distributes \deltaI{local}"] (remote3.north west);
 
-			\draw[rel] (remote0.south west) to[] (local.south east);
-			\draw[rel] (remote1.south west) to[] (local.south east);
-			\draw[rel] (remote2.south west) to[] (local.south east);
-			\draw[rel] (remote3.south west) to["receives \deltaI{remote}"] (local.south east);
-		\end{scope}
+            \draw[rel] (remote0.south west) to[] (local.south east);
+            \draw[rel] (remote1.south west) to[] (local.south east);
+            \draw[rel] (remote2.south west) to[] (local.south east);
+            \draw[rel] (remote3.south west) to["receives \deltaI{remote}"] (local.south east);
+        \end{scope}
 
-	\end{tikzpicture}
+    \end{tikzpicture}
 
-	\caption{
-		Overview of the system architecture from the perspective of a local
-		replica.
-		\deltaI{local} and \deltaI{remote} refer to the input deltas to
-		the EDBs from the local and remote replicas, respectively.
-		\deltaO{} models the output delta of all Datalog queries and is based on
-		the current state of the EDBs on the respective replica.
-	}
-	\label{fig:system-overview}
+    \caption{
+        Overview of the system architecture from the perspective of a local
+        replica.
+        \deltaI{local} and \deltaI{remote} refer to the input deltas to
+        the EDBs from the local and remote replicas, respectively.
+        \deltaO{} models the output delta of all Datalog queries and is based on
+        the current state of the EDBs on the respective replica.
+    }
+    \label{fig:system-overview}
 \end{figure*}
 
 \section{Advanced Example: Respecting Causal Order}
@@ -539,7 +541,7 @@ The following query extends the query from \autoref{sec:motivating-example}
 with a causal broadcast in Datalog through the help of three new IDBs:
 
 \begin{small}
-	\begin{verbatim}
+    \begin{verbatim}
 overwritten(NodeId, Counter) :- pred(NodeId, Counter, ToNodeId, ToCounter)
 overwrites(NodeId, Counter)  :- pred(FromNodeId, FromCounter, NodeId, Counter)
 isRoot(NodeId, Counter)      :- set(NodeId, Counter, Key, Value),
@@ -559,7 +561,7 @@ Translating this query into SQL shows why we prefer Datalog
 for expressing recursion:
 
 \begin{small}
-	\begin{verbatim}
+    \begin{verbatim}
 WITH overwritten AS (SELECT FromNodeId, FromCounter FROM pred)
 WITH overwrites  AS (SELECT ToNodeId, ToCounter FROM pred)
 WITH isRoot      AS (SELECT NodeId, Counter FROM set
@@ -596,42 +598,42 @@ and use that information to adjust their conflict handling
 to perform custom resolution logic.
 
 \begin{figure*}
-	\centering
-	\begin{tikzpicture}[node distance=30pt]
-		\small
-		\def\dist{15pt}
-		\def\shift{+20pt}
+    \centering
+    \begin{tikzpicture}[node distance=30pt]
+        \small
+        \def\dist{15pt}
+        \def\shift{+20pt}
 
-		\tikzset{
-			tx/.style={draw=gray, dashed},
-			tx_label/.style={text=gray, align=left, anchor=north}
-		}
+        \tikzset{
+            tx/.style={draw=gray, dashed},
+            tx_label/.style={text=gray, align=left, anchor=north}
+        }
 
-		% nodes and edges
-		\node[op] (k10) {\setop{1}{n_1}{k_1}{x}};
+        % nodes and edges
+        \node[op] (k10) {\setop{1}{n_1}{k_1}{x}};
 
-		\node[op,above right=\dist of k10,xshift=\shift] (k11) {\setop{2}{n_1}{k_1}{y_1}}
-		edge [pred] (k10);
-		\node[op,below right=\dist of k10,xshift=\shift] (k12) {\setop{2}{n_2}{k_1}{z}}
-		edge [pred] (k10);
+        \node[op,above right=\dist of k10,xshift=\shift] (k11) {\setop{2}{n_1}{k_1}{y_1}}
+        edge [pred] (k10);
+        \node[op,below right=\dist of k10,xshift=\shift] (k12) {\setop{2}{n_2}{k_1}{z}}
+        edge [pred] (k10);
 
-		\node[op, below right=\dist of k11,xshift=\shift] (k13) {\setop{3}{n_1}{k_1}{y_2}}
-		edge [pred] (k11) edge [pred] (k12);
-		\node[op, right=of k13] (k14) {\setop{4}{n_1}{k_1}{y_3}}
-		edge [pred] (k13);
+        \node[op, below right=\dist of k11,xshift=\shift] (k13) {\setop{3}{n_1}{k_1}{y_2}}
+        edge [pred] (k11) edge [pred] (k12);
+        \node[op, right=of k13] (k14) {\setop{4}{n_1}{k_1}{y_3}}
+        edge [pred] (k13);
 
-		\node[tx,fit=(k10) (k11) (k12)] (tx0) {};
-		\node[tx_label] at (tx0.south) {state of origin};
-		\node[tx,draw=red,fit=(k13)] (tx1) {};
-		\node[tx_label,text=red] at (tx1.south) {\(w_1\) (delayed)};
-		\node[tx,fit=(k14)] (tx2) {};
-		\node[tx_label] at (tx2.south) {\(w_2\)};
+        \node[tx,fit=(k10) (k11) (k12)] (tx0) {};
+        \node[tx_label] at (tx0.south) {state of origin};
+        \node[tx,draw=red,fit=(k13)] (tx1) {};
+        \node[tx_label,text=red] at (tx1.south) {\(w_1\) (delayed)};
+        \node[tx,fit=(k14)] (tx2) {};
+        \node[tx_label] at (tx2.south) {\(w_2\)};
 
-	\end{tikzpicture}
-	\caption{
-		Example of a causality issue with the naive queries from \autoref{sec:motivating-example}.
-	}
-	\label{fig:causal-issue}
+    \end{tikzpicture}
+    \caption{
+        Example of a causality issue with the naive queries from \autoref{sec:motivating-example}.
+    }
+    \label{fig:causal-issue}
 \end{figure*}
 
 \section{Contributions}
@@ -654,9 +656,9 @@ We want to test some CRDT workloads against our CRDT Datalog implementations and
 evaluate the performance.
 To do so, we (1) may have to define common CRDT workloads for benchmarking
 (unfortunately, there is no standard like TPCH established yet\footnote{
-	There are some benchmarks for text editing:
-	\url{https://github.com/dmonad/crdt-benchmarks} and
-	\url{https://github.com/josephg/editing-traces}.
+    There are some benchmarks for text editing:
+    \url{https://github.com/dmonad/crdt-benchmarks} and
+    \url{https://github.com/josephg/editing-traces}.
 }), and we (2) either utilize some existing Datalog engines and test them
 with and without incremental view maintenance or may have to deal with
 prototyping our own, as support for incremental view maintenance is variable
@@ -693,25 +695,25 @@ which cannot afford to stop an entire production facility just because
 some server is not available.
 
 \begin{table*}[]
-	\center
-	\small
-	\begin{tabular}{@{}lp{3.4cm}lp{1.2cm}p{0.7cm}l@{}}
-		\toprule
-		Engine                                                                      & Datalog Variant                          & IVM & Language  & Open Source & Active \\
-		\midrule
-		\href{https://github.com/souffle-lang/souffle}{Souffle}                     & With stratified negation                 & No  & C++       & Yes         & Yes    \\
-		\href{https://github.com/rust-lang/datafrog}{Datafrog}                      & Vanilla                                  & No  & Rust      & Yes         & No     \\
-		\href{https://github.com/vmware/differential-datalog}{Differential Datalog} & ?                                        & Yes & Rust/Java & Yes         & No     \\
-		\href{https://github.com/s-arash/ascent/}{Ascent}                           & With stratified negation and aggregation & No  & Rust      & Yes         & Yes    \\
-		\href{https://github.com/ekzhang/crepe}{Crepe}                              & With stratified negation                 & No  & Rust      & Yes         & No     \\
-		\href{https://github.com/knowsys/nemo}{Nemo}                                & Based on RDF instead of relations        & ?   & Rust      & Yes         & Yes    \\
-		\href{https://www.datomic.com}{Datomic}                                     & Custom (and appears to use RDF)          & ?   & Clojure   & No          & Yes    \\
-		\href{https://github.com/tonsky/datascript}{Datascript}                     & Appears to mimic Datomic                 & ?   & Clojure   & Yes         & Yes    \\
-		\href{https://github.com/comnik/declarative-dataflow}{Declarative Dataflow} & ?                                        & Yes & Rust      & Yes         & No     \\
-		\bottomrule
-	\end{tabular}
-	\caption{Overview of some Datalog Engines}
-	\label{tab:datalog-engines}
+    \center
+    \small
+    \begin{tabular}{@{}lp{3.4cm}lp{1.2cm}p{0.7cm}l@{}}
+        \toprule
+        Engine                                                                      & Datalog Variant                          & IVM & Language  & Open Source & Active \\
+        \midrule
+        \href{https://github.com/souffle-lang/souffle}{Souffle}                     & With stratified negation                 & No  & C++       & Yes         & Yes    \\
+        \href{https://github.com/rust-lang/datafrog}{Datafrog}                      & Vanilla                                  & No  & Rust      & Yes         & No     \\
+        \href{https://github.com/vmware/differential-datalog}{Differential Datalog} & ?                                        & Yes & Rust/Java & Yes         & No     \\
+        \href{https://github.com/s-arash/ascent/}{Ascent}                           & With stratified negation and aggregation & No  & Rust      & Yes         & Yes    \\
+        \href{https://github.com/ekzhang/crepe}{Crepe}                              & With stratified negation                 & No  & Rust      & Yes         & No     \\
+        \href{https://github.com/knowsys/nemo}{Nemo}                                & Based on RDF instead of relations        & ?   & Rust      & Yes         & Yes    \\
+        \href{https://www.datomic.com}{Datomic}                                     & Custom (and appears to use RDF)          & ?   & Clojure   & No          & Yes    \\
+        \href{https://github.com/tonsky/datascript}{Datascript}                     & Appears to mimic Datomic                 & ?   & Clojure   & Yes         & Yes    \\
+        \href{https://github.com/comnik/declarative-dataflow}{Declarative Dataflow} & ?                                        & Yes & Rust      & Yes         & No     \\
+        \bottomrule
+    \end{tabular}
+    \caption{Overview of some Datalog Engines}
+    \label{tab:datalog-engines}
 \end{table*}
 
 \pagebreak{}

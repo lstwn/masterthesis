@@ -36,17 +36,17 @@ I choose to implement a query engine based on interpretation for several
 reasons:
 
 \begin{enumerate}
-	\item \textbf{Less complexity.}
-	      An interpreter is simpler to implement and to debug than a compiler.
-	      For an explorative project, this is a significant advantage.
-	\item \textbf{No compile time overhead.}
-	      Rust is known for its long compile times, potentially offsetting some
-	      potential performance gains of compiled query execution.
-	\item \textbf{Easier integration.}
-	      A library is easier to integrate into a larger system than a compiler.
-	      I think this is particularly relevant for applications that do not
-	      exclusively run on big servers but may be accommodated on smaller
-	      edge devices, which may not afford bundling a full compiler.
+    \item \textbf{Less complexity.}
+          An interpreter is simpler to implement and to debug than a compiler.
+          For an explorative project, this is a significant advantage.
+    \item \textbf{No compile time overhead.}
+          Rust is known for its long compile times, potentially offsetting some
+          potential performance gains of compiled query execution.
+    \item \textbf{Easier integration.}
+          A library is easier to integrate into a larger system than a compiler.
+          I think this is particularly relevant for applications that do not
+          exclusively run on big servers but may be accommodated on smaller
+          edge devices, which may not afford bundling a full compiler.
 \end{enumerate}
 
 My motivation to use an \ac{IR} based on relational algebra is twofold.
@@ -102,43 +102,43 @@ of a query plan.
 \ref{tab:ir-operators}.
 
 \begin{figure}[htpb]
-	\centering
-	\begin{tabular}{@{}p{0.11\textwidth}p{0.19\textwidth}p{0.6\textwidth}@{}}
-		\toprule
-		Operator           & Notation                                                    & Description                                                                                                                                                                                                                                                                                                       \\
-		\midrule
-		Distinct           & \(\mathit{distinct}(R)\)                                    & Removes duplicate tuples from its input relation \(R\).                                                                                                                                                                                                                                                           \\
-		Union              & \(R \cup S\)                                                & Merges its input relations \(R\) and \(S\).                                                                                                                                                                                                                                                                       \\
-		Difference         & \(R \setminus S\)                                           & Removes tuples from the left input relation \(R\) which are also present in the right input relation \(S\).                                                                                                                                                                                                       \\
-		Alias              & \(\rho_\mathit{name}(R)\)                                   & Renames its input relation \(R\) to \(\mathit{name}\) and allows referring to it (and its fields) by that name in subsequent operators.                                                                                                                                                                           \\
-		Selection          & \(\sigma_{\mathit{pred}}(R)\)                               & Filters tuples from its input relation \(R\) based on the predicate \(\mathit{pred}\).                                                                                                                                                                                                                            \\
-		Projection         & \(\pi_{[(\mathit{name},\mathit{expr})]}(R)\)                & Produces a new relation with fields defined by the list of name-expression pairs. All expressions are evaluated in the context of a tuple from its input relation \(R\).                                                                                                                                          \\
-		Cartesian Product  & \(R \times S\)                                              & Combines two relations by pairing every tuple from the left input relation \(R\) with every tuple from the right input relation \(S\).                                                                                                                                                                            \\
-		Equijoin           & \(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S\)        & Like the Cartesian product but it only emits a pair if all left-hand-side expressions of the list of pairs (\(\mathit{lexpr}\); evaluated in the context of a tuple from \(R\)) evaluate to equal values as all right-hand-side expressions (\(\mathit{rexpr}\); evaluated in the context of a tuple from \(S\)). \\
-		Antijoin           & \(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S\) & Returns all tuples from the left input relation \(R\) that do \emph{not} match any tuple from the right input relation \(S\) based on the list of expression pairs (which is evaluated as for the equijoin).                                                                                                      \\
-		Fixed point Iteration & \(\mu(\mathit{acc}, \mathit{step})\)                        & Executes \(\mathit{step}\) starting from \(\mathit{acc}\) for as long as there are changes to its up-to-now computed output, i.e., it stops once the \emph{least fixed point} is attained.                                                                                                                           \\
-		\bottomrule
-	\end{tabular}
-	\caption{Relational operators of the \ac{IR}.}\label{tab:ir-operators}
+    \centering
+    \begin{tabular}{@{}p{0.11\textwidth}p{0.19\textwidth}p{0.6\textwidth}@{}}
+        \toprule
+        Operator           & Notation                                                    & Description                                                                                                                                                                                                                                                                                                       \\
+        \midrule
+        Distinct           & \(\mathit{distinct}(R)\)                                    & Removes duplicate tuples from its input relation \(R\).                                                                                                                                                                                                                                                           \\
+        Union              & \(R \cup S\)                                                & Merges its input relations \(R\) and \(S\).                                                                                                                                                                                                                                                                       \\
+        Difference         & \(R \setminus S\)                                           & Removes tuples from the left input relation \(R\) which are also present in the right input relation \(S\).                                                                                                                                                                                                       \\
+        Alias              & \(\rho_\mathit{name}(R)\)                                   & Renames its input relation \(R\) to \(\mathit{name}\) and allows referring to it (and its fields) by that name in subsequent operators.                                                                                                                                                                           \\
+        Selection          & \(\sigma_{\mathit{pred}}(R)\)                               & Filters tuples from its input relation \(R\) based on the predicate \(\mathit{pred}\).                                                                                                                                                                                                                            \\
+        Projection         & \(\pi_{[(\mathit{name},\mathit{expr})]}(R)\)                & Produces a new relation with fields defined by the list of name-expression pairs. All expressions are evaluated in the context of a tuple from its input relation \(R\).                                                                                                                                          \\
+        Cartesian Product  & \(R \times S\)                                              & Combines two relations by pairing every tuple from the left input relation \(R\) with every tuple from the right input relation \(S\).                                                                                                                                                                            \\
+        Equijoin           & \(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S\)        & Like the Cartesian product but it only emits a pair if all left-hand-side expressions of the list of pairs (\(\mathit{lexpr}\); evaluated in the context of a tuple from \(R\)) evaluate to equal values as all right-hand-side expressions (\(\mathit{rexpr}\); evaluated in the context of a tuple from \(S\)). \\
+        Antijoin           & \(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S\) & Returns all tuples from the left input relation \(R\) that do \emph{not} match any tuple from the right input relation \(S\) based on the list of expression pairs (which is evaluated as for the equijoin).                                                                                                      \\
+        Fixed point Iteration & \(\mu(\mathit{acc}, \mathit{step})\)                        & Executes \(\mathit{step}\) starting from \(\mathit{acc}\) for as long as there are changes to its up-to-now computed output, i.e., it stops once the \emph{least fixed point} is attained.                                                                                                                           \\
+        \bottomrule
+    \end{tabular}
+    \caption{Relational operators of the \ac{IR}.}\label{tab:ir-operators}
 \end{figure}
 
 \begin{figure}[htpb]
-	\centering
-	\begin{tabular}{@{}l@{}}
-		\toprule
-		\(\mathit{sch}(\mathit{distinct}(R)) = \mathit{sch}(R)\)                                                   \\
-		\(\mathit{sch}(R \cup S) = \mathit{sch}(R)\) (or \(= \mathit{sch}(S)\))                                    \\
-		\(\mathit{sch}(R \setminus S) = \mathit{sch}(R)\) (or \(= \mathit{sch}(S)\))                               \\
-		\(\mathit{sch}(\rho_{\mathit{name}}(R)) = \mathit{sch}(R)\)                                                \\
-		\(\mathit{sch}(\sigma_{\mathit{pred}}(R)) = \mathit{sch}(R)\)                                              \\
-		\(\mathit{sch}(\pi_{[(\mathit{name},\mathit{expr})]}(R)) = [name]\) (projection's list of field names)     \\
-		\(\mathit{sch}(R \times S) = \mathit{sch}(R) \circ \mathit{sch}(S)\) (\(\circ\) denotes concatenation)     \\
-		\(\mathit{sch}(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S) = \mathit{sch}(R) \circ \mathit{sch}(S)\) \\
-		\(\mathit{sch}(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S) = \mathit{sch}(R) \)               \\
-		\(\mathit{sch}(\mu(\mathit{acc}, \mathit{step})) = \mathit{sch}(\mathit{acc})\)                            \\
-		\bottomrule
-	\end{tabular}
-	\caption{The schema of the output of the operators of the \ac{IR}.}\label{tab:ir-schema-operators}
+    \centering
+    \begin{tabular}{@{}l@{}}
+        \toprule
+        \(\mathit{sch}(\mathit{distinct}(R)) = \mathit{sch}(R)\)                                                   \\
+        \(\mathit{sch}(R \cup S) = \mathit{sch}(R)\) (or \(= \mathit{sch}(S)\))                                    \\
+        \(\mathit{sch}(R \setminus S) = \mathit{sch}(R)\) (or \(= \mathit{sch}(S)\))                               \\
+        \(\mathit{sch}(\rho_{\mathit{name}}(R)) = \mathit{sch}(R)\)                                                \\
+        \(\mathit{sch}(\sigma_{\mathit{pred}}(R)) = \mathit{sch}(R)\)                                              \\
+        \(\mathit{sch}(\pi_{[(\mathit{name},\mathit{expr})]}(R)) = [name]\) (projection's list of field names)     \\
+        \(\mathit{sch}(R \times S) = \mathit{sch}(R) \circ \mathit{sch}(S)\) (\(\circ\) denotes concatenation)     \\
+        \(\mathit{sch}(R \bowtie_{[(\mathit{lexpr}, \mathit{rexpr})]} S) = \mathit{sch}(R) \circ \mathit{sch}(S)\) \\
+        \(\mathit{sch}(R \triangleright_{[(\mathit{lexpr}, \mathit{rexpr})]} S) = \mathit{sch}(R) \)               \\
+        \(\mathit{sch}(\mu(\mathit{acc}, \mathit{step})) = \mathit{sch}(\mathit{acc})\)                            \\
+        \bottomrule
+    \end{tabular}
+    \caption{The schema of the output of the operators of the \ac{IR}.}\label{tab:ir-schema-operators}
 \end{figure}
 
 The interpreter is invoked at two different stages of a query execution.
@@ -199,9 +199,9 @@ on the relation's tuples during query execution-time.
 \section{Datalog Frontend}\label{sec:datalog-frontend}
 
 \begin{figure}[htpb]
-	\centering
-	\begin{tabular}{c}
-		\begin{lstlisting}[keepspaces]
+    \centering
+    \begin{tabular}{c}
+        \begin{lstlisting}[keepspaces]
 // Core Datalog grammar.
 program     = rule* EOF ;
 rule        = head ":-" body "." ;
@@ -233,8 +233,8 @@ IDENTIFIER  = ALPHA ( ALPHA | DIGIT )* ;
 ALPHA       = "a".."z" | "A".."Z" | "_" ;
 DIGIT       = "0".."9" ;
 NULL        = "null" ;\end{lstlisting}
-	\end{tabular}
-	\caption{The grammar of my Datalog Variant.}\label{code:datalog-grammar}
+    \end{tabular}
+    \caption{The grammar of my Datalog Variant.}\label{code:datalog-grammar}
 \end{figure}
 
 \ref{code:datalog-grammar} shows the grammar of my Datalog dialect\footnotemark{},
@@ -244,9 +244,9 @@ The dialect follows ``typical'' Datalog syntax and semantics
 except for some modifications.
 
 \footnotetext{
-	The grammar does not include comment support for brevity.
-	The implementation supports \code{//}-EOL-style comments between rules
-	and between atoms of a rule's body.
+    The grammar does not include comment support for brevity.
+    The implementation supports \code{//}-EOL-style comments between rules
+    and between atoms of a rule's body.
 }
 
 Traditionally, Datalog uses positional indexing to access variables from a

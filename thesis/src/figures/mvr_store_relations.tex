@@ -1,80 +1,80 @@
 \begin{figure}[htpb]
-	\centering
-	\small
+    \centering
+    \small
 
-	\begin{subfigure}[b]{\textwidth}
-		\centering
-		\begin{subfigure}[b]{0.45\textwidth}
-			\centering
-			\begin{tabular}{@{}llll@{}}
-				\toprule
-				RepId   & Ctr    & Key     & Value   \\
-				\midrule
-				\(r_1\) & 1      & \(k_1\) & \(v_1\) \\
-				\(r_1\) & 2      & \(k_1\) & \(v_2\) \\
-				\(r_2\) & 2      & \(k_1\) & \(v_3\) \\
-				\midrule
-				\ldots  & \ldots & \ldots  & \ldots  \\
-				\midrule
-				\(r_1\) & 3      & \(k_2\) & \(u_1\) \\
-				\(r_2\) & 4      & \(k_2\) & \(u_2\) \\
-				\(r_2\) & 5      & \(k_2\) & \(u_3\) \\
-				\bottomrule
-			\end{tabular}
-			\caption{\code{set} relation}\label{fig:mvr-store-set}
-		\end{subfigure}
-		\hspace{1em}
-		\begin{subfigure}[b]{0.45\textwidth}
-			\centering
-			\begin{tabular}{@{}llll@{}}
-				\toprule
-				FromRepId & FromCtr & ToRepId & ToCtr  \\
-				\midrule
-				\(r_1\)   & 1       & \(r_1\) & 2      \\
-				\(r_1\)   & 1       & \(r_2\) & 2      \\
-				\midrule
-				\ldots    & \ldots  & \ldots  & \ldots \\
-				\midrule
-				\(r_1\)   & 3       & \(r_2\) & 5      \\
-				\(r_2\)   & 4       & \(r_2\) & 5      \\
-				\bottomrule
-			\end{tabular}
-			\caption{\code{pred} relation}\label{fig:mvr-store-pred}
-		\end{subfigure}
-	\end{subfigure}
+    \begin{subfigure}[b]{\textwidth}
+        \centering
+        \begin{subfigure}[b]{0.45\textwidth}
+            \centering
+            \begin{tabular}{@{}llll@{}}
+                \toprule
+                RepId   & Ctr    & Key     & Value   \\
+                \midrule
+                \(r_1\) & 1      & \(k_1\) & \(v_1\) \\
+                \(r_1\) & 2      & \(k_1\) & \(v_2\) \\
+                \(r_2\) & 2      & \(k_1\) & \(v_3\) \\
+                \midrule
+                \ldots  & \ldots & \ldots  & \ldots  \\
+                \midrule
+                \(r_1\) & 3      & \(k_2\) & \(u_1\) \\
+                \(r_2\) & 4      & \(k_2\) & \(u_2\) \\
+                \(r_2\) & 5      & \(k_2\) & \(u_3\) \\
+                \bottomrule
+            \end{tabular}
+            \caption{\code{set} relation}\label{fig:mvr-store-set}
+        \end{subfigure}
+        \hspace{1em}
+        \begin{subfigure}[b]{0.45\textwidth}
+            \centering
+            \begin{tabular}{@{}llll@{}}
+                \toprule
+                FromRepId & FromCtr & ToRepId & ToCtr  \\
+                \midrule
+                \(r_1\)   & 1       & \(r_1\) & 2      \\
+                \(r_1\)   & 1       & \(r_2\) & 2      \\
+                \midrule
+                \ldots    & \ldots  & \ldots  & \ldots \\
+                \midrule
+                \(r_1\)   & 3       & \(r_2\) & 5      \\
+                \(r_2\)   & 4       & \(r_2\) & 5      \\
+                \bottomrule
+            \end{tabular}
+            \caption{\code{pred} relation}\label{fig:mvr-store-pred}
+        \end{subfigure}
+    \end{subfigure}
 
-	\vspace{1em}
+    \vspace{1em}
 
-	\begin{subfigure}[b]{\textwidth}
-		\centering
-		\def\dist{15pt}
-		\begin{subfigure}[b]{0.45\textwidth}
-			\centering
-			\begin{tikzpicture}[]
-				% nodes and edges
-				\node[op] (k10) {\setop{1}{r_1}{k_1}{v_1}};
-				\node[head,above right=\dist of k10] (k11) {\setop{2}{r_1}{k_1}{v_2}} edge [pred] (k10);
-				\node[head,below right=\dist of k10] (k12) {\setop{2}{r_2}{k_1}{v_3}} edge [pred] (k10);
-			\end{tikzpicture}
-			\caption{Causal history of register \(k_1\)}\label{fig:causal-history-k1}
-		\end{subfigure}
-		\hspace{1em}
-		\begin{subfigure}[b]{0.45\textwidth}
-			\centering
-			\begin{tikzpicture}[]
-				\small
-				% nodes and edges
-				\node[op] (k20) {\setop{3}{r_1}{k_2}{u_1}};
-				\node[head,below right=\dist of k20] (k22) {\setop{5}{r_2}{k_2}{u_3}} edge [pred] (k20);
-				\node[op,below left=\dist of k22] (k21) {\setop{4}{r_2}{k_2}{u_2}};
-				\draw [pred] (k22) edge (k21);
-			\end{tikzpicture}
-			\caption{Causal history of register \(k_2\)}\label{fig:causal-history-k2}
-		\end{subfigure}
-	\end{subfigure}
+    \begin{subfigure}[b]{\textwidth}
+        \centering
+        \def\dist{15pt}
+        \begin{subfigure}[b]{0.45\textwidth}
+            \centering
+            \begin{tikzpicture}[]
+                % nodes and edges
+                \node[op] (k10) {\setop{1}{r_1}{k_1}{v_1}};
+                \node[head,above right=\dist of k10] (k11) {\setop{2}{r_1}{k_1}{v_2}} edge [pred] (k10);
+                \node[head,below right=\dist of k10] (k12) {\setop{2}{r_2}{k_1}{v_3}} edge [pred] (k10);
+            \end{tikzpicture}
+            \caption{Causal history of register \(k_1\)}\label{fig:causal-history-k1}
+        \end{subfigure}
+        \hspace{1em}
+        \begin{subfigure}[b]{0.45\textwidth}
+            \centering
+            \begin{tikzpicture}[]
+                \small
+                % nodes and edges
+                \node[op] (k20) {\setop{3}{r_1}{k_2}{u_1}};
+                \node[head,below right=\dist of k20] (k22) {\setop{5}{r_2}{k_2}{u_3}} edge [pred] (k20);
+                \node[op,below left=\dist of k22] (k21) {\setop{4}{r_2}{k_2}{u_2}};
+                \draw [pred] (k22) edge (k21);
+            \end{tikzpicture}
+            \caption{Causal history of register \(k_2\)}\label{fig:causal-history-k2}
+        \end{subfigure}
+    \end{subfigure}
 
-	\caption{
-		The relations \code{set} and \code{pred} with example data (top)
-		and their causal history illustrated (bottom).
-	}\label{fig:mvr-store-relations}
+    \caption{
+        The relations \code{set} and \code{pred} with example data (top)
+        and their causal history illustrated (bottom).
+    }\label{fig:mvr-store-relations}
 \end{figure}

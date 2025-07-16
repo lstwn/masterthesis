@@ -22,15 +22,15 @@ Syntactically, rules are expressed in the form of Horn clauses,
 which are logical implications adhering to this structure:
 
 \begin{equation}
-	\underbrace{
-	\underbrace{r}_{\text{head}}
-	\text{ :- }
-	\underbrace{
-	\underbrace{a_1}_{\text{atom}},
-	\ldots,
-	\underbrace{a_n}_{\text{atom}}.
-	}_{\text{body}}
-	}_{\text{rule}}
+    \underbrace{
+    \underbrace{r}_{\text{head}}
+    \text{ :- }
+    \underbrace{
+    \underbrace{a_1}_{\text{atom}},
+    \ldots,
+    \underbrace{a_n}_{\text{atom}}.
+    }_{\text{body}}
+    }_{\text{rule}}
 \end{equation}
 
 The left-hand side of a rule is called \emph{head}, the right-hand side \emph{body},
@@ -63,11 +63,11 @@ If \(x_1, \ldots x_m\) are the variables of the rule's body, a rule can be read 
 Mathematically, a rule can be expressed as\footnotemark{}:
 
 \footnotetext{
-	Not every atom or head must reference all variables.
+    Not every atom or head must reference all variables.
 }
 
 \begin{equation}
-	\forall x_1, \ldots, x_m: a_1(x_1, \ldots, x_m) \land \ldots \land a_n(x_1, \ldots, x_m) \Rightarrow r(x_1, \ldots, x_m) \\
+    \forall x_1, \ldots, x_m: a_1(x_1, \ldots, x_m) \land \ldots \land a_n(x_1, \ldots, x_m) \Rightarrow r(x_1, \ldots, x_m) \\
 \end{equation}
 
 If there are multiple rules with the same head, their bodies' conjunctions
@@ -110,14 +110,14 @@ The semantics of relations in relational algebra depend on the context and
 can be either set-based or multiset-based.
 
 \begin{figure}[htpb]
-	\centering
-	\begin{lstlisting}[keepspaces]
+    \centering
+    \begin{lstlisting}[keepspaces]
 edge(from, to, weight)       :- .
 closure(from, to, weight, 1) :- edge(from, to, weight), from = 2.
 closure(from, to, cweight + weight, hopcnt + 1)
                              :- closure(from, via, cweight, hopcnt),
                                 edge(via, to, weight).\end{lstlisting}
-	\caption{An exemplary computation of a graph's transitive closure with Datalog.}\label{code:trans-closure-datalog}
+    \caption{An exemplary computation of a graph's transitive closure with Datalog.}\label{code:trans-closure-datalog}
 \end{figure}
 
 \ref{code:trans-closure-datalog} illustrates the concepts for the
@@ -185,13 +185,13 @@ However, introducing negation without any restrictions onto Datalog causes
 semantic issues, as \ref{code:negative-datalog-issue} demonstrates:
 
 \begin{figure}[htpb]
-	\centering
-	\begin{lstlisting}[keepspaces]
+    \centering
+    \begin{lstlisting}[keepspaces]
 human(name)    :- .
 isLiar(name)   :- human(name), not isHonest(name).
 isHonest(name) :- human(name), not isLiar(name).
 \end{lstlisting}
-	\caption{A Datalog program with negation but unclear semantics.}\label{code:negative-datalog-issue}
+    \caption{A Datalog program with negation but unclear semantics.}\label{code:negative-datalog-issue}
 \end{figure}
 
 Assuming that the ``human'' \ac{EDBP} only contains the fact
@@ -210,10 +210,10 @@ Datalog with negation, \emph{stratified negation} is the predominant
 one~\cite{green2013datalog}.
 
 \footnotetext{
-	This is inspired by the
-	\href{https://en.wikipedia.org/wiki/Liar_paradox}{liars paradox},
-	whose first instance is (not quite correctly) attributed to the Cretan
-	philosopher Epimenides.
+    This is inspired by the
+    \href{https://en.wikipedia.org/wiki/Liar_paradox}{liars paradox},
+    whose first instance is (not quite correctly) attributed to the Cretan
+    philosopher Epimenides.
 }
 
 Semipositive Datalog only allows the negation of \acp{EDBP}, but not \acp{IDBP},
@@ -235,12 +235,12 @@ A Datalog program is stratifiable if its predicates can be partitioned into
 \emph{ordered} strata \(P_1, \ldots, P_n\) such that:
 
 \begin{itemize}
-	\item If the predicate \(p_b\) occurs positively in the body of a rule
-	      defining the predicate \(p_h\), then \(p_b \in P_i\), \(p_h \in P_j\),
-	      and \(i \leq j\).
-	\item If the predicate \(p_b\) occurs negatively in the body of a rule
-	      defining the predicate \(p_h\), then \(p_b \in P_i\),
-	      \(p_h \in P_j\), and \(i < j\)~\cite{green2013datalog}.
+    \item If the predicate \(p_b\) occurs positively in the body of a rule
+          defining the predicate \(p_h\), then \(p_b \in P_i\), \(p_h \in P_j\),
+          and \(i \leq j\).
+    \item If the predicate \(p_b\) occurs negatively in the body of a rule
+          defining the predicate \(p_h\), then \(p_b \in P_i\),
+          \(p_h \in P_j\), and \(i < j\)~\cite{green2013datalog}.
 \end{itemize}
 
 To compute a stratification of a negative Datalog program \(P\),
@@ -249,14 +249,14 @@ It is a directed graph whose nodes are the predicates of \(P\).
 Furthermore, there is
 
 \begin{itemize}
-	\item a \emph{positive} edge
-	      (unlabeled in \ref{fig:precedence-graph-mvr-crdt})
-	      from predicate \(p_i\) to predicate \(p_j\)
-	      if \(p_i\) occurs in the body of a rule defining \(p_j\) as well as
-	\item a \emph{negative} edge
-	      (labeled with \(\lnot\) in \ref{fig:precedence-graph-mvr-crdt})
-	      from \(p_i\) to \(p_j\)
-	      if \(p_i\) occurs \emph{negatively} in the body of a rule defining \(p_j\).
+    \item a \emph{positive} edge
+          (unlabeled in \ref{fig:precedence-graph-mvr-crdt})
+          from predicate \(p_i\) to predicate \(p_j\)
+          if \(p_i\) occurs in the body of a rule defining \(p_j\) as well as
+    \item a \emph{negative} edge
+          (labeled with \(\lnot\) in \ref{fig:precedence-graph-mvr-crdt})
+          from \(p_i\) to \(p_j\)
+          if \(p_i\) occurs \emph{negatively} in the body of a rule defining \(p_j\).
 \end{itemize}
 
 The precedence graph can be used not only to check whether a Datalog
@@ -336,15 +336,15 @@ and converge to a common state, which is guaranteed to be the same for all
 replicas that have delivered the same set of updates.
 
 \footnotetext{
-	Although \acp{CRDT} are often referred to as \emph{Conflict-free} Replicated
-	Data Types, I prefer the term \emph{convergent} here because the former term
-	may be a bit misleading, as conflicts can still occur, e.g., in case of
-	concurrent writes to the same ``location'' of a the data type.
-	I think that \acp{CRDT} are better characterized by their property that diverging
-	replicas eventually \emph{converge} to the same state, given the delivery of
-	the same set of updates.
-	While that state may comprise conflicts, replicas uniformly agree upon them
-	(and their order).
+    Although \acp{CRDT} are often referred to as \emph{Conflict-free} Replicated
+    Data Types, I prefer the term \emph{convergent} here because the former term
+    may be a bit misleading, as conflicts can still occur, e.g., in case of
+    concurrent writes to the same ``location'' of a the data type.
+    I think that \acp{CRDT} are better characterized by their property that diverging
+    replicas eventually \emph{converge} to the same state, given the delivery of
+    the same set of updates.
+    While that state may comprise conflicts, replicas uniformly agree upon them
+    (and their order).
 }
 
 The literature defines two classes of \acp{CRDT}: state-based and operation-based
@@ -358,11 +358,11 @@ Both models must adhere to these properties under the \emph{strong eventual cons
 model which demands three properties~\cite{shapiro2011comprehensive}:
 
 \begin{enumerate}
-	\item \textbf{Eventual Delivery}: All updates are eventually delivered to
-	      all replicas.
-	\item \textbf{Termination}: All method executions terminate.
-	\item \textbf{Convergence}: All replicas that have delivered the same set of
-	      updates are in an equivalent state.
+    \item \textbf{Eventual Delivery}: All updates are eventually delivered to
+          all replicas.
+    \item \textbf{Termination}: All method executions terminate.
+    \item \textbf{Convergence}: All replicas that have delivered the same set of
+          updates are in an equivalent state.
 \end{enumerate}
 
 Verifying the correctness of a \ac{CRDT} is a complex,
@@ -405,8 +405,9 @@ For instance, a star network topology with a central server could be used
 for more efficient update dissemination.
 However, the issue of update dissemination (and update integrity) is not the focus
 of this work and various approaches are discussed in the literature~\cite{
-	auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
-	kleppmann2022making}.
+    auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
+    kleppmann2022making
+}.
 I only make the basic assumption of some network and protocol
 which ensures that each update will eventually be delivered to all replicas.
 Furthermore, replicas are assumed to be non-byzantine.
@@ -450,12 +451,12 @@ The state of \(V\) at the last evaluation is denoted as \(V_0\) and the
 state of \(V\) which includes the changes is denoted as \(V_1\). Then:
 
 \begin{equation}
-	\begin{aligned}
-		V_1                                                                                               & = V_0 + \Delta V                                                      \\
-		\Leftrightarrow (R + \Delta R) \bowtie (S + \Delta S)                                             & = R \bowtie S + \Delta V                                              \\
-		\Leftrightarrow R \bowtie S + R \bowtie \Delta S + \Delta R \bowtie S + \Delta R \bowtie \Delta S & = R \bowtie S + \Delta V                                              \\
-		\Leftrightarrow \Delta V                                                                          & = R \bowtie \Delta S + \Delta R \bowtie S + \Delta R \bowtie \Delta S
-	\end{aligned}
+    \begin{aligned}
+        V_1                                                                                               & = V_0 + \Delta V                                                      \\
+        \Leftrightarrow (R + \Delta R) \bowtie (S + \Delta S)                                             & = R \bowtie S + \Delta V                                              \\
+        \Leftrightarrow R \bowtie S + R \bowtie \Delta S + \Delta R \bowtie S + \Delta R \bowtie \Delta S & = R \bowtie S + \Delta V                                              \\
+        \Leftrightarrow \Delta V                                                                          & = R \bowtie \Delta S + \Delta R \bowtie S + \Delta R \bowtie \Delta S
+    \end{aligned}
 \end{equation}
 
 In the transformation from the first to the second line, the definitions
@@ -498,11 +499,11 @@ as it is based on sets and set union to integrate updates,
 which is a commutative operation already.
 
 \footnotetext{
-	While the documentation is not perfect and the \acs{API} surface quite involved,
-	it is sufficient to start building with DBSP.
-	As part of this work, I have contributed a
-	\href{https://github.com/feldera/feldera/pull/3893}{pull request}
-	to improve the documentation of DBSP's tutorial on recursive queries.
+    While the documentation is not perfect and the \acs{API} surface quite involved,
+    it is sufficient to start building with DBSP.
+    As part of this work, I have contributed a
+    \href{https://github.com/feldera/feldera/pull/3893}{pull request}
+    to improve the documentation of DBSP's tutorial on recursive queries.
 }
 
 \newcommand{\zset}{\(\mathbb{Z}\)-set}
@@ -521,11 +522,11 @@ Hence, \zsets{} allow representing both data and changes to data with the
 same construct.
 
 \footnotetext{
-	The paper calls them \(\mathbb{K}\)-relations because it operates
-	in a more general context of tagging tuples with elements from a
-	commutative semiring \(\mathbb{K}\).
-	As DBSP uses the integers \(\mathbb{Z}\) as an instance of the
-	commutative semiring, they are named \zsets{}.
+    The paper calls them \(\mathbb{K}\)-relations because it operates
+    in a more general context of tagging tuples with elements from a
+    commutative semiring \(\mathbb{K}\).
+    As DBSP uses the integers \(\mathbb{Z}\) as an instance of the
+    commutative semiring, they are named \zsets{}.
 }
 
 Roughly speaking, DBSP calls a query plan a \emph{circuit}

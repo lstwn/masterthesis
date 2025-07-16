@@ -44,8 +44,8 @@ it is executed frequently (per tuple) instead of just once at query build-time
 for creating the query plan.
 
 \footnotetext{
-	Rust's \href{https://docs.rs/smallvec/latest/smallvec/}{\texttt{smallvec}}
-	library implements this concept.
+    Rust's \href{https://docs.rs/smallvec/latest/smallvec/}{\texttt{smallvec}}
+    library implements this concept.
 }
 
 Applying serious query optimization has the potential to improve
@@ -54,38 +54,38 @@ Particularly, in the context of \ac{IVM} and translation from Datalog to
 relational algebra, I want to emphasize three aspects:
 
 \begin{itemize}
-	\item \textbf{Join ordering}.
-	      As discussed in \ref{sec:ivm}, changing a query plan for a continuously
-	      evaluated query can be costly.
-	      Also, the query plan has to be chosen upfront and with the absence of
-	      statistics about the data.
-	      Hence, to what extent is an automated join ordering algorithm useful
-	      in this context? Possibly, it may be better to let the query
-	      author choose a definitive join order or allow them to provide
-	      information about data distributions in case of automated join ordering.
-		  Alternatively, the query engine could remember statistics from one
-		  application run and use them to optimize the query plan for its next
-		  run when the query's operators need to be rehydrated anyways.
-	\item \textbf{Scheduling of antijoins}.
-	      Negative atoms are handled with antijoins in the query engine.
-	      So far, they are scheduled after the query plan covering the
-	      positive atoms.
-	      However, antijoins may actually be scheduled better by placing them
-	      as early as possible, i.e., if all variables referenced by a
-	      negative atom are in scope, to keep the intermediate result set small.
-	      This is  because in the worst case, antijoins leave the intermediate
-	      result set unchanged but in the average case they filter tuples out.
-	      This is similar to predicate pushdown and, therefore, I call this
-	      problem \emph{antijoin pushdown}.
-	\item \textbf{Query optimization with Datalog}.
-	      As this approach uses both Datalog and relational algebra,
-		  there are two abstraction levels upon which query optimization
-		  can be applied.
-		  Although query optimization on Datalog has been studied
-		  to a lesser extent, it may offer other, unexplored possibilities
-		  which can only (or better) be applied on the Datalog level.
-		  Also, this requires researching the interaction between
-		  Datalog and relational algebra optimizations.
+    \item \textbf{Join ordering}.
+          As discussed in \ref{sec:ivm}, changing a query plan for a continuously
+          evaluated query can be costly.
+          Also, the query plan has to be chosen upfront and with the absence of
+          statistics about the data.
+          Hence, to what extent is an automated join ordering algorithm useful
+          in this context? Possibly, it may be better to let the query
+          author choose a definitive join order or allow them to provide
+          information about data distributions in case of automated join ordering.
+          Alternatively, the query engine could remember statistics from one
+          application run and use them to optimize the query plan for its next
+          run when the query's operators need to be rehydrated anyways.
+    \item \textbf{Scheduling of antijoins}.
+          Negative atoms are handled with antijoins in the query engine.
+          So far, they are scheduled after the query plan covering the
+          positive atoms.
+          However, antijoins may actually be scheduled better by placing them
+          as early as possible, i.e., if all variables referenced by a
+          negative atom are in scope, to keep the intermediate result set small.
+          This is  because in the worst case, antijoins leave the intermediate
+          result set unchanged but in the average case they filter tuples out.
+          This is similar to predicate pushdown and, therefore, I call this
+          problem \emph{antijoin pushdown}.
+    \item \textbf{Query optimization with Datalog}.
+          As this approach uses both Datalog and relational algebra,
+          there are two abstraction levels upon which query optimization
+          can be applied.
+          Although query optimization on Datalog has been studied
+          to a lesser extent, it may offer other, unexplored possibilities
+          which can only (or better) be applied on the Datalog level.
+          Also, this requires researching the interaction between
+          Datalog and relational algebra optimizations.
 \end{itemize}
 
 These aspects represent open ends to the bigger question if a query based

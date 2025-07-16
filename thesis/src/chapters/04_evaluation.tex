@@ -26,7 +26,7 @@ Examples in this chapter explicitly state the \acp{EDBP} to communicate the
 predicates' schema to the query engine.
 
 \begin{figure}[htpb]
-	\begin{lstlisting}[keepspaces]
+    \begin{lstlisting}[keepspaces]
 // EDBPs:
 pred(FromRepId, FromCtr, ToRepId, ToCtr) :- .
 set(RepId, Ctr, Key, Value)              :- .
@@ -37,10 +37,10 @@ distinct overwritten(RepId, Ctr)
 mvrStore(Key, Value)
                     :- set(RepId, Ctr, Key, Value),
                        not overwritten(RepId, Ctr).\end{lstlisting}
-	\caption{
-	    The \ac{MVR} key-value store without causal broadcast in my Datalog
-		dialect.
-	}\label{code:mvr-store-datalog-dialect}
+    \caption{
+        The \ac{MVR} key-value store without causal broadcast in my Datalog
+        dialect.
+    }\label{code:mvr-store-datalog-dialect}
 \end{figure}
 
 \ref{code:mvr-crdt-datalog-dialect} provides a definition of the \ac{MVR}
@@ -49,7 +49,7 @@ The query differentiates itself from the previous example by including the
 causal broadcast mechanism.
 
 \begin{figure}[htpb]
-	\begin{lstlisting}[keepspaces]
+    \begin{lstlisting}[keepspaces]
 // EDBPs are omitted because they are shared with the previous example. IDBPs:
 distinct overwritten(RepId, Ctr)
                     :- pred(RepId = FromRepId, Ctr = FromCtr).
@@ -68,10 +68,10 @@ mvrStore(Key, Value)
                     :- isLeaf(RepId, Ctr),
                        isCausallyReady(RepId, Ctr),
                        set(RepId, Ctr, Key, Value).\end{lstlisting}
-	\caption{
-	    The \ac{MVR} key-value store including causal broadcast in my Datalog
-		dialect.
-	}\label{code:mvr-crdt-datalog-dialect}
+    \caption{
+        The \ac{MVR} key-value store including causal broadcast in my Datalog
+        dialect.
+    }\label{code:mvr-crdt-datalog-dialect}
 \end{figure}
 
 Both examples are similar to their counterparts from \ref{ch:intro}
@@ -129,10 +129,10 @@ At its core, the Datalog query has to implement this depth-first, pre-order
 traversal of the tree.
 
 \begin{figure}[htpb]
-	\centering
+    \centering
 
-	\begin{subfigure}[b]{\textwidth}
-		\begin{lstlisting}[keepspaces,escapechar=!]
+    \begin{subfigure}[b]{\textwidth}
+        \begin{lstlisting}[keepspaces,escapechar=!]
 // Black edges in !\ref{fig:list-crdt}!.
 insert(RepId, Ctr, ParentRepId, ParentCtr, Value) :- .
 remove(ElemId, ElemCtr) :- .
@@ -146,13 +146,13 @@ laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
 firstChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr) :-
     insert(ChildRepId = RepId, ChildCtr = Ctr, ParentRepId, ParentCtr),
     not laterChild(ParentRepId, ParentCtr, ChildRepId, ChildCtr).\end{lstlisting}
-		\caption{Part 1: Definition of ``insert'' \ac{EDBP} and ``firstChild'' \ac{IDBP}.}\label{code:list-crdt-datalog-dialect-part1}
-	\end{subfigure}
+        \caption{Part 1: Definition of ``insert'' \ac{EDBP} and ``firstChild'' \ac{IDBP}.}\label{code:list-crdt-datalog-dialect-part1}
+    \end{subfigure}
 
-	\vspace{1em}
+    \vspace{1em}
 
-	\begin{subfigure}[b]{\textwidth}
-		\begin{lstlisting}[keepspaces,escapechar=!]
+    \begin{subfigure}[b]{\textwidth}
+        \begin{lstlisting}[keepspaces,escapechar=!]
 sibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
     insert(Child1RepId = RepId, Child1Ctr = Ctr, ParentRepId, ParentCtr),
     insert(Child2RepId = RepId, Child2Ctr = Ctr, ParentRepId, ParentCtr).
@@ -173,15 +173,15 @@ nextSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr) :-
     laterSibling(Child1RepId, Child1Ctr, Child2RepId, Child2Ctr),
     not laterIndirectSibling(Child1RepId, Child1Ctr,
         Child2RepId = Child3RepId, Child2Ctr = Child3Ctr).\end{lstlisting}
-		\caption{Part 2: Definition of ``nextSibling'' \ac{IDBP}.}\label{code:list-crdt-datalog-dialect-part2}
-	\end{subfigure}
+        \caption{Part 2: Definition of ``nextSibling'' \ac{IDBP}.}\label{code:list-crdt-datalog-dialect-part2}
+    \end{subfigure}
 \end{figure}
 
 \begin{figure}[htpb]\ContinuedFloat
-	\centering
+    \centering
 
-	\begin{subfigure}[b]{\textwidth}
-		\begin{lstlisting}[keepspaces,escapechar=!]
+    \begin{subfigure}[b]{\textwidth}
+        \begin{lstlisting}[keepspaces,escapechar=!]
 distinct hasNextSibling(ChildRepId, ChildCtr) :-
     nextSibling(ChildRepId = Child1RepId, ChildCtr = Child1Ctr).
 
@@ -205,15 +205,15 @@ nextElem(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
     not hasChild(PrevRepId = ParentRepId, PrevCtr = ParentCtr),
     nextSiblingAnc(PrevRepId = ChildRepId, PrevCtr = ChildCtr,
         NextRepId = AncRepId, NextCtr = AncCtr).\end{lstlisting}
-		\caption{Part 3: Definition of ``nextSiblingAnc'' and ``nextElem'' \acp{IDBP}.}\label{code:list-crdt-datalog-dialect-part3}
-	\end{subfigure}
+        \caption{Part 3: Definition of ``nextSiblingAnc'' and ``nextElem'' \acp{IDBP}.}\label{code:list-crdt-datalog-dialect-part3}
+    \end{subfigure}
 \end{figure}
 
 \begin{figure}[htpb]\ContinuedFloat
-	\centering
+    \centering
 
-	\begin{subfigure}[b]{\textwidth}
-		\begin{lstlisting}[keepspaces,escapechar=!]
+    \begin{subfigure}[b]{\textwidth}
+        \begin{lstlisting}[keepspaces,escapechar=!]
 distinct hasValue(ElemId, ElemCtr) :-
     // Fix for not being able to assign anything to the sentinel element.
     insert(ElemId = ParentRepId, ElemCtr = ParentCtr),
@@ -238,9 +238,9 @@ nextVisible(PrevRepId, PrevCtr, NextRepId, NextCtr) :-
 listElem(PrevRepId, PrevCtr, Value, NextRepId, NextCtr) :-
     nextVisible(PrevRepId, PrevCtr, NextRepId, NextCtr),
     insert(NextRepId = RepId, NextCtr = Ctr, Value).\end{lstlisting}
-		\caption{Part 4: Definition of ``listElem'' \ac{IDBP}.}\label{code:list-crdt-datalog-dialect-part4}
-	\end{subfigure}
-	\caption{A list \ac{CRDT} in my Datalog dialect, adapted from~\cite{kleppmann2018data}.}\label{code:list-crdt-datalog-dialect}
+        \caption{Part 4: Definition of ``listElem'' \ac{IDBP}.}\label{code:list-crdt-datalog-dialect-part4}
+    \end{subfigure}
+    \caption{A list \ac{CRDT} in my Datalog dialect, adapted from~\cite{kleppmann2018data}.}\label{code:list-crdt-datalog-dialect}
 \end{figure}
 
 \input{figures/list_crdt.tex}
@@ -362,20 +362,20 @@ Benchmarking happens in two different settings which are distinguished by
 the operators of the query plan being either ``cold'' or ``warm'':
 
 \begin{itemize}
-	\item \textbf{Hydration setting} (\ref{sec:bench-hydration}).
-	      As outlined in \ref{sec:ivm}, all bilinear operators are stateful.
-	      Hence, all stateful operators of the query plan have to restore
-	      their state before processing any new updates, e.g., in case of a
-		  ``cold'' application restart. This benchmark measures the time it takes
-	      until the application can show its last state and process \emph{new}
-		  updates again on top of an existing operation history.
-	\item \textbf{Near-real-time setting} (\ref{sec:bench-nrt}).
-	      In this setting, the operators are assumed to be ``warm'' and only
-	      a small number of updates are new to them.
-	      This benchmark measures the common operation mode of \acp{CRDT} after
-		  the application has started up. It measures how much time it takes
-		  to process a small number of updates on top of an already ``hydrated''
-		  query plan.
+    \item \textbf{Hydration setting} (\ref{sec:bench-hydration}).
+          As outlined in \ref{sec:ivm}, all bilinear operators are stateful.
+          Hence, all stateful operators of the query plan have to restore
+          their state before processing any new updates, e.g., in case of a
+          ``cold'' application restart. This benchmark measures the time it takes
+          until the application can show its last state and process \emph{new}
+          updates again on top of an existing operation history.
+    \item \textbf{Near-real-time setting} (\ref{sec:bench-nrt}).
+          In this setting, the operators are assumed to be ``warm'' and only
+          a small number of updates are new to them.
+          This benchmark measures the common operation mode of \acp{CRDT} after
+          the application has started up. It measures how much time it takes
+          to process a small number of updates on top of an already ``hydrated''
+          query plan.
 \end{itemize}
 
 All benchmarks are executed on a 2024 MacBook Pro with an Apple M4 Pro CPU.

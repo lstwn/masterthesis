@@ -1,8 +1,8 @@
 \begin{figure}[tpb]
-	\centering
+    \centering
 
-	\begin{tabular}{c}
-		\begin{lstlisting}[keepspaces,escapechar=!]
+    \begin{tabular}{c}
+        \begin{lstlisting}[keepspaces,escapechar=!]
 edges   <- LiteralExpr(Relation { schema: ["from", "to", "weight"] })
 base    <- ProjectionExpr {
              relation: VarExpr("edges"),
@@ -44,35 +44,35 @@ closure <- FixedPointIterExpr {
                        )
                      ]
            }}]}}\end{lstlisting}
-	\end{tabular}
+    \end{tabular}
 
-	\begin{tikzpicture}[remember picture,overlay]
-		\tikzset{
-			qtime/.style={
-					rectangle,draw,
-					TUMAccentBlue,
-					rounded corners=2pt,
-					line width=0.8pt,
-					font=\footnotesize,align=center,
-					minimum height=2.2ex,
-					yshift=0.55ex,
-					xshift=-0.1ex,
-					inner sep=0.5pt,
-				},
-		}
-		\begin{scope}[on background layer]
-			\foreach \i in {1,...,8}
-				{\node[qtime,fit=(pic cs:qtimes\i) (pic cs:qtimee\i)] () {};}
+    \begin{tikzpicture}[remember picture,overlay]
+        \tikzset{
+            qtime/.style={
+                    rectangle,draw,
+                    TUMAccentBlue,
+                    rounded corners=2pt,
+                    line width=0.8pt,
+                    font=\footnotesize,align=center,
+                    minimum height=2.2ex,
+                    yshift=0.55ex,
+                    xshift=-0.1ex,
+                    inner sep=0.5pt,
+                },
+        }
+        \begin{scope}[on background layer]
+            \foreach \i in {1,...,8}
+                {\node[qtime,fit=(pic cs:qtimes\i) (pic cs:qtimee\i)] () {};}
 
-			\foreach \i in {9,10}
-				{\node[qtime,minimum height=6*2.0ex,
-						fit=(pic cs:qtime\i1) (pic cs:qtime\i2) (pic cs:qtime\i3)
-					] () {};}
-		\end{scope}
-	\end{tikzpicture}
+            \foreach \i in {9,10}
+                {\node[qtime,minimum height=6*2.0ex,
+                        fit=(pic cs:qtime\i1) (pic cs:qtime\i2) (pic cs:qtime\i3)
+                    ] () {};}
+        \end{scope}
+    \end{tikzpicture}
 
-	\caption{
-		The computation of the transitive closure from \ref{code:trans-closure-datalog}
-		translated into the \ac{IR}.
-	}\label{code:trans-closure-ir}
+    \caption{
+        The computation of the transitive closure from \ref{code:trans-closure-datalog}
+        translated into the \ac{IR}.
+    }\label{code:trans-closure-ir}
 \end{figure}

@@ -60,27 +60,27 @@ This work aims to put the idea into practice by exploring the feasibility of
 expressing \acp{CRDT} as Datalog queries through:
 
 \begin{itemize}
-	\item \textbf{Implementing a query engine} which can execute queries
-	      represented in an \ac{IR} (\ref{sec:ir}).
-	      The \ac{IR} works on top of operators from relational algebra, e.g.,
-	      joins, projections, and selections.
-	      The engine uses \ac{IVM}, by leveraging the recently released DBSP
-	      framework~\cite{budiu2025dbsp}, to incrementally maintain the state
-	      of a query over a stream of updates.
-	\item \textbf{Defining and implementing a Datalog dialect} (\ref{sec:datalog-frontend}),
-	      powerful enough to express \acp{CRDT} as queries.
-	      The dialect includes support for recursion and negation
-	      and is translated (\ref{sec:datalog-to-relational-algebra})
-	      to the query engine's \ac{IR}.
-	\item \textbf{Providing \ac{CRDT} definitions} of a \ac{MVR} key-value store
-	      (\ref{sec:motivating-example,sec:key-value-stores-datalog-dialect}),
-	      a list (\ref{sec:list-crdt-datalog-dialect}), and a causal broadcast
-	      (\ref{sec:advanced_example,sec:key-value-stores-datalog-dialect})
-	      in my Datalog dialect.
-	      \ref{sec:benchmarks} evaluates their performance in two settings:
-	      (1) simulating an application restart by feeding in all updates to
-	      the \ac{CRDT} at once, and (2) simulating near-real-time collaboration
-	      by feeding in recent updates on top of an existing state.
+    \item \textbf{Implementing a query engine} which can execute queries
+          represented in an \ac{IR} (\ref{sec:ir}).
+          The \ac{IR} works on top of operators from relational algebra, e.g.,
+          joins, projections, and selections.
+          The engine uses \ac{IVM}, by leveraging the recently released DBSP
+          framework~\cite{budiu2025dbsp}, to incrementally maintain the state
+          of a query over a stream of updates.
+    \item \textbf{Defining and implementing a Datalog dialect} (\ref{sec:datalog-frontend}),
+          powerful enough to express \acp{CRDT} as queries.
+          The dialect includes support for recursion and negation
+          and is translated (\ref{sec:datalog-to-relational-algebra})
+          to the query engine's \ac{IR}.
+    \item \textbf{Providing \ac{CRDT} definitions} of a \ac{MVR} key-value store
+          (\ref{sec:motivating-example,sec:key-value-stores-datalog-dialect}),
+          a list (\ref{sec:list-crdt-datalog-dialect}), and a causal broadcast
+          (\ref{sec:advanced_example,sec:key-value-stores-datalog-dialect})
+          in my Datalog dialect.
+          \ref{sec:benchmarks} evaluates their performance in two settings:
+          (1) simulating an application restart by feeding in all updates to
+          the \ac{CRDT} at once, and (2) simulating near-real-time collaboration
+          by feeding in recent updates on top of an existing state.
 \end{itemize}
 
 Ideally, this different approach to \acp{CRDT} may move them closer to the power,
@@ -168,10 +168,10 @@ The edges denote the entries of the \code{pred} relation and a
 To obtain the state of the key-value store, the following set must be computed:
 
 \begin{align*}
-	\var{mvrStore} = \{ (\var{Key}, \var{Value}) \mid
-	 & (\var{RepId}, \var{Ctr}, \var{Key}, \var{Value}) \in \var{set}                      \\
-	 & \land \nexists (\var{FromRepId}, \var{FromCtr}, \var{\_}, \var{\_}) \in \var{pred}: \\
-	 & \var{RepId} = \var{FromRepId} \land \var{Ctr} = \var{FromCtr} \}
+    \var{mvrStore} = \{ (\var{Key}, \var{Value}) \mid
+     & (\var{RepId}, \var{Ctr}, \var{Key}, \var{Value}) \in \var{set}                      \\
+     & \land \nexists (\var{FromRepId}, \var{FromCtr}, \var{\_}, \var{\_}) \in \var{pred}: \\
+     & \var{RepId} = \var{FromRepId} \land \var{Ctr} = \var{FromCtr} \}
 \end{align*}
 
 Intuitively, the query selects all key-value pairs from the \code{set} relation
@@ -199,41 +199,37 @@ and negative set inclusion, to align the SQL query closer with the mathematical
 notation.
 
 \begin{figure}[htpb]
-	\centering
+    \centering
 
-	\begin{subfigure}[b]{\textwidth}
-		\begin{lstlisting}[keepspaces]
+    \begin{subfigure}[b]{\textwidth}
+        \begin{lstlisting}[keepspaces]
 overwritten(RepId, Ctr) :- pred(RepId, Ctr, _, _).
 mvrStore(Key, Value)    :- set(RepId, Ctr, Key, Value),
                            not overwritten(RepId, Ctr).\end{lstlisting}
-		\caption{The \ac{MVR} key-value store in Datalog.}\label{code:mvr-store-datalog}
-	\end{subfigure}
+        \caption{The \ac{MVR} key-value store in Datalog.}\label{code:mvr-store-datalog}
+    \end{subfigure}
 
-	\vspace{1em}
+    \vspace{1em}
 
-	\begin{subfigure}[b]{\textwidth}
-		\begin{lstlisting}[language=SQL]
+    \begin{subfigure}[b]{\textwidth}
+        \begin{lstlisting}[language=SQL]
 SELECT key, value
 FROM set LEFT JOIN pred ON set.RepId = pred.FromRepId
                         AND set.Ctr = pred.FromCtr
-WHERE pred.FromRepId IS NULL;
-        \end{lstlisting}
-		\caption{The \ac{MVR} key-value store in SQL using a left join.}\label{code:mvr-store-sql-left-join}
-	\end{subfigure}
+WHERE pred.FromRepId IS NULL;\end{lstlisting}
+        \caption{The \ac{MVR} key-value store in SQL using a left join.}\label{code:mvr-store-sql-left-join}
+    \end{subfigure}
 
-	\vspace{1em}
+    \vspace{1em}
 
-	\begin{subfigure}[b]{\textwidth}
-		% \begin{tabular}{c}
-		\begin{lstlisting}[language=SQL]
+    \begin{subfigure}[b]{\textwidth}
+        \begin{lstlisting}[language=SQL]
 WITH overwritten AS (SELECT FromRepId, FromCtr FROM pred)
-SELECT key, value FROM set WHERE (RepId, Ctr) NOT IN overwritten;
-        \end{lstlisting}
-		% \end{tabular}
-		\caption{The \ac{MVR} key-value store in SQL using a subquery and set difference.}\label{code:mvr-store-sql-subquery}
-	\end{subfigure}
+SELECT key, value FROM set WHERE (RepId, Ctr) NOT IN overwritten;\end{lstlisting}
+        \caption{The \ac{MVR} key-value store in SQL using a subquery and set difference.}\label{code:mvr-store-sql-subquery}
+    \end{subfigure}
 
-	\caption{The \ac{MVR} key-value store in Datalog and SQL.}\label{code:mvr-store}
+    \caption{The \ac{MVR} key-value store in Datalog and SQL.}\label{code:mvr-store}
 \end{figure}
 
 These examples demonstrate how little code is required to express a relatively
@@ -272,9 +268,8 @@ but the correct result respecting causal order is
 \(w_2\) must be buffered and only applied once \(w_1\) has been delivered.
 
 \begin{figure}[tpb]
-	\begin{subfigure}[b]{\textwidth}
-		% \begin{tabular}{c}
-		\begin{lstlisting}[keepspaces]
+    \begin{subfigure}[b]{\textwidth}
+        \begin{lstlisting}[keepspaces]
 // EDBPs are omitted in this chapter.
 overwritten(RepId, Ctr)     :- pred(RepId, Ctr, _, _).
 overwrites(RepId, Ctr)      :- pred(_, _, RepId, Ctr).
@@ -288,15 +283,13 @@ isCausallyReady(RepId, Ctr) :- isCausallyReady(FromRepId, FromCtr),
 mvrStore(Key, Value)        :- set(RepId, Ctr, Key, Value),
                                isCausallyReady(RepId, Ctr),
                                isLeaf(RepId, Ctr).\end{lstlisting}
-		% \end{tabular}
-		\caption{The \ac{MVR} key-value store with causal broadcast in Datalog.}\label{code:mvr-crdt-datalog}
-	\end{subfigure}
+        \caption{The \ac{MVR} key-value store including causal broadcast in Datalog.}\label{code:mvr-crdt-datalog}
+    \end{subfigure}
 
-	\vspace{1em}
+    \vspace{1em}
 
-	\begin{subfigure}[b]{\textwidth}
-		% \begin{tabular}{c}
-		\begin{lstlisting}[language=SQL]
+    \begin{subfigure}[b]{\textwidth}
+        \begin{lstlisting}[language=SQL]
 WITH overwritten AS (SELECT FromRepId, FromCtr FROM pred)
 WITH overwrites  AS (SELECT ToRepId, ToCtr FROM pred)
 WITH isRoot      AS (SELECT RepId, Ctr FROM set
@@ -318,11 +311,10 @@ WHERE set.RepId = isCausallyReady.RepId
 AND set.Ctr = isCausallyReady.Ctr
 AND isCausallyReady.RepId = isLeaf.RepId
 AND isCausallyReady.Ctr = isLeaf.Ctr\end{lstlisting}
-		% \end{tabular}
-		\caption{The \ac{MVR} key-value store with causal broadcast in SQL.}\label{code:mvr-crdt-sql}
-	\end{subfigure}
+        \caption{The \ac{MVR} key-value store including causal broadcast in SQL.}\label{code:mvr-crdt-sql}
+    \end{subfigure}
 
-	\caption{The \ac{MVR} key-value store with a causal broadcast in Datalog and SQL.}\label{code:mvr-crdt}
+    \caption{The \ac{MVR} key-value store including causal broadcast in Datalog and SQL.}\label{code:mvr-crdt}
 \end{figure}
 
 To prevent this, the query has to detect such ``gaps'' in the causal history.

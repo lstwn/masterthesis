@@ -394,23 +394,41 @@ and does not explain the issue any further\footnotemark{}.
 
 \subsection{Hydration Setting}\label{sec:bench-hydration}
 
+As the hydration setting's purpose is to model application startups,
+it includes the time it takes to parse the \ac{CRDT} Datalog query and
+set up the query plan, in addition to feeding in an existing causal history.
+In other words, it also measures the time spent during query build-time.
+
+The benchmark for the key-value stores in the hydration setting is set up as follows.
+The \emph{base diameter} \(\in \{1000, 2000, 3000, 4000, 5000\}\) is the diameter
+of the causal history if viewed as a directed graph,
+i.e., it is the longest shortest path from a root to a leaf.
+Because the causal history is a chain of operations with no concurrency,
+the base diameter is equal to the number of operations (plus one).
+All operations are generated at one replica and write to the same key.
+The recorded operations during that process are then fed into the DBSP circuit
+after it has been constructed.
+
 \input{figures/bench_kv_store_hdr.tex}
 
-\ref{fig:hydration-kv-store} shows benchmarks of the simple and advanced
-\ac{MVR} key-value stores in the hydration setting.
-There is only one parameter in this setting,
-the \emph{base diameter} \(\in \{1000, 2000, 3000, 4000, 5000\}\).
-The benchmarks measure the time it takes to apply all operations of a
-causal history with the given base diameter.
-For the key-value stores, a similar pattern emerges.
+\ref{fig:hydration-kv-store} shows the results of both the key-value store
+without causal broadcast from \ref{code:mvr-store-datalog-dialect} and the
+key-value store including causal broadcast from \ref{code:mvr-crdt-datalog-dialect}.
 The causal broadcast mechanism has a significant impact on the performance:
 While an increase of the base diameter by 1000 causes the performance of the
-simple key-value store to increase by about two milliseconds,
-the advanced key-value store's performance increases by about 40 milliseconds.
-The reason for this is again the costly fixed point iteration of the causal
-broadcast mechanism.
+key-value store without causal broadcast to increase by about two milliseconds,
+the key-value store's performance including causal broadcast increases by about
+40 milliseconds.
+The reason for this behavior is the costly fixed point iteration of the causal
+broadcast mechanism which require as many \emph{dependent} joins as the
+base diameter.
 
 \input{figures/bench_list_hdr.tex}
+
+\ref{fig:bench-list-hdr} shows the benchmark results of the list \ac{CRDT}
+in the hydration setting.
+The \emph{base text length} \(\in \{1000, 2000, 3000, 4000, 5000\}\) is the number of
+characters in the text that is used to generate the causal history.
 
 \subsection{Near-Real-Time Setting}\label{sec:bench-nrt}
 

@@ -1,7 +1,56 @@
 \chapter{\abstractname}
 
-%TODO: Abstract
+Concurrent writes make it challenging to define \acsp{CRDT} correctly and
+complicate the proof of their convergence.
+To eliminate an entire class of convergence-related errors,
+researchers have proposed defining \acsp{CRDT} in restricted,
+\aclp{DSL} that ensure \acsp{CRDT} always converge to the same result across replicas.
 
+This work explores using Datalog --- applied over a monotonically growing set of
+operations --- as a \acl{DSL} for defining \acsp{CRDT} with guaranteed convergence.
+To avoid performance degradation as the set of operations grows,
+I investigate the use of incremental computation via the recent DBSP framework
+to evaluate Datalog-based \acs{CRDT}  queries.
+I present \acs{CRDT} implementations of a key value store and a list using a custom
+Datalog dialect that supports negation and self-recursion.
+Their performance is evaluated on a custom-built, incremental query engine based
+on relational algebra.
+Consequently, this work also encompasses the translation from Datalog programs
+into reasonably efficient relational query plans.
+
+This work is an initial step towards a future in which application developers are
+empowered to define their own \acsp{CRDT} in a high-level query language without
+needing to worry about their concrete implementation nor their convergence.
+More broadly, it contributes to the ongoing effort to understand the performance
+cost of guaranteed convergence.
+
+\selectlanguage{ngerman}
 \chapter{Kurzfassung}
 
-Apparently, TUM wants to have a German abstract, too.
+Gleichzeitige Schreibzugriffe erschweren die korrekte Definition von CRDTs und
+verkomplizieren den Beweis ihrer Konvergenz.
+Um eine ganze Klasse konvergenzbezogener Fehler zu eliminieren,
+haben Forscher vorgeschlagen, CRDTs in eingeschränkten, domänenspezifischen Sprachen
+zu definieren, die sicherstellen, dass CRDTs auf allen Replikaten stets zum
+gleichen Ergebnis konvergieren.
+
+Diese Arbeit untersucht die Verwendung von Datalog --- angewendet auf eine monoton
+wachsende Menge von Operationen --- als domänenspezifische Sprache zur Definition
+von CRDTs mit garantierter Konvergenz.
+Um einer Leistungsverschlechterung bei wachsender Operationsmenge entgegenzuwirken,
+wird der Einsatz inkrementeller Berechnung mithilfe des DBSP-Frameworks zur
+Auswertung von Datalog-basierten CRDT-Anfragen untersucht.
+Es werden CRDT Implementierungen eines Key-Value-Stores und einer Liste vorgestellt,
+die eine eigene Datalog Variante nutzen, welche Negation und Selbstrekursion unterstützt.
+Die Performance wird mithilfe einer eigens entwickelten, inkrementellen Anfrage-Engine
+auf Basis relationaler Algebra evaluiert.
+Infolgedessen umfasst diese Arbeit auch die Übersetzung von Datalog Programmen
+in effizient ausführbare relationale Anfragepläne.
+
+Diese Arbeit stellt einen ersten Schritt in Richtung einer Zukunft dar,
+in der Anwendungsentwickler ihre eigenen CRDTs in einer Abfragesprache
+definieren können, ohne sich um deren konkrete Implementierung oder
+Konvergenzeigenschaften kümmern zu müssen.
+Im weiteren Sinne trägt sie zur laufenden Erforschung der Kosten garantierter
+Konvergenz bei.
+\selectlanguage{american}

@@ -394,19 +394,19 @@ and does not explain the issue any further\footnotemark{}.
 
 \subsection{Hydration Setting}\label{sec:bench-hydration}
 
-As the hydration setting's purpose is to model application startups,
-it includes the time it takes to parse the \ac{CRDT} Datalog query and
-set up the query plan, in addition to feeding in an existing causal history.
-In other words, it also measures the time spent during query build-time.
+As the purpose of the hydration setting is to model application startups,
+it includes the time to parse the \ac{CRDT} Datalog query and set up the
+query plan, i.e., the time spent during query build-time,
+in addition to processing an existing causal history.
 
 The benchmark for the key-value stores in the hydration setting is set up as follows.
 The \emph{base diameter} \(\in \{1000, 2000, 3000, 4000, 5000\}\) is the diameter
 of the causal history if viewed as a directed graph,
 i.e., it is the longest shortest path from a root to a leaf.
-Because the causal history is a chain of operations with no concurrency,
+As the causal history is a chain of operations with no concurrency,
 the base diameter is equal to the number of operations (plus one).
 All operations are generated at one replica and write to the same key.
-The recorded operations during that process are then fed into the DBSP circuit
+The recorded operations during that process are fed into the DBSP circuit
 after it has been constructed.
 
 \input{figures/bench_kv_store_hdr.tex}
@@ -419,10 +419,10 @@ While an increase of the base diameter by 1000 causes the performance of the
 key-value store without causal broadcast to increase by roughly two milliseconds,
 the key-value store's performance including causal broadcast increases by about
 40 milliseconds.
-The reason for this behavior the graph traversal of the causal history from its
+The reason for this behavior is the graph traversal of the causal history from its
 roots to its leaves to find the causally ready operations.
 The fixed point iteration responsible for this graph traversal requires evaluating
-a sequence of \emph{dependent} joins relative to the size of the diameter
+a sequence of \emph{dependent} joins whose length is relative to the diameter
 of the causal history.
 
 \input{figures/bench_list_hdr.tex}
@@ -443,7 +443,8 @@ The near-real-time setting extends the hydration setting insofar that it builds
 upon the states of the hydration setting.
 After the operators have been hydrated according to the parameters of the
 hydration setting, this benchmark feeds in only a small number of additional updates.
-The new batch of updates is inserted at once and then processed by the DBSP circuit.
+The batch of new updates is inserted at once and then processed by the DBSP circuit
+to obtain the \ac{CRDT} state.
 The benchmark does not account for the time it takes to parse the Datalog query
 nor to set up the DBSP circuit, as the near-real-time setting simulates
 the situation in which the application has already started up and is running.
@@ -457,12 +458,12 @@ The benchmark reveals some interesting patterns.
 For the key-value store without causal broadcast
 from \ref{code:mvr-store-datalog-dialect},
 the base diameter has no impact on the performance.
-Varying the delta diameter has only a small impact on the
-performance (\ref{fig:bench-kv-store-nrt-nocb}).
-In any case, processing the updates takes less than a quarter of a millisecond.
+Varying the delta diameter has only a small impact on the performance.
+In any case,the processing of the updates takes less than a quarter of a
+millisecond (\ref{fig:bench-kv-store-nrt-nocb}).
 The key-value store including causal broadcast
-from \ref{code:mvr-crdt-datalog-dialect} shows only a small impact from
-varying the delta diameter, too.
+from \ref{code:mvr-crdt-datalog-dialect} also shows only a small performance
+impact from varying the delta diameter.
 The base diameter, on the other hand, has a significant impact on the performance
 (\ref{fig:bench-kv-store-nrt-cb}):
 An increase in the base diameter by 1000 causes an increase of the runtime of
@@ -470,20 +471,19 @@ about 20 milliseconds, rendering this \ac{CRDT} \emph{dependent} on the age
 of the causal history.
 This is again due to the dependent joins of the causal broadcast's fixed point
 iteration.
-I suspect that even a multi-threaded execution would not improve the performance
-in this case, as the joins are dependent, rendering the computation inherently
-sequential.
+I suspect that even a multi-threaded execution would not improve the performance,
+as the joins are dependent, rendering the computation inherently sequential.
 However, a clever query optimizer could possibly turn the causal broadcast into
 a near constant time operation by, e.g., testing causal readiness of a new operation
 from the current leaves of the causal history and thus avoiding the
 costly search from the roots, as most new operations are likely a causal successor
-of the current leaves.
+of the current leaves or nodes close to them.
 
 \input{figures/bench_list_nrt.tex}
 
 \ref{fig:bench-list-nrt} shows the benchmark results of the list \ac{CRDT}.
 A \emph{delta text length} of size \(d \in \{20, 40, 60, 80, 100\}\) adds
-a burst of \(d\) successive insertions at the end of the list, respectively.
+a burst of \(d\) successive insertions at the respective ends of the list.
 Applying the burst and evaluating the list \ac{CRDT} takes between 1.5 and
 5.25 milliseconds depending on the base text length and the delta text length.
 Similar to the key-value store including causal broadcast,
@@ -499,17 +499,17 @@ The idea of using restricted languages to express \acp{CRDT} to guarantee
 their convergence has been explored in the past.
 VeriFx~\cite{verifx}, Propel~\cite{propel}, and LoRe~\cite{lore} introduce
 custom \acp{DSL} to define \acp{CRDT}.
-From \ac{CRDT} definitions in the \ac{DSL}, they derive both an implementation
-of the \ac{CRDT} and its proof of convergence.
+From a \ac{CRDT} definition in the \ac{DSL},
+they derive both its implementation and its proof of convergence.
 The verification is handed off to a \acs{SAT} solver, which is used to
 prove that the \ac{CRDT} converges under concurrent updates.
 LoRe differs from VeriFx insofar that it can also express invariants that
 require coordination between replicas and inject such coordination logic
 automatically, freeing the application developer from writing synchronization
 code.
-Unlike \acp{DSL}, Datalog has the advantage that is a more widely used language
-and does not require verification time because convergence is guaranteed by
-construction.
+In contrast to \acp{DSL}, Datalog has the advantage that is a more widely used
+language and does not require verification time because convergence is
+guaranteed by construction if used on top of monotonically growing input sets.
 
 There exist several libraries that implement \acp{CRDT} in general-purpose
 programming languages, for instance, Automerge~\cite{automerge} (Rust),
@@ -562,7 +562,7 @@ query engines.
 Only \cite{dynamicdatalog} explores executing Datalog queries incrementally
 on top of DBSP through an interpreter but it only supports positive Datalog.
 In comparison to my approach, it allows adding and removing rules dynamically
-at run-time and it is more tied to DBSP because the evaluation happens
+at run-time but it is more tied to DBSP because the Datalog evaluation happens
 directly on a DBSP circuit without an \ac{IR} as an abstraction.
 
 There are two predominant approaches for incremental computations beyond

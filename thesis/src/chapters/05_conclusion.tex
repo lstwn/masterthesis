@@ -16,8 +16,9 @@ outperforms interpreting them in the context of \ac{IVM}.
 Third, what benefit could a mixed model of incremental and non-incremental
 computations provide:
 Possibly, it may be faster to prefer non-incremental execution during application
-startup (the hydration setting) and then switch to incremental execution for
-processing updates (the near-real time setting).
+startup (the hydration setting; \ref{sec:bench-hydration}) and then switch to
+incremental execution for processing updates
+(the near-real-time setting; \ref{sec:bench-nrt}).
 The required hydration of the operators for the incremental execution could be
 moved to a background thread.
 Alternatively, the operators' state could somehow be persisted to disk such that
@@ -29,7 +30,7 @@ To minimize the interpretation overhead of the query engine, it could
 benefit from some performance engineering.
 The physical representation of a tuple is currently a vector of scalar values.
 Hence, accessing a tuple's fields requires dereferencing a pointer and thereby
-potentially causing a cache miss with each (first) access.
+potentially causing a cache miss with each (first) field access.
 By inlining so many fields into the tuple representation that a cache line
 is filled, the number of cache misses can be reduced.
 If necessary, further fields could overflow to the heap\footnotemark{}.
@@ -41,7 +42,7 @@ expressions, as laid out in~\cite{sampson2023flattening}.
 This may improve spatial locality, thereby reducing cache misses, and is
 particularly relevant for code that is run at query execution-time because
 it is executed frequently (per tuple) instead of just once at query build-time
-for creating the query plan.
+for initializing the DBSP circuit.
 
 \footnotetext{
     Rust's \href{https://docs.rs/smallvec/latest/smallvec/}{\texttt{smallvec}}
@@ -96,8 +97,8 @@ In other words, what is the price to pay for guaranteed convergence?
 
 Feature-wise, the query engine could be extended to support mutual recursion
 and aggregation but I do not consider these features essential for the
-\ac{CRDT} use case. On the other hand, native JSON support may be useful for
-defining a JSON \ac{CRDT} like Automerge does.
+\ac{CRDT} use case.
+Native JSON support may be useful for defining a JSON \ac{CRDT} like Automerge does.
 As motivated in \ref{sec:datalog-to-relational-algebra}, supporting multiple
 main predicates of interest in a single query is not yet implemented but useful
 in practice.
@@ -106,6 +107,7 @@ a type checking pass, better error reporting, and supporting tuples as a scalar
 type could be added to the query engine.
 The latter allows collapsing operations' replica id and counter fields
 into a single field, to make Datalog \ac{CRDT} queries more concise.
+
 To use this approach in practice, some more engineering effort is required.
 The query engine is currently just a computation engine and does not provide
 a durable storage layer for the underlying data.

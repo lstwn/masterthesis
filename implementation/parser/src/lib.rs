@@ -219,7 +219,7 @@ mod test {
         let insert_op_input = inputs.get("insert").unwrap();
         let remove_op_input = inputs.get("remove").unwrap();
 
-        const CYCLES: usize = 3;
+        const CYCLES: usize = 4;
         // Example tree, encoded as `insert(ChildRepId, ChildCtr, ParentRepId, ParentCtr, Value)`
         // facts. Below, a node depicts a `(RepId, Ctr)` pair. The `Value` is not shown though.
         //
@@ -242,8 +242,9 @@ mod test {
                 ],
                 vec![],
             ),
-            (vec![], vec![RemoveOp::new(2, 2)]),
-            (vec![], vec![RemoveOp::new(2, 1)]),
+            (vec![], vec![RemoveOp::new(2, 2)]), // Remove the last character ('!').
+            (vec![], vec![RemoveOp::new(2, 1)]), // Remove the first character ('H').
+            (vec![], vec![RemoveOp::new(3, 2)]), // Remove the second 'L' character in the middle.
         ];
 
         let mut expected = ([
@@ -257,12 +258,20 @@ mod test {
                 tuple!(1_u64, 1_u64, '!', 2_u64, 2_u64) => 1,
             },
             zset! {
+                // State: HELLO
                 tuple!(1_u64, 1_u64, '!', 2_u64, 2_u64) => -1,
             },
             zset! {
+                // State: ELLO
                 tuple!(0_u64, 0_u64, 'H', 2_u64, 1_u64) => -1,
                 tuple!(2_u64, 1_u64, 'E', 2_u64, 3_u64) => -1,
                 tuple!(0_u64, 0_u64, 'E', 2_u64, 3_u64) => 1,
+            },
+            zset! {
+                // State: ELO
+                tuple!(1_u64, 3_u64, 'L', 3_u64, 2_u64) => -1,
+                tuple!(3_u64, 2_u64, 'O', 1_u64, 1_u64) => -1,
+                tuple!(1_u64, 3_u64, 'O', 1_u64, 1_u64) => 1,
             },
         ] as [_; CYCLES])
             .into_iter();

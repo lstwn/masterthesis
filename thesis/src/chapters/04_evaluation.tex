@@ -291,7 +291,7 @@ if the ``previous'' node has no child.
 This outputs the above result as a linked list of nodes where each node is
 defined by a (\textit{RepId}, \textit{Ctr}) pair:
 
-\[[ (0,0,2,1), (2,1,2,3), (2,3,1,3), (1,3,3,2), (3,2,1,1), (1,1,2,2) ]\]
+\[\{ (0,0,2,1), (2,1,2,3), (2,3,1,3), (1,3,3,2), (3,2,1,1), (1,1,2,2) \}\]
 
 Every deletion generates an entry in the ``remove'' \ac{EDBP} with the
 (\textit{RepId}, \textit{Ctr}) pair of the node to be deleted.
@@ -311,14 +311,48 @@ The ``nextVisible'' \ac{IDBP} ensures that each node from the node pairs
 reported by the  ``nextElemSkipTombstones'' \ac{IDBP} has a value assigned to it.
 Finally, the ``nextElem'' \ac{IDBP} joins the non-tombstoned list elements'
 values to the pairs of nodes from the ``nextVisible'' \ac{IDBP}.
-Assuming a deletion of the node with id \((2, 2)\), the final list result is:
+The final list result for the example from \ref{fig:list-crdt} is:
 
-\[\{ (0,0,'H',2,1), (2,1,'E',2,3), (2,3,'L',1,3), (1,3,'L',3,2), (3,2,'O',1,1) \}\]
+\[\{ (0,0,'H',2,1), (2,1,'E',2,3), (2,3,'L',1,3), (1,3,'L',3,2), (3,2,'O',1,1), (1,1,'!',2,2) \}\]
 
 The output may not be sorted as shown above.
-The list order can then be obtained by walking the linked list starting from
+The list can be obtained by walking the linked list starting from
 the sentinel root element with id \((0, 0)\) and collecting the values along
-the way.
+the way which yields the text ``HELLO!''.
+
+To demonstrate the nature of incremental computations and the deletion of elements,
+I continue the example with two successive deletions of elements and show
+the output \emph{changes} after each deletion.
+Output changes are encoded as tagged tuples as described in \ref{sec:ivm}.
+The two deletions are applied on top of the state of the list and its inputs from
+\ref{fig:list-crdt}.
+In the first step, the last element ``!'' is deleted, which adds the fact
+``remove(2,2)'' to the ``remove'' \ac{EDBP}. This yields the output change:
+
+\[\{ (-1, (1,1,'!',2,2)) \}\]
+
+The first entry of the tagged tuple is the \zweight{} of \(-1\) and indicates
+a deletion of the tuple \((1, 1, '!', 2, 2)\) (second entry of the pair)
+from the previous list state.
+This yields the text ``HELLO''.
+
+The second step deletes the first element ``H'' and causes the fact
+``remove(2,1)'' to be inserted into the ``remove'' \ac{EDBP}.
+A reevaluation then emits the following output changes:
+
+\[\{
+(-1, (0, 0, 'H', 2, 1)),
+(-1, (2, 1, 'E', 2, 3)),
+( 1, (0, 0, 'E', 2, 3))
+\}\]
+
+The first two changes retract two tuples from the previous output state and the
+third change adds a new tuple because of its \zweight{} of \(1\).
+Due to the nature of linked lists, any deletion of an element, which is \emph{not}
+the last element, triggers three output changes: One for the deletion of the element
+itself and two for replacing the previous ``pointer'' of the deleted element's
+successor in the list.
+The final text is now ``ELLO''.
 
 \section{Performance Evaluation}\label{sec:benchmarks}
 

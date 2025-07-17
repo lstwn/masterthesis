@@ -466,8 +466,8 @@ impact from varying the delta diameter.
 The base diameter, on the other hand, has a significant impact on the performance
 (\ref{fig:bench-kv-store-nrt-cb}):
 An increase in the base diameter by 1000 causes an increase of the runtime of
-about 20 milliseconds, rendering this \ac{CRDT} \emph{dependent} on the age
-of the causal history.
+about 20 milliseconds for all delta diameters,
+rendering this \ac{CRDT} \emph{dependent} on the age of the causal history.
 This is again due to the dependent joins of the causal broadcast's fixed point
 iteration.
 I suspect that even a multi-threaded execution would not improve the performance,

@@ -66,7 +66,7 @@ relational algebra, I want to emphasize three aspects:
           information about data distributions in case of automated join ordering.
           Alternatively, the query engine could remember statistics from one
           application run and use them to optimize the query plan for its next
-          run when the query's operators need to be rehydrated anyways.
+          run when the query plan needs to be reconstructed anyways.
     \item \textbf{Scheduling of antijoins}.
           Negative atoms are handled with antijoins in the query engine.
           So far, they are scheduled after the query plan covering the
@@ -120,10 +120,10 @@ set of updates.
 More research is needed to define and benchmark further \acp{CRDT} as queries
 before putting this idea into practice.
 It is especially important to better understand the performance under various
-workloads, e.g., different concurrency patterns, to guide future directions
-for optimizing the query engine.
+workloads, e.g., different concurrency and usage patterns,
+to guide future directions for optimizing the query engine.
 A sophisticated simulation framework which can not only model concurrency among
-replicas but also network delays and allows writing adapters to different
+replicas but also network delays, and allows writing adapters to different
 \ac{CRDT} implementations would be useful for testing and benchmarking
 different \acp{CRDT}.
 Finally, the question remains if there are \acp{CRDT} that cannot be expressed

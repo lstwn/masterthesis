@@ -44,7 +44,7 @@ mvrStore(Key, Value)
 \end{figure}
 
 \ref{code:mvr-crdt-datalog-dialect} provides a definition of the \ac{MVR}
-key-value store \ac{CRDT} from \ref{code:mvr-crdt-datalog} in my Datalog dialect.
+key-value store from \ref{code:mvr-crdt-datalog} in my Datalog dialect.
 The query differentiates itself from the previous example by including the
 causal broadcast mechanism.
 
@@ -263,8 +263,7 @@ The result of the depth-first, pre-order traversal is:
 \[[ (0,0), (2,1), (2,3), (1,3), (3,2), (1,1), (2,2) ]\]
 
 Despite the absence of a built-in list type in Datalog, I reproduce this result
-as an (unsorted) linked list of nodes in \ref{code:list-crdt-datalog-dialect}
-with the help of the ``nextElem'' \ac{IDBP}.
+as an (unsorted) linked list of nodes with the help of the ``nextElem'' \ac{IDBP}.
 Its definition is divided into three parts.
 First, the ``firstChild'' \ac{IDBP} (\ref{code:list-crdt-datalog-dialect-part1})
 finds the first child of each parent
@@ -308,9 +307,9 @@ and the first rule of its definition ensures that the sentinel root element
 This is required to prevent the ``nextVisible'' \ac{IDBP} from skipping the
 first list element.
 The ``nextVisible'' \ac{IDBP} ensures that each node from the node pairs
-reported by the  ``nextElemSkipTombstones'' \ac{IDBP} has a value assigned to it.
-Finally, the ``nextElem'' \ac{IDBP} joins the non-tombstoned list elements'
-values to the pairs of nodes from the ``nextVisible'' \ac{IDBP}.
+reported by the  ``next\-Elem\-Skip\-Tombstones'' \ac{IDBP} has a value assigned to it.
+Finally, the ``next\-Elem'' \ac{IDBP} joins the non-tombstoned list elements'
+values to the pairs of nodes from the ``next\-Visible'' \ac{IDBP}.
 The final list result for the example from \ref{fig:list-crdt} is:
 
 \[\{ (0,0,'H',2,1), (2,1,'E',2,3), (2,3,'L',1,3), (1,3,'L',3,2), (3,2,'O',1,1), (1,1,'!',2,2) \}\]
@@ -324,8 +323,7 @@ To demonstrate the nature of incremental computations and the deletion of elemen
 I continue the example with two successive deletions of elements and show
 the output \emph{changes} after each deletion.
 Output changes are encoded as tagged tuples as described in \ref{sec:ivm}.
-The two deletions are applied on top of the state of the list and its inputs from
-\ref{fig:list-crdt}.
+The two deletions are applied on top of the state of the list from \ref{fig:list-crdt}.
 In the first step, the last element ``!'' is deleted, which adds the fact
 ``remove(2,2)'' to the ``remove'' \ac{EDBP}. This yields the output change:
 
@@ -347,7 +345,7 @@ A reevaluation then emits the following output changes:
 \}\]
 
 The first two changes retract two tuples from the previous output state and the
-third change adds a new tuple because of its \zweight{} of \(1\).
+third change adds a new tuple because of its \zweight{} of \(+1\).
 Due to the nature of linked lists, any deletion of an element, which is \emph{not}
 the last element, triggers three output changes: One for the deletion of the element
 itself and two for replacing the previous ``pointer'' of the deleted element's
@@ -430,7 +428,8 @@ of the causal history.
 \ref{fig:bench-list-hdr} shows the benchmark results of the list \ac{CRDT}.
 The benchmark generates a causal history of successive insert operations, i.e.,
 there are no deletions and cursor jumps but only consecutive insertions that
-gradually build up the text by inserting new characters at the end of the list.
+gradually build up the text by inserting new characters at the respective ends
+of the list.
 Hence, the \emph{base text length} \(\in \{10000, 20000, 30000, 40000, 50000\}\)
 is the number of insert operations.
 The benchmark shows that an increase in the base text length by 10000 insertions
@@ -444,7 +443,7 @@ upon the states of the hydration setting.
 After the operators have been hydrated according to the parameters of the
 hydration setting, this benchmark feeds in only a small number of additional updates.
 The batch of new updates is inserted at once and then processed by the DBSP circuit
-to obtain the \ac{CRDT} state.
+to obtain the \ac{CRDT} state changes.
 The benchmark does not account for the time it takes to parse the Datalog query
 nor to set up the DBSP circuit, as the near-real-time setting simulates
 the situation in which the application has already started up and is running.
@@ -453,13 +452,13 @@ the situation in which the application has already started up and is running.
 
 \ref{fig:bench-kv-stores-nrt} shows benchmark results of the key-value stores.
 A \emph{delta diameter} of size \(d \in \{20, 40, 60, 80, 100\}\) extends the
-chain of operations from the hydration setting by \(d\) additional operations.
+chain of operations from the hydration setting by \(d + 1\) additional operations.
 The benchmark reveals some interesting patterns.
 For the key-value store without causal broadcast
 from \ref{code:mvr-store-datalog-dialect},
-the base diameter has no impact on the performance.
+the base diameter has no real impact on the performance.
 Varying the delta diameter has only a small impact on the performance.
-In any case,the processing of the updates takes less than a quarter of a
+In any case, the processing of the updates takes less than a quarter of a
 millisecond (\ref{fig:bench-kv-store-nrt-nocb}).
 The key-value store including causal broadcast
 from \ref{code:mvr-crdt-datalog-dialect} also shows only a small performance
@@ -489,7 +488,7 @@ Applying the burst and evaluating the list \ac{CRDT} takes between 1.5 and
 Similar to the key-value store including causal broadcast,
 the base text length has an impact on the performance, albeit not as significant.
 A base text length increase of 10000 causes an increase in the runtime by roughly
-half a millisecond.
+half a millisecond for any delta text length.
 Increasing the delta text length by 20 causes an increase in the runtime
 by about 0.4 milliseconds for all base text lengths.
 
@@ -507,7 +506,7 @@ LoRe differs from VeriFx insofar that it can also express invariants that
 require coordination between replicas and inject such coordination logic
 automatically, freeing the application developer from writing synchronization
 code.
-In contrast to \acp{DSL}, Datalog has the advantage that is a more widely used
+In contrast to \acp{DSL}, Datalog has the advantage that it is a more widely used
 language and does not require verification time because convergence is
 guaranteed by construction if used on top of monotonically growing input sets.
 

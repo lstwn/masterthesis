@@ -13,7 +13,7 @@ which are used to derive new facts from existing ones.
 Unlike SQL, Datalog has not been attempted to be formally standardized,
 and several dialects of it exist.
 The explanations of this section focus on ``conventional'' Datalog
-and in \ref{sec:datalog-frontend} I define my own dialect.
+and I define my own dialect in \ref{sec:datalog-frontend}.
 
 \subsection{Syntax and Semantics}\label{sec:datalog-syntax-semantics}
 
@@ -39,11 +39,11 @@ A head consists of an identifier, which also defines the name of the predicate
 whose definition the rule contributes to, as well as a comma-separated list of expressions
 which may reference variables defined in the rule's body.
 A body is a comma-separated sequence of \emph{atoms} followed by a trailing ``.'' (dot).
-An atom either references another \emph{predicate} (hereafter predicate atoms)
+An atom either references another \emph{predicate} (hereafter predicate atom)
 to bring some of its variables into scope or imposes a boolean condition
 (hereafter condition atom).
-A condition can either restrict a variable's value range (e.g. \(x = 3\))
-or specify a relationship with another variable (e.g. \(x = y\)).
+A condition can either restrict a variable's value range, e.g. \(x = 3\),
+or specify a relationship with another variable, e.g. \(x = y\).
 
 It is permitted to have multiple rules share the same head, that is,
 they have the same identifier and arity of expressions.
@@ -73,9 +73,9 @@ Mathematically, a rule can be expressed as\footnotemark{}:
 If there are multiple rules with the same head, their bodies' conjunctions
 are connected through a disjunction~\cite{abo2024convergence}.
 \emph{Fact rules} are special rules without a body (with $n=0$), e.g.
-\( r \text{ :- } .\), and define \acp{EDBP}, whose facts are called
+\( r \text{ :- } .\), and define \emph{\acp{EDBP}}, whose facts are called
 \emph{base facts}, are externally given, and assumed to be unconditionally true.
-Regular rules with a non-empty body (with $n>0$) define \acp{IDBP}
+Regular rules with a non-empty body (with $n>0$) define \emph{\acp{IDBP}}
 and their facts are called \emph{derived facts}.
 Facts are an ordered list of \emph{fields} that can assume basic scalar
 types such as strings, numbers, or booleans.
@@ -141,15 +141,16 @@ The appearance of the same variable ``via'' in both atoms implies that their
 values must be equal, i.e.,
 \(a_1(x), a_2(x)\) is a shorthand for \(a_1(x_1), a_2(x_2), x_1 = x_2\).
 Next to defining the name of the predicate, the head specifies that the ``from''
-and ``to'' variables are exposed as the first two fields of the ``closure'' predicate,
+and ``to'' variables are exposed as the first two fields for facts from the ``closure'' predicate,
 and that its third and fourth field are defined through their respective expressions.
-The second rule's body also contains the ``edge'' predicate atom and a condition
-atom which restricts the ``from'' variable to be equal to the value ``2''.
-The ``closure'' \ac{IDBP} specifies the actual computation of the graph's
+The second rule's body contains the ``edge'' predicate atom and a condition
+atom which restricts the ``from'' variable to be equal to the value \(2\).
+
+The ``closure'' \ac{IDBP} defines the actual computation of the graph's
 transitive closure.
 The second rule specifies the computation's starting point,
-that is, all pairs of nodes which are reachable through a path of length 1
-(direct edge), whose first entry is the node with id ``2''.
+that is, all pairs of nodes which are reachable through a path of length one
+(direct edge), whose first entry is the node with id \(2\).
 The third rule takes all node pairs identified so far, which are reachable
 through paths of length \(n\), and discovers new node pairs connected
 through a path of length \(n + 1\),
@@ -202,7 +203,7 @@ for \textit{epimenides}, which in turn triggers the evaluation of the
 Hence, carelessly introducing negation in Datalog causes undefined semantics
 in case of recursive rules which use negation as part of their recursive definition.
 To (quite literally) break this cycle, \emph{semipositive} Datalog is introduced
-first, which then enables the definition the semantics of \emph{stratified}
+first, which then enables the definition of the semantics of \emph{stratified}
 Datalog, both of which are syntactic restrictions on the use of negation and
 recursion~\cite{green2013datalog}.
 While there are other approaches to reimpart unambiguous semantics to
@@ -305,7 +306,7 @@ it does not support mutually recursive predicates.
 
 Some distributed applications are required to continue operating in the presence of
 network partitions because they want to support offline use cases (high availability).
-Additionally, they may want support fast local writes because they cannot afford
+Additionally, they may want to support fast local writes because they cannot afford
 to wait for a network round trip to happen until the write becomes
 visible (low latency).
 For instance, collaborative editors may want both properties to allow users
@@ -404,10 +405,8 @@ different network topologies are also possible.
 For instance, a star network topology with a central server could be used
 for more efficient update dissemination.
 However, the issue of update dissemination (and update integrity) is not the focus
-of this work and various approaches are discussed in the literature~\cite{
-    auvolat2019merkle, sanjuan2020merkle, kleppmann2024bluesky,
-    kleppmann2022making
-}.
+of this work and various approaches are discussed in the
+literature~\cite{auvolat2019merkle,sanjuan2020merkle,kleppmann2024bluesky,bftcrdts}.
 I only make the basic assumption of some network and protocol
 which ensures that each update will eventually be delivered to all replicas.
 Furthermore, replicas are assumed to be non-byzantine.
@@ -418,7 +417,7 @@ Furthermore, replicas are assumed to be non-byzantine.
 an output view derived from a set of input relations in response to changes
 in these inputs.
 It computes the \emph{changes} to the output view which accrued through
-the changes in its inputs since the last evaluation.
+changes in its inputs since the last evaluation.
 This renders the consumers of the output view \emph{stateful},
 unlike consumers of non-incremental queries which are stateless
 and obtain the full output view upon every evaluation.
@@ -470,7 +469,7 @@ Unfortunately, the algebraic transformation approach is not applicable
 to all queries and struggles to handle more complex queries like
 recursive ones~\cite{budiu2025dbsp}.
 
-More recent approaches are \emph{differential dataflow}~\cite{mcsherry2013differential}
+More recent approaches to \ac{IVM} are \emph{differential dataflow}~\cite{mcsherry2013differential}
 and the later \emph{DBSP}~\cite{budiu2024dbsp, budiu2025dbsp}.
 Their approach is fundamentally different from the algebraic one.
 At first, they leave relational algebra behind and instead define a general

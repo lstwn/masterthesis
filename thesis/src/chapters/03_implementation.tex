@@ -4,9 +4,9 @@
 \chapter{Implementation}\label{ch:implementation}
 
 This chapter outlines my solution to the problem motivated in \ref{ch:intro}.
-A fundamental prerequisite to assessing if \acp{CRDT} defined by queries on an
-incremental query engine is a viable approach, is to have such a query
-engine available.
+A fundamental prerequisite to assessing if \acp{CRDT} defined by queries
+executed on an incremental query engine is a viable approach,
+is to have such a query engine available.
 Unfortunately, the landscape of incremental Datalog query engines is sparse
 and I had to implement one myself.
 The engine is written in Rust and \href{https://github.com/lstwn/masterthesis}{%
@@ -41,7 +41,7 @@ reasons:
           For an explorative project, this is a significant advantage.
     \item \textbf{No compile time overhead.}
           Rust is known for its long compile times, potentially offsetting some
-          potential performance gains of compiled query execution.
+          possible performance gains of compiled query execution.
     \item \textbf{Easier integration.}
           A library is easier to integrate into a larger system than a compiler.
           I think this is particularly relevant for applications that do not
@@ -98,7 +98,7 @@ These are enough to express a wide range of queries and support my use case.
 To be able to execute queries correctly, the engine needs to keep track of
 the evolution of relations' schemas, as they are influenced by the operators
 of a query plan.
-\ref{tab:ir-schema-operators} shows the output schema of the operators from
+\ref{tab:ir-schema-operators} shows the output schema for each operator from
 \ref{tab:ir-operators}.
 
 \begin{figure}[htpb]
@@ -341,9 +341,9 @@ This leaves the question of how to translate an individual aggregated rule
 (predicate) into its \ac{IR} representation.
 The representation is similar to an operator tree in relational algebra.
 To illustrate the translation, I first discuss a \emph{naive} translation
-which emerges from Datalog's reliance on first-order logic that can be
+which emerges from Datalog's reliance on first-order logic which can be
 translated to set-theoretic operations.
-Then, I introduce a more efficient translation which is I have implemented
+Then, I introduce a more efficient translation that I have implemented
 for the query engine, called \emph{subpar} translation.
 At first, the discussion precludes negative atoms and is limited to
 non-recursive predicates, both of which I introduce successively.
@@ -369,12 +369,12 @@ selection's output.
 
 \ref{fig:naive-plan} shows the naive query plan for the ``mvrStore'' predicate
 (depicted in \ref{code:mvr-store-rule})
-of the \ac{MVR} key-value \ac{CRDT} store from \ref{code:mvr-crdt-datalog}.
-After combining the three positive atoms ``set'', ``isCausallyReady'', and
-``isLeaf'' through a Cartesian product, the selection filters out all tuples that
+of the key-value store \ac{CRDT} from \ref{code:mvr-crdt-datalog}.
+After combining the three positive atoms, ``set'', ``isCausallyReady'', and
+``isLeaf'', through a Cartesian product, the selection filters out all tuples that
 do not match with the variable reuse stated in the rule's body.
-As the last step, the projection confines the output to the ``Key'' and ``Value''
-fields given by the rule's head.
+As the last step, the projection confines the selection's output to the
+``Key'' and ``Value'' fields given by the rule's head.
 
 The \emph{subpar} query translation improves upon the naive translation
 by avoiding the Cartesian product where possible and instead folding the positive

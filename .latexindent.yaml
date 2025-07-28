@@ -1,0 +1,14 @@
+defaultIndent: "  "
+indentRulesGlobal:
+  environments: "  "
+  optionalArguments: "  "
+  mandatoryArguments: "  "
+  commands: "  "
+  keyEqualsValuesBracesBrackets: "  "
+  namedGroupingBracesBrackets: "  "
+indentRules:
+  document: "  "
+  frame: "  "
+modifyLineBreaks:
+  textWrapOptions:
+    columns: 80

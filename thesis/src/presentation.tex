@@ -36,6 +36,7 @@
 \usepackage{centernot}
 \usepackage{bm}
 
+\usepackage{gincltex}
 \usepackage{graphicx}
 \usepackage{tikz}
 \usepackage{pgfplots}
@@ -60,6 +61,32 @@
     columns=fullflexible
 }
 \setlength\fboxsep{1pt}
+
+% Settings for pgfplots.
+\pgfplotsset{compat=newest}
+\pgfplotsset{
+    % For available color names, see http://www.latextemplates.com/svgnames-colors
+    cycle list={
+        {TUMBlue},{TUMAccentOrange},{TUMAccentGreen},{TUMSecondaryBlue2},{TUMDarkGray}
+    },
+    legend style={
+        anchor=north west,
+        draw=none,
+        % legend columns=2,
+        cells={anchor=west,align=left},
+        font=\footnotesize,
+    },
+    yticklabel style={
+            /pgf/number format/fixed,
+            /pgf/number format/precision=2
+    },
+    scaled y ticks=false,
+    xticklabel style={
+            /pgf/number format/fixed,
+            /pgf/number format/precision=2
+    },
+    scaled x ticks=false,
+}
 
 % Without \AtBeginDocument it does not persist.
 \AtBeginDocument{\renewcommand{\ref}[1]{\Cref{#1}}}
@@ -139,6 +166,8 @@
     },
 }
 
+\newcommand{\deltaI}[1]{\(\Delta I_{\text{#1}}\)}
+\newcommand{\deltaO}[1][]{\(\Delta O_{\text{#1}}\)}
 \newcommand{\backupbegin}{
    \newcounter{framenumberappendix}
    \setcounter{framenumberappendix}{\value{framenumber}}
@@ -153,32 +182,6 @@
 \begin{frame}
     \maketitle
 \end{frame}
-
-\setbeamercovered{transparent=50}
-\begin{frame}
-    \begin{itemize}
-        \visible<1->{\onslide<1-2>{
-        \item[ ] \textbf{Idea: Define \acsp{CRDT} in Datalog}
-        }}
-        \visible<2->{\onslide<2>{
-        \item[\(\Rightarrow\)] declarative, concise language to work with
-        }}
-        \visible<3->{\onslide<3-4>{
-        \item[+] Deterministic execution on top of a
-                 \emph{monotonically growing set} of operations
-        }}
-        \visible<4->{\onslide<4>{
-        \item[\(\Rightarrow\)] guaranteed convergence (!)
-        }}
-        \visible<5->{\onslide<5-6>{
-        \item[+] Query engine based on \acl{IVM}
-        }}
-        \visible<6->{\onslide<6>{
-        \item[\(\Rightarrow\)] competitive performance (?)
-        }}
-    \end{itemize}
-\end{frame}
-\setbeamercovered{invisible}
 
 \begin{frame}[standout,noframenumbering,plain]
     \begin{center}
@@ -198,34 +201,21 @@
     }
 \end{frame}
 
-\begin{frame}{\acsp{CRDT} for Database People}
-    \begin{center}
-        \textit{``\acsp{CRDT} are similar to \acs{OCC} but without the aborts''}
-    \end{center}
+\begin{frame}{When are \acsp{CRDT} useful?}
+    \begin{itemize}
+        \item Low latency for reads and writes.
+        \pause
+        \item Availability for reads and writes even if offline or with poor connectivity.
+        \pause
+        \item Temporary violations of some application invariants are acceptable.
+    \end{itemize}
+\end{frame}
 
-    \pause
-    \begin{table}
-        \center
-        \begin{tabular}{@{} l l l @{}}
-            \toprule
-                                & \acs{OCC}                       & \acs{CRDT}                    \\
-            \midrule
-            Use Case             & Synchronization of shared data & Replication of shared data    \\
-            \pause
-            Objects              & Transactions                   & Operations                    \\
-            \pause
-            Actors               & Threads                        & Replicas                      \\
-            \pause
-            Time                 & Wall-clock time                & Causal Time                   \\
-            \pause
-            Concurrency Behavior & \emph{Abort}                   & \emph{Merge and Converge}     \\
-            \bottomrule
-        \end{tabular}
-    \end{table}
-
-    % Upon concurrent writes, \acs{OCC} aborts some transaction(s),
-    % while \acsp{CRDT} merge operations to
-    % \emph{converge to the same state across replicas}.
+\begin{frame}{System Overview}
+    \begin{figure}
+        \centering
+        \input{figures/system_architecture.tex}
+    \end{figure}
 \end{frame}
 
 \begin{frame}[fragile]{Why not SQL?}
@@ -269,15 +259,23 @@ closure(from, to, cweight + weight, hopcnt + 1)
 \setbeamercovered{transparent=50}
 \begin{frame}
     \begin{itemize}
-        \visible<1->{\onslide<1-2>{
+        \visible<1->{\onslide<1-2,7>{
         \item[ ] \textbf{Idea: Define \acsp{CRDT} in Datalog}
         }}
-        \visible<1->{\onslide<1>{
+        \visible<2->{\onslide<2>{
         \item[\(\Rightarrow\)] declarative, concise language to work with
+        }}
+        \visible<3->{\onslide<3-4>{
         \item[+] Deterministic execution on top of a
                  \emph{monotonically growing set} of operations
+        }}
+        \visible<4->{\onslide<4>{
         \item[\(\Rightarrow\)] guaranteed convergence (!)
+        }}
+        \visible<5->{\onslide<5-6>{
         \item[+] Query engine based on \acl{IVM}
+        }}
+        \visible<6->{\onslide<6>{
         \item[\(\Rightarrow\)] competitive performance (?)
         }}
     \end{itemize}
@@ -286,7 +284,7 @@ closure(from, to, cweight + weight, hopcnt + 1)
 
 \begin{frame}{Example: Key-value store \acs{CRDT} with \aclp{MVR}}
     \begin{columns}
-        \begin{column}{0.4\textwidth}
+        \begin{column}{0.5\textwidth}
             \begin{figure}
                 \centering
                 \begin{tabular}{@{}llll@{}}
@@ -296,18 +294,10 @@ closure(from, to, cweight + weight, hopcnt + 1)
                     \(r_1\) & 1      & \(k_1\) & \(v_1\) \\
                     \(r_1\) & 2      & \(k_1\) & \(v_2\) \\
                     \(r_2\) & 2      & \(k_1\) & \(v_3\) \\
-                    \midrule
-                    \ldots  & \ldots & \ldots  & \ldots  \\
-                    \midrule
-                    \(r_1\) & 3      & \(k_2\) & \(u_1\) \\
-                    \(r_2\) & 4      & \(k_2\) & \(u_2\) \\
-                    \(r_2\) & 5      & \(k_2\) & \(u_3\) \\
                     \bottomrule
                 \end{tabular}
                 \caption{Set Relation}
             \end{figure}
-        \end{column}
-        \begin{column}{0.6\textwidth}
             \begin{figure}
                 \centering
                 \begin{tabular}{@{}llll@{}}
@@ -316,8 +306,48 @@ closure(from, to, cweight + weight, hopcnt + 1)
                     \midrule
                     \(r_1\)   & 1       & \(r_1\) & 2      \\
                     \(r_1\)   & 1       & \(r_2\) & 2      \\
+                    \bottomrule
+                \end{tabular}
+                \caption{Pred Relation}
+            \end{figure}
+        \end{column}
+        \pause
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \begin{tikzpicture}[node distance=50pt and 70pt,on grid]
+                    % nodes and edges
+                    \node[op] (k10) {\setop{1}{r_1}{k_1}{v_1}};
+                    \node[head,above right=of k10] (k11) {\setop{2}{r_1}{k_1}{v_2}} edge [pred] (k10);
+                    \node[head,below right=of k10] (k12) {\setop{2}{r_2}{k_1}{v_3}} edge [pred] (k10);
+                \end{tikzpicture}
+                \caption{Causal history of register \(k_1\)}\label{fig:causal-history-k1}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Example: Key-value store \acs{CRDT} with \aclp{MVR}}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \begin{tabular}{@{}llll@{}}
+                    \toprule
+                    RepId   & Ctr    & Key     & Value   \\
                     \midrule
-                    \ldots    & \ldots  & \ldots  & \ldots \\
+                    \(r_1\) & 3      & \(k_2\) & \(u_1\) \\
+                    \(r_2\) & 4      & \(k_2\) & \(u_2\) \\
+                    \(r_2\) & 5      & \(k_2\) & \(u_3\) \\
+                    \bottomrule
+                \end{tabular}
+                \caption{Set Relation}
+            \end{figure}
+            \begin{figure}
+                \centering
+                \begin{tabular}{@{}llll@{}}
+                    \toprule
+                    FromRepId & FromCtr & ToRepId & ToCtr  \\
                     \midrule
                     \(r_1\)   & 3       & \(r_2\) & 5      \\
                     \(r_2\)   & 4       & \(r_2\) & 5      \\
@@ -326,33 +356,15 @@ closure(from, to, cweight + weight, hopcnt + 1)
                 \caption{Pred Relation}
             \end{figure}
         \end{column}
-    \end{columns}
-\end{frame}
-
-\begin{frame}{Example: Key-value store \acs{CRDT} with \aclp{MVR}}
-    \small
-    \def\dist{15pt}
-    \begin{columns}
+        \pause
         \begin{column}{0.5\textwidth}
             \begin{figure}
                 \centering
-                \begin{tikzpicture}
-                    % nodes and edges
-                    \node[op] (k10) {\setop{1}{r_1}{k_1}{v_1}};
-                    \node[head,above right=\dist of k10] (k11) {\setop{2}{r_1}{k_1}{v_2}} edge [pred] (k10);
-                    \node[head,below right=\dist of k10] (k12) {\setop{2}{r_2}{k_1}{v_3}} edge [pred] (k10);
-                \end{tikzpicture}
-                \caption{Causal history of register \(k_1\)}\label{fig:causal-history-k1}
-            \end{figure}
-        \end{column}
-        \begin{column}{0.5\textwidth}
-            \begin{figure}
-                \centering
-                \begin{tikzpicture}
+                \begin{tikzpicture}[node distance=50pt and 70pt,on grid]
                     % nodes and edges
                     \node[op] (k20) {\setop{3}{r_1}{k_2}{u_1}};
-                    \node[head,below right=\dist of k20] (k22) {\setop{5}{r_2}{k_2}{u_3}} edge [pred] (k20);
-                    \node[op,below left=\dist of k22] (k21) {\setop{4}{r_2}{k_2}{u_2}};
+                    \node[head,below right=of k20] (k22) {\setop{5}{r_2}{k_2}{u_3}} edge [pred] (k20);
+                    \node[op,below left=of k22] (k21) {\setop{4}{r_2}{k_2}{u_2}};
                     \draw [pred] (k22) edge (k21);
                 \end{tikzpicture}
                 \caption{Causal history of register \(k_2\)}\label{fig:causal-history-k2}
@@ -370,7 +382,7 @@ overwritten(RepId, Ctr) :- pred(RepId, Ctr, _, _).
 mvrStore(Key, Value)    :- set(RepId, Ctr, Key, Value),
                            not overwritten(RepId, Ctr).\end{lstlisting}
         \end{tabular}
-        \caption{Datalog query for the key-value store.}\label{code:mvr-store-datalog}
+        \caption{Datalog query for the key-value store.}\label{code:mvr-store-datalog-dialect}
     \end{figure}
 
     \pause
@@ -414,20 +426,12 @@ mvrStore(Key, Value)    :- set(RepId, Ctr, Key, Value),
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Guaranteed Convergence}
-    We define a state-based \acsp{CRDT} whose state \(S\) is the set
-    of operations to the \ac{CRDT}.
+\begin{frame}{Guaranteed Convergence with Monotonically Growing Sets}
+    State-based \acs{CRDT} whose state \(S\) is the set of operations to the \ac{CRDT}.
 
-    Merge function: \( S_1 \cup S_2 \)
+    Merge function must be \emph{idempotent}, \emph{commutative}, and \emph{associative}:
     \pause
-    \begin{itemize}
-        \item[\checkmark] \textbf{Idempotent}
-                          % \( S_1 \cup S_1 = S_1 \)
-        \item[\checkmark] \textbf{Commutative}
-                          % \( S_1 \cup S_2 = S_2 \cup S_1 \)
-        \item[\checkmark] \textbf{Associative}
-                          % \( (S_1 \cup S_2) \cup S_3 = S_1 \cup (S_2 \cup S_3) \)
-    \end{itemize}
+    \[ S_{\text{merged}} = S_1 \cup S_2 \]
 
     \pause
     Applying any \emph{pure} function \(f: S \to T\) preserves the convergence property.
@@ -457,22 +461,16 @@ mvrStore(Key, Value)    :- set(RepId, Ctr, Key, Value),
 
 \begin{frame}{Access Patterns with \acsp{CRDT}}
     \begin{itemize}
-        \onslide<1->{
         \item \textbf{Hydration} (application startup). \newline
-              \onslide<2->{%
+              \pause
               Ideally, high throughput to minimize the latency of first draw.
-              }
-        }
-        \onslide<3->{
+        \pause
         \item \textbf{Near-real-time} (application runtime). \newline
-              \onslide<4->{%
+              \pause
               Ideally, proportional to the size of the updates but
               not the operation set.
-              }
-        }
-        \onslide<5->{
+        \pause
         \item[\(\Rightarrow\)] \acf{IVM} based on DBSP~\cite{budiu2025dbsp,budiu2024dbsp}.
-        }
     \end{itemize}
 \end{frame}
 
@@ -489,6 +487,7 @@ mvrStore(Key, Value)    :- set(RepId, Ctr, Key, Value),
     \end{figure}
 
     \begin{columns}
+    \pause
     \begin{column}{0.5\textwidth}
         \begin{figure}
             \centering
@@ -503,37 +502,16 @@ mvrStore(Key, Value)    :- set(RepId, Ctr, Key, Value),
                     pipeline/.style={rectangle,thick,draw=gray,inner sep=2pt},
                 }
 
-                \node[node] (projection) {\(\pi_{[\mathit{Key}, \mathit{Value}]}\)};
-                \node[node,below=of projection] (antijoin) {\(\triangleright_{[\mathit{RepId}, \mathit{Ctr}]}\)};
-
-                \node[node,below left=of antijoin] (equijoin) {\(\bowtie_{[\mathit{RepId}, \mathit{Ctr}]}\)};
-                \node[node,below right=of antijoin] (overwritten) {overwritten};
-
-                \node[node,below left=of equijoin] (set) {set};
-                \node[node,below right=of equijoin] (caus) {isCausallyReady};
+                \node[node] (projection) {\(\pi_{[\mathit{RepId}, \mathit{Ctr}]}\)};
+                \node[node,below=of projection] (pred) {pred};
 
                 \begin{scope}[on background layer]
-                    \draw[input] (antijoin) to[] (projection);
-
-                    \draw[input] (overwritten) to[] (antijoin);
-                    \draw[input] (equijoin) to[] (antijoin);
-
-                    \draw[input] (set) to[] (equijoin);
-                    \draw[input] (caus) to[] (equijoin);
-
-                    \node[pipeline,draw=TUMAccentGreen,dashed,fit=(set) (caus) (equijoin)] (pospart) {};
-                    \node[anchor=north east,color=TUMAccentGreen] at (pospart.south east) {positive part};
-
-                    \node[pipeline,draw=TUMAccentOrange,dashdotted,fit=(equijoin) (antijoin) (overwritten)] (negpart) {};
-                    \node[anchor=south east,color=TUMAccentOrange] at (negpart.north east) {negative part};
-
-                    \node[pipeline,draw=TUMAccentBlue,densely dotted,fit=(projection)] (headpart) {};
-                    \node[anchor=south east,color=TUMAccentBlue] at (headpart.north east) {head vars};
+                    \draw[input] (pred) to[] (projection);
                 \end{scope}
             \end{tikzpicture}
-            \caption{Query plan with an antijoin to handle the negative ``overwritten'' atom.}\label{fig:negative-query-plan-2}
         \end{figure}
     \end{column}
+    \pause
     \begin{column}{0.5\textwidth}
         \begin{figure}
             \centering
@@ -551,35 +529,182 @@ mvrStore(Key, Value)    :- set(RepId, Ctr, Key, Value),
                 \node[node] (projection) {\(\pi_{[\mathit{Key}, \mathit{Value}]}\)};
                 \node[node,below=of projection] (antijoin) {\(\triangleright_{[\mathit{RepId}, \mathit{Ctr}]}\)};
 
-                \node[node,below left=of antijoin] (equijoin) {\(\bowtie_{[\mathit{RepId}, \mathit{Ctr}]}\)};
+                \node[node,below left=of antijoin] (set) {set};
                 \node[node,below right=of antijoin] (overwritten) {overwritten};
-
-                \node[node,below left=of equijoin] (set) {set};
-                \node[node,below right=of equijoin] (caus) {isCausallyReady};
 
                 \begin{scope}[on background layer]
                     \draw[input] (antijoin) to[] (projection);
 
                     \draw[input] (overwritten) to[] (antijoin);
-                    \draw[input] (equijoin) to[] (antijoin);
+                    \draw[input] (set) to[] (antijoin);
 
-                    \draw[input] (set) to[] (equijoin);
-                    \draw[input] (caus) to[] (equijoin);
+                    \node[pipeline,draw=TUMAccentGreen,dashed,fit=(set)] (pospart) {};
+                    \node[anchor=north,color=TUMAccentGreen] at (pospart.south) {positive part};
 
-                    \node[pipeline,draw=TUMAccentGreen,dashed,fit=(set) (caus) (equijoin)] (pospart) {};
-                    \node[anchor=north east,color=TUMAccentGreen] at (pospart.south east) {positive part};
-
-                    \node[pipeline,draw=TUMAccentOrange,dashdotted,fit=(equijoin) (antijoin) (overwritten)] (negpart) {};
-                    \node[anchor=south east,color=TUMAccentOrange] at (negpart.north east) {negative part};
+                    \node[pipeline,draw=TUMAccentOrange,dashdotted,fit=(set) (antijoin) (overwritten)] (negpart) {};
+                    \node[anchor=south,color=TUMAccentOrange] at (negpart.north east) {negative part};
 
                     \node[pipeline,draw=TUMAccentBlue,densely dotted,fit=(projection)] (headpart) {};
                     \node[anchor=south east,color=TUMAccentBlue] at (headpart.north east) {head vars};
                 \end{scope}
             \end{tikzpicture}
-            \caption{Query plan with an antijoin to handle the negative ``overwritten'' atom.}\label{fig:negative-query-plan-2}
         \end{figure}
     \end{column}
     \end{columns}
+\end{frame}
+
+\setbeamercovered{transparent=50}
+\begin{frame}
+    \begin{itemize}
+        \visible<0->{\onslide<0>{
+        \item[ ] \textbf{Idea: Define \acsp{CRDT} in Datalog}
+        \item[\(\Rightarrow\)] declarative, concise language to work with
+        \item[+] Deterministic execution on top of a
+                 \emph{monotonically growing set} of operations
+        \item[\(\Rightarrow\)] guaranteed convergence (!)
+        }}
+        \visible<1->{\onslide<1>{
+        \item[+] Query engine based on \acl{IVM}
+        \item[\(\Rightarrow\)] competitive performance (?)
+        }}
+    \end{itemize}
+\end{frame}
+\setbeamercovered{invisible}
+
+\begin{frame}{Competitive Performance: Hydration Setting}
+    \begin{figure}
+        \includegraphics[height=0.9\textheight,width=\textwidth,keepaspectratio]{figures/bench_kv_store_hdr_presentation.tex}
+        \caption{Hydration performance of key-value store from \ref{code:mvr-store-datalog-dialect}.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Competitive Performance: Near-real-time Setting}
+    \begin{figure}
+        \includegraphics[height=0.9\textheight,width=\textwidth,keepaspectratio]{figures/bench_kv_store_nrt_nocb_presentation.tex}
+        \caption{Near-real-time performance of key-value store from \ref{code:mvr-store-datalog-dialect}.}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{What we don't know yet}
+    \begin{itemize}
+        \item \textbf{Expressiveness}: Are there \acsp{CRDT} that cannot be
+              expressed in Datalog?
+        \pause
+        \item \textbf{Performance}: How does the performance compare to existing
+              (both verified and unverified) \acs{CRDT} libraries?
+              To other \acs{DSL}-based approaches?
+    \end{itemize}
+
+    \pause
+    \begin{center}
+        \textit{What is the price to pay for guaranteed convergence?}
+    \end{center}
+\end{frame}
+
+\begin{frame}[standout,noframenumbering,plain]
+    \begin{center}
+        Questions?\\
+        \vspace{1em}
+        \includegraphics[width=0.2\textwidth]{figures/repo_qr_code.png}\\
+        \vspace{1em}
+        \url{https://github.com/lstwn/masterthesis}
+    \end{center}
+\end{frame}
+
+\begin{frame}{Abbreviations}
+\begin{acronym}
+    \itemsep-.25\baselineskip
+    \acro{TUM}[TUM]{Technical University of Munich}
+    \acro{OCC}[OCC]{optimistic concurrency control}
+    \acro{CRDT}[CRDT]{convergent replicated data type}
+    \acro{IR}[IR]{intermediate representation}
+    \acro{AST}[AST]{abstract syntax tree}
+    \acro{EDBP}[EDBP]{extensional database predicate}
+    \acro{IDBP}[IDBP]{intensional database predicate}
+    \acro{MVR}[MVR]{multi-valued register}
+    \acro{LWWR}[LWWR]{last-writer-wins register}
+    \acro{IVM}[IVM]{incremental view maintenance}
+    \acro{GUI}[GUI]{graphical user interface}
+    \acro{API}[API]{application programming interface}
+    \acro{SAT}[SAT]{satisfiability}
+    \acro{DSL}[DSL]{domain-specific language}
+    \acro{RGA}[RGA]{replicated growable arrays}
+\end{acronym}
+\end{frame}
+
+\begin{frame}[allowframebreaks]{References}
+    \printbibliography[heading=none]
+\end{frame}
+
+\appendix
+
+\backupbegin
+
+\begin{frame}{Causal issue}
+    \begin{figure}[h]
+        \centering
+        \begin{tikzpicture}
+            \small
+            \def\dist{15pt}
+            \def\shift{+20pt}
+
+            \tikzset{
+                tx/.style={draw=gray, dashed},
+                tx_label/.style={text=gray, align=left, anchor=north}
+            }
+
+            % nodes and edges
+            \node[op] (k10) {\setop{1}{r_1}{k_1}{v_1}};
+
+            \node[op,above right=\dist of k10,xshift=\shift] (k11) {\setop{2}{r_1}{k_1}{v_2}}
+            edge [pred] (k10);
+            \node[op,below right=\dist of k10,xshift=\shift] (k12) {\setop{2}{r_2}{k_1}{v_3}}
+            edge [pred] (k10);
+
+            \node[op, below right=\dist of k11,xshift=\shift] (k13) {\setop{3}{r_1}{k_1}{v_4}}
+            edge [pred] (k11) edge [pred] (k12);
+            \node[op, right=of k13] (k14) {\setop{4}{r_1}{k_1}{v_5}}
+            edge [pred] (k13);
+
+            \node[tx,fit=(k10) (k11) (k12)] (tx0) {};
+            \node[tx_label] at (tx0.south) {state of origin};
+            \node[tx,draw=red,fit=(k13)] (tx1) {};
+            \node[tx_label,text=red] at (tx1.south) {\(w_1\) (delayed)};
+            \node[tx,fit=(k14)] (tx2) {};
+            \node[tx_label] at (tx2.south) {\(w_2\)};
+
+        \end{tikzpicture}
+        \caption{
+            Example of a causality issue with the naive query from \ref{code:mvr-store-datalog-dialect}.
+        }\label{fig:causal_issue}
+    \end{figure}
+\end{frame}
+
+\begin{frame}[fragile]{Key-value store \acs{CRDT} with \acsp{MVR} and causal broadcast}
+    \begin{figure}[h]
+        \begin{tabular}{c}
+        \begin{lstlisting}[keepspaces]
+overwritten(RepId, Ctr)     :- pred(RepId, Ctr, _, _).
+overwrites(RepId, Ctr)      :- pred(_, _, RepId, Ctr).
+isRoot(RepId, Ctr)          :- set(RepId, Ctr, Key, Value),
+                               not overwrites(RepId, Ctr).
+isCausallyReady(RepId, Ctr) :- isRoot(RepId, Ctr).
+isCausallyReady(RepId, Ctr) :- isCausallyReady(FromRepId, FromCtr),
+                               pred(FromRepId, FromCtr, RepId, Ctr).
+mvrStore(Key, Value)        :- set(RepId, Ctr, Key, Value),
+                               isCausallyReady(RepId, Ctr),
+                               not overwritten(RepId, Ctr).\end{lstlisting}
+        \end{tabular}
+        \caption{Query from \ref{code:mvr-store-datalog-dialect} with causal broadcast.}\label{code:mvr-crdt-datalog-dialect}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Incremental Query Engine}
+    \begin{figure}
+        \centering
+        \input{figures/precedence_graph.tex}
+        \caption{Precedence graph of the query from \ref{code:mvr-crdt-datalog-dialect}.}
+    \end{figure}
 \end{frame}
 
 \begin{frame}[fragile]{Incremental Query Engine}
@@ -591,7 +716,6 @@ mvrStore(Key, Value) :- set(RepId, Ctr, Key, Value),
                         isCausallyReady(RepId, Ctr),
                         not overwritten(RepId, Ctr).\end{lstlisting}
         \end{tabular}
-        % \caption{The ``mvrStore'' rule with the ``isLeaf'' predicate inlined.}\label{code:mvr-store-rule-inlined}
     \end{figure}
 
     \begin{figure}
@@ -635,143 +759,14 @@ mvrStore(Key, Value) :- set(RepId, Ctr, Key, Value),
                 \node[anchor=south east,color=TUMAccentBlue] at (headpart.north east) {head vars};
             \end{scope}
         \end{tikzpicture}
-        \caption{Query plan with an antijoin to handle the negative ``overwritten'' atom.}\label{fig:negative-query-plan}
+        % \caption{Query plan with an antijoin to handle the negative ``overwritten'' atom.}\label{fig:negative-query-plan}
     \end{figure}
 \end{frame}
 
-\setbeamercovered{transparent=50}
-\begin{frame}
-    \begin{itemize}
-        \visible<0->{\onslide<0>{
-        \item[ ] \textbf{Idea: Define \acsp{CRDT} in Datalog}
-        \item[\(\Rightarrow\)] declarative, concise language to work with
-        \item[+] Deterministic execution on top of a
-                 \emph{monotonically growing set} of operations
-        \item[\(\Rightarrow\)] guaranteed convergence (!)
-        }}
-        \visible<1->{\onslide<1>{
-        \item[+] Query engine based on \acl{IVM}
-        \item[\(\Rightarrow\)] competitive performance (?)
-        }}
-    \end{itemize}
-\end{frame}
-\setbeamercovered{invisible}
-
-\begin{frame}{Competitive Performance}
-\end{frame}
-
-\setbeamercovered{transparent=50}
-\begin{frame}{What we don't know yet}
-    \begin{itemize}
-        \visible<1->{\onslide<1>{
-        \item \textbf{Expressiveness}: Are there \acsp{CRDT} that cannot be
-              expressed in Datalog?
-        }}
-        \visible<2->{\onslide<2>{
-        \item \textbf{Performance}: How does the performance compare to existing
-              (both verified and unverified) \acsp{CRDT} libraries?
-              To other \acs{DSL}-based approaches?
-        }}
-    \end{itemize}
-
-    \visible<3->{\onslide<3>{
-    \begin{center}
-        \textit{What is the price to pay for guaranteed convergence?}
-    \end{center}
-    }}
-\end{frame}
-
-\begin{frame}[standout,noframenumbering,plain]
-    \begin{center}
-        Questions?
-    \end{center}
-\end{frame}
-
-\begin{frame}{Abbreviations}
-\begin{acronym}
-    \itemsep-.25\baselineskip
-    \acro{TUM}[TUM]{Technical University of Munich}
-    \acro{OCC}[OCC]{optimistic concurrency control}
-    \acro{CRDT}[CRDT]{convergent replicated data type}
-    \acro{IR}[IR]{intermediate representation}
-    \acro{AST}[AST]{abstract syntax tree}
-    \acro{EDBP}[EDBP]{extensional database predicate}
-    \acro{IDBP}[IDBP]{intensional database predicate}
-    \acro{MVR}[MVR]{multi-valued register}
-    \acro{LWWR}[LWWR]{last-writer-wins register}
-    \acro{IVM}[IVM]{incremental view maintenance}
-    \acro{GUI}[GUI]{graphical user interface}
-    \acro{API}[API]{application programming interface}
-    \acro{SAT}[SAT]{satisfiability}
-    \acro{DSL}[DSL]{domain-specific language}
-    \acro{RGA}[RGA]{replicated growable arrays}
-\end{acronym}
-\end{frame}
-
-\begin{frame}[allowframebreaks]{References}
-    \printbibliography[heading=none]
-\end{frame}
-
-\appendix
-
-\backupbegin
-
-\begin{frame}[fragile]{Key-value store \acs{CRDT} with \acsp{MVR} and causal broadcast}
-    \begin{figure}[h]
-        \begin{tabular}{c}
-        \begin{lstlisting}[keepspaces]
-overwritten(RepId, Ctr)     :- pred(RepId, Ctr, _, _).
-overwrites(RepId, Ctr)      :- pred(_, _, RepId, Ctr).
-isRoot(RepId, Ctr)          :- set(RepId, Ctr, Key, Value),
-                               not overwrites(RepId, Ctr).
-isCausallyReady(RepId, Ctr) :- isRoot(RepId, Ctr).
-isCausallyReady(RepId, Ctr) :- isCausallyReady(FromRepId, FromCtr),
-                               pred(FromRepId, FromCtr, RepId, Ctr).
-mvrStore(Key, Value)        :- set(RepId, Ctr, Key, Value),
-                               isCausallyReady(RepId, Ctr),
-                               not overwritten(RepId, Ctr).\end{lstlisting}
-        \end{tabular}
-        \caption{Query from \ref{code:mvr-store-datalog} with causal broadcast.}\label{code:mvr-crdt-datalog}
-    \end{figure}
-\end{frame}
-
-\begin{frame}{Causal issue}
-    \begin{figure}[h]
-        \centering
-        \begin{tikzpicture}
-            \small
-            \def\dist{15pt}
-            \def\shift{+20pt}
-
-            \tikzset{
-                tx/.style={draw=gray, dashed},
-                tx_label/.style={text=gray, align=left, anchor=north}
-            }
-
-            % nodes and edges
-            \node[op] (k10) {\setop{1}{r_1}{k_1}{v_1}};
-
-            \node[op,above right=\dist of k10,xshift=\shift] (k11) {\setop{2}{r_1}{k_1}{v_2}}
-            edge [pred] (k10);
-            \node[op,below right=\dist of k10,xshift=\shift] (k12) {\setop{2}{r_2}{k_1}{v_3}}
-            edge [pred] (k10);
-
-            \node[op, below right=\dist of k11,xshift=\shift] (k13) {\setop{3}{r_1}{k_1}{v_4}}
-            edge [pred] (k11) edge [pred] (k12);
-            \node[op, right=of k13] (k14) {\setop{4}{r_1}{k_1}{v_5}}
-            edge [pred] (k13);
-
-            \node[tx,fit=(k10) (k11) (k12)] (tx0) {};
-            \node[tx_label] at (tx0.south) {state of origin};
-            \node[tx,draw=red,fit=(k13)] (tx1) {};
-            \node[tx_label,text=red] at (tx1.south) {\(w_1\) (delayed)};
-            \node[tx,fit=(k14)] (tx2) {};
-            \node[tx_label] at (tx2.south) {\(w_2\)};
-
-        \end{tikzpicture}
-        \caption{
-            Example of a causality issue with the naive query from \ref{code:mvr-store-datalog}.
-        }\label{fig:causal_issue}
+\begin{frame}{Competitive Performance: Near-real-time Setting}
+    \begin{figure}
+        \includegraphics[height=0.8\textheight,width=\textwidth,keepaspectratio]{figures/bench_kv_store_nrt_cb.tex}
+        \caption{\ref{code:mvr-store-datalog-dialect} without causal broadcast, \ref{code:mvr-crdt-datalog-dialect} with causal broadcast.}
     \end{figure}
 \end{frame}
 

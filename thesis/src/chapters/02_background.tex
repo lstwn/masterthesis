@@ -1,4 +1,4 @@
-% !TeX root = ../main.tex
+% !TeX root = ../thesis.tex
 % Add the above to each chapter to make compiling the PDF easier in some editors.
 
 \chapter{Background}\label{ch:background}
@@ -282,7 +282,13 @@ which is given by construction, they are also unique: Any freedom
 in choosing the strata and their order does not lead to different results,
 as long as the underlying data is the same~\cite{apt1988towards}.
 
-\input{figures/precedence_graph.tex}
+\begin{figure}[tpb]
+    \centering
+    \input{figures/precedence_graph.tex}
+    \caption{
+        The precedence graph of the \ac{MVR} key-value store \ac{CRDT} of \ref{code:mvr-crdt-datalog}.
+    }\label{fig:precedence-graph-mvr-crdt}
+\end{figure}
 
 \ref{fig:precedence-graph-mvr-crdt} shows the precedence graph
 of \ref{code:mvr-crdt-datalog}.
@@ -387,7 +393,14 @@ This work explores defining the pure function \( f \) as a Datalog query
 over the state comprising the operations of a \ac{CRDT}.
 As Datalog evaluation is deterministic, the convergence property remains satisfied.
 
-\input{figures/system_architecture}
+\begin{figure}
+    \centering
+    \input{figures/system_architecture.tex}
+    \caption{
+        Overview of the system architecture from the perspective of a local
+        replica.
+    }\label{fig:system-arch}
+\end{figure}
 
 \ref{fig:system-arch} provides an overview of a potential system architecture.
 The \emph{database layer} maintains the views \deltaO{},

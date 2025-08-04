@@ -1,4 +1,4 @@
-% !TeX root = ../main.tex
+% !TeX root = ../thesis.tex
 % Add the above to each chapter to make compiling the PDF easier in some editors.
 
 \chapter{Evaluation}\label{ch:evaluation}
@@ -407,7 +407,13 @@ All operations are generated at one replica and write to the same key.
 The recorded operations during that process are fed into the DBSP circuit
 after it has been constructed.
 
-\input{figures/bench_kv_store_hdr.tex}
+\begin{figure}[bt]
+    \centering
+    \input{figures/bench_kv_store_hdr.tex}
+    \caption{
+        Hydration setting benchmark for the key-value stores.
+    }\label{fig:hydration-kv-store}
+\end{figure}
 
 \ref{fig:hydration-kv-store} shows the results of both the key-value store
 without causal broadcast from \ref{code:mvr-store-datalog-dialect} and the
@@ -448,7 +454,32 @@ The benchmark does not account for the time it takes to parse the Datalog query
 nor to set up the DBSP circuit, as the near-real-time setting simulates
 the situation in which the application has already started up and is running.
 
-\input{figures/bench_kv_store_nrt.tex}
+\begin{figure}[hbt]
+    \centering
+    \begin{subfigure}[b]{\textwidth}
+        \centering
+        \input{figures/bench_kv_store_nrt_nocb.tex}
+        \caption{
+            Key-value store without causal broadcast from \ref{code:mvr-store-datalog-dialect}.
+        }\label{fig:bench-kv-store-nrt-nocb}
+    \end{subfigure}
+
+    \vspace{1em}
+
+    \begin{subfigure}[b]{\textwidth}
+        \centering
+        \input{figures/bench_kv_store_nrt_cb.tex}
+        \caption{
+            Key-value store including causal broadcast from \ref{code:mvr-crdt-datalog-dialect}.
+            The measurement of the key-value store \emph{without} causal broadcast
+            for the worst case
+            is shown for reference.
+        }\label{fig:bench-kv-store-nrt-cb}
+       \end{subfigure}
+    \caption{
+        Near-real-time setting benchmark for the key-value stores.
+    }\label{fig:bench-kv-stores-nrt}
+\end{figure}
 
 \ref{fig:bench-kv-stores-nrt} shows benchmark results of the key-value stores.
 A \emph{delta diameter} of size \(d \in \{20, 40, 60, 80, 100\}\) extends the

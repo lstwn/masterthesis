@@ -7,7 +7,7 @@
     },
     grid=major,
     thick,
-    xlabel={Base Diameter},
+    xlabel={Set Operations (count)},
     ylabel={Median Runtime (ms)},
     sharp plot,
 ]
@@ -16,13 +16,13 @@
     y=median_point_estimate,
     col sep=semicolon,
 ] {data/bench_kv_store_hdr_nocb.csv};
-\addlegendentryexpanded{\ref{code:mvr-store-datalog-dialect}}
+\addlegendentryexpanded{Key-Value Store (\ref{code:mvr-store-datalog-dialect})}
 
 \addplot+[mark=+] table [
     x=base,
     y=median_point_estimate,
     col sep=semicolon,
 ] {data/bench_kv_store_hdr_cb.csv};
-\addlegendentryexpanded{\ref{code:mvr-crdt-datalog-dialect}}
+\addlegendentryexpanded{With Causal Broadcast (Appendix \ref{code:mvr-crdt-datalog-dialect})}
 \end{axis}
 \end{tikzpicture}

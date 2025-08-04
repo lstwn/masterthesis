@@ -14,8 +14,7 @@ gives the project a formal home at TUM. Project outline:
 | Folder            | Description                                                                           |
 | ----------------- | ------------------------------------------------------------------------------------- |
 | `implementation/` | Contains the prototype implementation of the incremental Datalog query engine in Rust |
-| `thesis/`         | Contains the LaTeX sources of the thesis                                              |
-| `presentation/`   | Contains the LaTeX sources of the presentation slides                                 |
+| `thesis/`         | Contains the LaTeX sources of the thesis and final presentation slides                |
 | `proposal/`       | Contains the LaTeX sources of the proposal                                            |
 
 The thesis' pdf is available

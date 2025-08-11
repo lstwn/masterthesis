@@ -10,13 +10,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Cache Tectonic
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/Tectonic
-          key: ${{ runner.os }}-tectonic-${{ hashFiles('**/*.tex') }}
-          restore-keys: |
-            ${{ runner.os }}-tectonic-
+      # - name: Cache Tectonic
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: ~/.cache/Tectonic
+      #     key: ${{ runner.os }}-tectonic-${{ hashFiles('**/*.tex') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-tectonic-
       - name: Setup Tectonic
         uses: wtfjoke/setup-tectonic@v3
         with:

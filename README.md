@@ -17,7 +17,7 @@ gives the project a formal home at TUM. Project outline:
 | `thesis/`         | Contains the LaTeX sources of the thesis and final presentation slides                |
 | `proposal/`       | Contains the LaTeX sources of the proposal                                            |
 
-The thesis' pdf is available
-[here](./thesis/thesis_expressing_crdts_with_datalog_leo_stewen.pdf). In case of
-questions and remarks, feel free to open an issue or contact me via the handles
-in my [GitHub profile](https://github.com/lstwn).
+The thesis' PDF is available under the
+[GitHub releases of this repository](https://github.com/lstwn/masterthesis/releases).
+In case of questions and remarks, feel free to open an issue or contact me via
+the handles in my [GitHub profile](https://github.com/lstwn).

@@ -23,11 +23,11 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           biber-version: "2.17"
       - name: Build
-        run: tectonic thesis/main.tex
+        run: tectonic -X compile thesis/src/thesis.tex
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: Thesis
-          path: thesis/main.pdf
+          path: thesis/src/thesis.pdf
           if-no-files-found: error
           overwrite: true

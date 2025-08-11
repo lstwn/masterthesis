@@ -21,8 +21,3 @@ The thesis' pdf is available
 [here](./thesis/thesis_expressing_crdts_with_datalog_leo_stewen.pdf). In case of
 questions and remarks, feel free to open an issue or contact me via the handles
 in my [GitHub profile](https://github.com/lstwn).
-
-## TODOs
-
-- [ ] Fix broken GitHub build pipeline for LaTeX documents.
-- [ ] Create slides for the final presentation.
